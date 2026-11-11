@@ -22,6 +22,7 @@
  *   hash | stats | movie | dump PATH       state hashes / counters / the input movie since boot / .rhs dump
  *   explore g=P c=P,P.. [a=P] acts=A|A|.. [t=MS] [refine=MS] [seed=N] [maxlen=N] [sticky=PCT] [apply=1]
  *           [score=P] [greed=G]            exploration on savestates (below); score = a direction + "best so far"
+ *           [hold=N [hacts=A|A..] [hgoal=0]] a goal arrival counts only when it survives N more ticks (below)
  *   quit                                   end the run (RESULT line, exit)
  *
  * Programs are postfix: numbers (dec / 0x hex / float), `frame`, `rng`, memory reads that pop an
@@ -37,7 +38,11 @@
  * tuple of the c programs); pick a cell (rarely picked and fresh ones first), restore it,
  * run 2..maxlen random macro-actions (sticky), file every state passed through under its
  * cell when the cell is new or was reached in fewer ticks; stop when g holds, then keep
- * expanding cells reached earlier than the best arrival for `refine` ms. a prunes a branch. */
+ * expanding cells reached earlier than the best arrival for `refine` ms. a prunes a branch.
+ * hold=N: an arrival is a goal only when, from it, some hold action (hacts, default idle; each one cycled to N
+ * ticks, tried in order from a savestate of the arrival) runs N ticks with a never true and g still true at the
+ * end (hgoal=0: not required). The first tail that survives is part of the path (frames = arrival + N); an
+ * arrival none survives (`rejected`) ends its branch like a pruned one — its cell and the earlier ones stay. */
 #define WIN32_LEAN_AND_MEAN
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -328,8 +333,29 @@ static void path_segs(mnode_t *head, mnode_t *root_head, uint16_t root_mask, uin
 /* score (a program, -1 = none; higher = closer): cells are picked in proportion to e^(greed * rank-normalised
  * score) on top of the visit-count weight, a cell keeps its best-scored arrival (ties: the shorter), and when the
  * goal is never met the reply carries the path to the best-scored cell (bpath) — progress the client can keep. */
+/* pool full: drop the savestates of the most-expanded cells (never cell 0 = the root, nor KEEP) */
+static long evict_cells(cell_t *cells, int n, const cell_t *keep)
+{
+    uint64_t sum = 0; int live = 0; long ev = 0;
+    for (int i = 1; i < n; i++) if (cells[i].snap) { sum += cells[i].chosen; live++; }
+    uint32_t thr = live ? (uint32_t)(sum / (uint64_t)live) : 0;
+    for (int i = 1; i < n; i++) if (cells[i].snap && cells[i].chosen >= thr && &cells[i] != keep) { rh_snap_free(cells[i].snap); cells[i].snap = 0; ev++; }
+    return ev;
+}
+/* one hold tail from a goal arrival: 1 = it survives (the state is its end), 0 = it does not (the caller restores) */
+typedef struct { int n, goal, avoid, need_goal, nact; seg_t **acts; const int *alen; } hold_t;
+static int hold_try(const hold_t *h, int which, uint64_t *ticks)
+{
+    int s = 0; uint32_t i = 0;
+    for (int k = 0; k < h->n; k++) {
+        while (i >= h->acts[which][s].n) { i = 0; s = (s + 1) % h->alen[which]; }
+        tick_seg(&h->acts[which][s]); i++; (*ticks)++;
+        if (h->avoid >= 0 && vm_eval(&g_prog[h->avoid]) != 0) return 0;
+    }
+    return !h->need_goal || vm_eval(&g_prog[h->goal]) != 0;
+}
 static void do_explore(int goal, int avoid, const int *cp, int nc, seg_t **acts, const int *alen, int nact, double tlimit, double refine,
-                       int maxlen, double sticky, int apply, int score, double greed, sb_t *out)
+                       int maxlen, double sticky, int apply, int score, double greed, const hold_t *hold, sb_t *out)
 {
     if (!rh_snap_anchored() || rh_snap_dirty() > 12000) { if (rh_snap_anchor()) { sb_f(out, "err anchor failed"); return; } g_epoch++; }
     int root = rh_snap_take();
@@ -343,7 +369,8 @@ static void do_explore(int goal, int avoid, const int *cp, int nc, seg_t **acts,
     cells[0] = (cell_t){ k0, root, 0, 0, 0, root_head, { vals[0], vals[1], vals[2], vals[3], vals[4], vals[5] }, sc0 }; map[s0] = 1; n = 1;
     #define WEIGHT(i) ((1.0 / sqrt(1.0 + cells[i].chosen)) * (it - cells[i].born <= 2 ? 3.0 : 1.0) * \
                        (score >= 0 && smax > smin ? exp(greed * (cells[i].score - smin) / (smax - smin)) : 1.0))
-    double t0 = now_ms(), tbest = 0; uint32_t best = 0, it = 0; uint64_t ticks = 0; mnode_t *best_head = NULL; long pruned = 0, evicted = 0;
+    double t0 = now_ms(), tbest = 0; uint32_t best = 0, it = 0; uint64_t ticks = 0; mnode_t *best_head = NULL; long pruned = 0, evicted = 0, rejected = 0, held = 0; int best_tail = -1;
+    uint32_t hn = hold && hold->n > 0 ? (uint32_t)hold->n : 0;
     while (1) {
         double now = now_ms();
         if (!best && now - t0 > tlimit) break;
@@ -368,7 +395,24 @@ static void do_explore(int goal, int avoid, const int *cp, int nc, seg_t **acts,
             for (int s = 0; s < alen[a] && !stop; s++)
                 for (uint32_t i = 0; i < acts[a][s].n && !stop; i++) {
                     tick_seg(&acts[a][s]); f++; ticks++;
-                    if (vm_eval(&g_prog[goal]) != 0) { if (!best || f < best) { best = f; best_head = g_mhead; tbest = now_ms(); } stop = 1; }
+                    if (vm_eval(&g_prog[goal]) != 0) {
+                        stop = 1;
+                        if (best && f >= best) break;
+                        int tail = -1;
+                        if (hn) {                       /* does it survive? savestate the arrival, try each tail */
+                            int hs = rh_snap_take();
+                            if (!hs) { evicted += evict_cells(cells, n, &cells[ei]); hs = rh_snap_take(); }
+                            if (!hs) { rejected++; break; }   /* no room to test it: not a goal */
+                            for (int t = 0; t < hold->nact && tail < 0; t++) {
+                                if (t) rh_snap_restore(hs);
+                                if (hold_try(hold, t, &ticks)) tail = t;
+                            }
+                            rh_snap_free(hs);
+                            if (tail < 0) { rejected++; break; }
+                            held++;
+                        }
+                        best = f; best_head = g_mhead; best_tail = tail; tbest = now_ms();
+                    }
                     else if (avoid >= 0 && vm_eval(&g_prog[avoid]) != 0) { pruned++; stop = 1; }
                     else if (best && f + 1 >= best) stop = 1;
                 }
@@ -379,10 +423,7 @@ static void do_explore(int goal, int avoid, const int *cp, int nc, seg_t **acts,
             if (c && c->snap && !(sc > c->score || (sc == c->score && f < c->frames))) continue;
             int id = rh_snap_take();
             if (!id) {                                  /* pool full: drop the savestates of the most-expanded cells */
-                uint64_t sum = 0; int live = 0;
-                for (int i = 1; i < n; i++) if (cells[i].snap) { sum += cells[i].chosen; live++; }
-                uint32_t thr = live ? (uint32_t)(sum / (uint64_t)live) : 0;
-                for (int i = 1; i < n; i++) if (cells[i].snap && cells[i].chosen >= thr && &cells[i] != c) { rh_snap_free(cells[i].snap); cells[i].snap = 0; evicted++; }
+                evicted += evict_cells(cells, n, c);
                 id = rh_snap_take();
                 if (!id) continue;
             }
@@ -404,16 +445,18 @@ static void do_explore(int goal, int avoid, const int *cp, int nc, seg_t **acts,
     }
     double ms = now_ms() - t0;
     rh_snap_restore(root);
-    sb_f(out, "ok found=%d frames=%u cells=%d iters=%u ticks=%llu ms=%.0f pruned=%ld evicted=%ld dirty=%u epoch=%u", best != 0, best, n, it,
+    sb_f(out, "ok found=%d frames=%u cells=%d iters=%u ticks=%llu ms=%.0f pruned=%ld evicted=%ld dirty=%u epoch=%u", best != 0, best ? best + hn : 0, n, it,
          (unsigned long long)ticks, ms, pruned, evicted, rh_snap_dirty(), g_epoch);
+    if (hn) sb_f(out, " hold=%u held=%ld rejected=%ld", hn, held, rejected);
+    if (best && hn) sb_f(out, " arrive=%u tail=%d", best, best_tail);
     if (best) {
-        sb_t path = { 0 }; path_segs(best_head, root_head, root_mask, root_frame, best, &path);
+        sb_t path = { 0 }; path_segs(best_head, root_head, root_mask, root_frame, best + hn, &path);
         sb_f(out, " path="); sb_put(out, path.p ? path.p : "", path.n);
         if (apply) {
             seg_t *sg; int ns = parse_segs(path.p ? path.p : "", &sg, ',');
             for (int s = 0; s < ns; s++) for (uint32_t i = 0; i < sg[s].n; i++) tick(sg[s].mask);
             if (ns >= 0) free(sg);
-            sb_f(out, " applied=1 holds=%d frame=%u", vm_eval(&g_prog[goal]) != 0, g_frame);
+            sb_f(out, " applied=1 holds=%d avoid=%d frame=%u", vm_eval(&g_prog[goal]) != 0, avoid >= 0 && vm_eval(&g_prog[avoid]) != 0, g_frame);
         }
         free(path.p);
     } else {                                            /* how far it got: the newest cells */
@@ -435,8 +478,7 @@ static void do_explore(int goal, int avoid, const int *cp, int nc, seg_t **acts,
         }
     }
     for (int i = 0; i < n; i++) if (cells[i].snap && cells[i].snap != root) rh_snap_free(cells[i].snap);
-    if (!apply || !best) rh_snap_free(root);
-    else rh_snap_free(root);
+    rh_snap_free(root);
     free(cells); free(map);
     #undef FIND
     #undef WEIGHT
@@ -625,8 +667,32 @@ static void command(char *line, sb_t *o)
         int g = sg ? pid_of(sg) : -1, a = sa ? pid_of(sa) : -1, cp[16], nc = sc ? pid_list(sc, cp, 16) : -1;
         if (g < 0 || nc <= 0 || (sa && a < 0) || !sacts) { sb_f(o, "err explore g=P c=P,.. acts=A|A.. (undefined program?)"); return; }
         seg_t *acts[64]; int alen[64], nact = 0; char b[4096]; snprintf(b, sizeof b, "%s", sacts);
-        for (char *t = strtok(b, "|"); t && nact < 64; t = strtok(NULL, "|")) { alen[nact] = parse_segs(t, &acts[nact], '+'); if (alen[nact] <= 0) { sb_f(o, "err bad action '%s'", t); return; } nact++; }
+        for (char *t = strtok(b, "|"); t && nact < 64; t = strtok(NULL, "|")) {
+            alen[nact] = parse_segs(t, &acts[nact], '+');
+            if (alen[nact] <= 0) { sb_f(o, "err bad action '%s'", t); for (int i = 0; i < nact; i++) free(acts[i]); return; }
+            nact++;
+        }
         if (!nact) { sb_f(o, "err no actions"); return; }
+        const char *shn = opt(tok, nt, "hold"), *sha = opt(tok, nt, "hacts"), *shg = opt(tok, nt, "hgoal");
+        seg_t *hacts[64]; int hlen[64], nh = 0;
+        hold_t hold = { shn ? atoi(shn) : 0, g, a, shg ? atoi(shg) != 0 : 1, 0, hacts, hlen };
+        if (hold.n > 0) {
+            char hb[4096]; snprintf(hb, sizeof hb, "%s", sha ? sha : "0:1");   /* default: idle */
+            for (char *t = strtok(hb, "|"); t && nh < 64; t = strtok(NULL, "|")) {
+                hlen[nh] = parse_segs(t, &hacts[nh], '+');
+                int ok = hlen[nh] > 0; for (int s = 0; ok && s < hlen[nh]; s++) if (!hacts[nh][s].n) ok = 0;   /* cycled: no 0-tick segments */
+                if (!ok) {
+                    sb_f(o, "err bad hold action '%s'", t);
+                    if (hlen[nh] > 0) free(hacts[nh]);
+                    for (int i = 0; i < nh; i++) free(hacts[i]);
+                    for (int i = 0; i < nact; i++) free(acts[i]);
+                    return;
+                }
+                nh++;
+            }
+            hold.nact = nh;
+            if (!nh) { sb_f(o, "err no hold actions"); for (int i = 0; i < nact; i++) free(acts[i]); return; }
+        }
         const char *st = opt(tok, nt, "t"), *sr = opt(tok, nt, "refine"), *ssd = opt(tok, nt, "seed"), *sm = opt(tok, nt, "maxlen"), *sk = opt(tok, nt, "sticky"), *sap = opt(tok, nt, "apply");
         if (ssd) { g_xs = 0x9E3779B97F4A7C15ull ^ ((uint64_t)strtoull(ssd, 0, 10) * 0xD1B54A32D192ED03ull); if (!g_xs) g_xs = 1; }
         int maxlen = sm ? atoi(sm) : 8; if (maxlen < 2) maxlen = 2;
@@ -634,8 +700,9 @@ static void command(char *line, sb_t *o)
         int scp = ssc ? pid_of(ssc) : -1;
         if (ssc && scp < 0) { sb_f(o, "err explore score=P (undefined program)"); for (int i = 0; i < nact; i++) free(acts[i]); return; }
         do_explore(g, a, cp, nc, acts, alen, nact, st ? atof(st) : 60000, sr ? atof(sr) : 8000, maxlen, sk ? atof(sk) / 100.0 : 0.6, sap && atoi(sap),
-                   scp, sgr ? atof(sgr) : 3.0, o);
+                   scp, sgr ? atof(sgr) : 3.0, &hold, o);
         for (int i = 0; i < nact; i++) free(acts[i]);
+        for (int i = 0; i < nh; i++) free(hacts[i]);
     }
     else if (!strcmp(c, "quit")) { sb_f(o, "ok bye"); send_all(o->p, o->n); send_all("\n", 1); rh_finish("live-quit"); }
     else sb_f(o, "err unknown command '%s'", c);

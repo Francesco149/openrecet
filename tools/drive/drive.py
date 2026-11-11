@@ -13,7 +13,7 @@ its MOVIE (every input since boot); a dead session is rebuilt by replaying it.
     rd scan R --from F [--to T] --watch EXPR,.. [--every N] [--changes] [--where EXPR] [--at-run RUN] [--fresh]
                                                 rows of state at earlier frames: the movie replayed in a side session
     rd ck R save NAME | load NAME | list        rd undo R        rd rewind R --to F
-    rd search R --goal EXPR [--avoid EXPR] [--cell TUPLE] [--actions SPEC ..] [--apply] [-j N]
+    rd search R --goal EXPR [--avoid EXPR] [--cell TUPLE] [--actions SPEC ..] [--hold N [--hold-actions SPEC ..]] [--apply] [-j N]
     rd look R [--at F,F..]      rd strip R --from F --to F [--every N]    pictures (real-device replay)
     rd verify R [--real]        rd check R TASK.md      rd lint TASK.md --on RUN..
     rd file R NAME              tests/scenarios/NAME (then: rhost.py golden / triage / portrng NAME)
@@ -1127,6 +1127,19 @@ class Run:
                 os.remove(os.path.join(self.dir, old["tail"]))
         self.save_meta()
 
+    def drop_undo(self):
+        """take back the entry a command pushed when it ended up changing nothing (a search that applied no path): `rd undo`
+        must step back over the last change, not over a no-op"""
+        stack = self.meta.get("undo", [])
+        if not stack:
+            return
+        u = stack.pop()
+        if self.live and self.sid_ok(u) and u["sid"] not in ({v[0] for v in self.sess["snaps"].values()} | {self.sess.get("mark")}):
+            self.live.cmd(f"free {u['sid']}", check=False)
+        if u.get("tail") and os.path.exists(os.path.join(self.dir, u["tail"])):
+            os.remove(os.path.join(self.dir, u["tail"]))
+        self.save_meta()
+
     # ---- reading state
     def ev(self, *exprs):
         return eval_exprs(self.attach(), self.vars, exprs)
@@ -1762,6 +1775,7 @@ def cmd_rewind(a):
 
 # ------------------------------------------------------------------ search
 DEFAULT_ACTIONS = ["R*8", "L*8", "U*8", "D*8", "UR*8", "UL*8", "DR*8", "DL*8", "R*2", "L*2", "U*2", "D*2", "A .*7", "B .*7", ".*8"]
+HOLD_ACTIONS = ["."]                                    # --hold's default tail: stand still (each hold action is cycled to N ticks)
 
 
 def action_arg(specs, prog=None):
@@ -1776,38 +1790,86 @@ def action_arg(specs, prog=None):
     return "|".join(acts)
 
 
-def explore_cmd(lv, V, a, seed, apply):
-    g = lv.prog(V.compile(a.goal))
-    cells = [lv.prog(t) for t in V.compile_tuple(a.cell)]
+def search_progs(V, a):
+    """every program a search sends, compiled and checked against the server's limits HERE, before any session moves:
+    a bad / over-long expression is its own message (with -j N it used to die inside a worker thread: a traceback)"""
+    P = {"goal": V.program(a.goal, f"--goal {a.goal!r}"),
+         "cell": [prog_check(t, f"--cell {a.cell!r}") for t in V.compile_tuple(a.cell)],
+         "avoid": a.avoid and V.program(a.avoid, f"--avoid {a.avoid!r}"),
+         "score": a.score and V.program(a.score, f"--score {a.score!r}")}
+    check = lambda e: (V.program(e, f"action mask {{{e}}}"), 0)[1]     # noqa: E731 — {EXPR} masks inside action specs
+    action_arg(a.actions or DEFAULT_ACTIONS, check)
+    if getattr(a, "hold", 0):
+        if a.hold < 0:
+            raise SystemExit("--hold N: N ≥ 0 ticks")
+        action_arg(a.hold_actions or HOLD_ACTIONS, check)
+    return P
+
+
+def explore_cmd(lv, V, a, seed, apply, P=None):
+    P = P or search_progs(V, a)
+    g = lv.prog(P["goal"])
+    cells = [lv.prog(t) for t in P["cell"]]
     cmd = f"explore g={g} c={','.join(map(str, cells))} acts={action_arg(a.actions or DEFAULT_ACTIONS, lambda e: lv.prog(V.compile(e)))}"
-    if a.avoid:
-        cmd += f" a={lv.prog(V.compile(a.avoid))}"
-    if a.score:
-        cmd += f" score={lv.prog(V.compile(a.score))} greed={a.greed}"
+    if P["avoid"]:
+        cmd += f" a={lv.prog(P['avoid'])}"
+    if P["score"]:
+        cmd += f" score={lv.prog(P['score'])} greed={a.greed}"
+    if getattr(a, "hold", 0):
+        cmd += f" hold={a.hold} hacts={action_arg(a.hold_actions or HOLD_ACTIONS, lambda e: lv.prog(V.compile(e)))}"
+        if a.hold_no_goal:
+            cmd += " hgoal=0"
     cmd += f" t={int(a.time_limit * 1000)} refine={int(a.refine * 1000)} seed={seed} maxlen={a.max_len} sticky={a.sticky} apply={1 if apply else 0}"
     return cmd
+
+
+def hold_report(results, a):
+    """--hold: how many goal arrivals the hold turned away, over every session"""
+    if not getattr(a, "hold", 0):
+        return
+    rej = sum(int(k.get("rejected", 0)) for k, _ in results)
+    held = sum(int(k.get("held", 0)) for k, _ in results)
+    print(f"  hold {a.hold}: {rej} goal arrival(s) rejected (an --avoid hit or the goal lost within {a.hold} ticks on every hold action), "
+          f"{held} survived")
 
 
 def cmd_search(a):
     if a.apply_best:
         a.apply = True                                 # --apply-best keeps a found path too, not only the best cell's
     r = Run(a.run)
-    lv = r.attach()
     if not a.cell:
         a.cell = r.vars.defs.get("_cell", {}).get("expr") or "(scene, int(px), int(pz))"
+    P = search_progs(r.vars, a)                        # before anything moves: a bad expression is just its message
+    lv = r.attach()
     if r.ev(a.goal)[0]:
         print("the goal already holds here — nothing to search")
         r.close()
         return
     r.push_undo()
+    st = {"applied": False}
+    try:
+        return search_body(r, lv, a, P, st)
+    finally:
+        if not st["applied"]:                          # nothing played: the undo entry would be a no-op step
+            try:
+                r.drop_undo()
+            except (OSError, SessionEnded):
+                pass
+        r.save_sess()
+        r.close()
+
+
+def search_body(r, lv, a, P, st):
     t0 = time.time()
     results = []
     if a.jobs <= 1:
-        res = lv.cmd(explore_cmd(lv, r.vars, a, a.seed, a.apply), check=False)
+        res = lv.cmd(explore_cmd(lv, r.vars, a, a.seed, a.apply, P), check=False)
         if not res.startswith("ok"):
             raise SystemExit("search: " + res)
         r.epoch_check(res)
         results.append((Live.kv(res), "main"))
+        if Live.kv(res).get("applied") == "1":
+            st["applied"] = True
     else:
         # extra live sessions at the same frame (each replays the movie), one exploration per session with its own seed
         workers, errs = [], []
@@ -1835,7 +1897,10 @@ def cmd_search(a):
         [t.start() for t in ts]
 
         def one(lvx, seed, apply, tag):
-            res = lvx.cmd(explore_cmd(lvx, r.vars, a, seed, apply), check=False)
+            try:
+                res = lvx.cmd(explore_cmd(lvx, r.vars, a, seed, apply, P), check=False)
+            except BaseException as e:          # noqa: B902 — a thread's SystemExit / socket error: keep the message
+                res = f"err {type(e).__name__}: {e}"
             results.append((Live.kv(res) if res.startswith("ok") else {"found": "0", "err": res}, tag))
         try:
             [t.join() for t in ts]
@@ -1863,6 +1928,12 @@ def cmd_search(a):
             [t.join() for t in ks]
         r.sess.update(snaps={}, mark=None)            # the main session's explore re-anchored
         r.sess["epoch"] = int(Live.kv(lv.cmd("ping"))["epoch"])
+    errs = [(k["err"], tag) for k, tag in results if "err" in k]
+    if errs and len(errs) == len(results):
+        raise SystemExit(f"search: {errs[0][0]}  [{errs[0][1]}]")
+    for e, tag in errs:
+        print(f"[session {tag} failed: {e[:300]}]")
+    results = [(k, tag) for k, tag in results if "err" not in k]
     found = [(int(k["frames"]), k, tag) for k, tag in results if k.get("found") == "1"]
     ticks = sum(int(k.get("ticks", 0)) for k, _ in results)
     if len(results) > 1:
@@ -1883,6 +1954,7 @@ def cmd_search(a):
         print(f"  newest cells (frames@{a.cell}): " + "  ".join(k.get("newest", "").split(";")))
         print("  one cell only = your actions change nothing the cell sees; split the goal at where it got to, add the missing action, "
               "or put the mechanic's state in --cell")
+        hold_report(results, a)
         if a.score:                                    # progress to keep: the best-scored cell any session reached
             cands = [(float(k["bscore"]), -int(k["bframes"]), i) for i, (k, _) in enumerate(results) if k.get("bpath")]
             if not cands:
@@ -1896,32 +1968,36 @@ def cmd_search(a):
                     open(a.save, "w").write(spec + "\n")
                 if a.apply_best:
                     lv.cmd("run " + k["bpath"])
+                    st["applied"] = True
                     r.sync_movie()
                     print(f"  applied the path to that cell (--apply-best): score now {fmt(r.ev(a.score)[0])}  " + r.status_line())
                     print(f"  search again from here; `rd undo {a.run}` drops it")
-                    r.save_sess(); r.close()
                     return 1
                 print(f"  path to it: {spec if len(spec) < 600 else spec[:600] + ' …'}\n  (--apply-best plays it, so the next search starts there)")
-        r.sync_movie(); r.save_sess(); r.close()
+        r.sync_movie()
         return 1
     frames, k, tag = min(found, key=lambda x: x[0])
     spec = segs_to_spec(k["path"])
     print(f"found: true   {frames} frames  ({cells} cells, {ticks} ticks in {wall:.1f}s = {ticks / max(wall, 0.01):.0f} ticks/s"
           + (f", best of {len(found)}/{len(results)} sessions [{tag}]" if len(results) > 1 else "") + ")")
+    if k.get("arrive"):
+        hs = (a.hold_actions or HOLD_ACTIONS)[int(k.get("tail", 0))]
+        print(f"  goal reached at +{k['arrive']}, then held {a.hold} ticks on hold action {hs!r} (the path includes them)")
+    hold_report(results, a)
     print(f"  path: {spec if len(spec) < 900 else spec[:900] + ' …'}")
     if a.save:
         open(a.save, "w").write(spec + "\n")
     if a.apply:
         if a.jobs > 1 or k.get("applied") != "1":
             lv.cmd("run " + k["path"])
-        holds = r.ev(a.goal)[0]
+        st["applied"] = True
+        holds, *av = r.ev(a.goal, *([a.avoid] if a.avoid else []))
         r.sync_movie()
-        print(f"  applied: goal {'holds' if holds else 'DOES NOT HOLD'}  " + r.status_line())
+        print(f"  applied: goal {'holds' if holds else 'DOES NOT HOLD'}" + (f", avoid {'TRUE' if av[0] else 'clear'}" if av else "")
+              + "  " + r.status_line())
     else:
         r.sync_movie()
         print("  not applied (--apply plays it; --save FILE keeps it: rd play R \"$(cat FILE)\")")
-    r.save_sess()
-    r.close()
     return 0
 
 
@@ -2325,6 +2401,11 @@ def main():
     p.add_argument("--score", help="EXPR, higher = closer: cells are expanded in proportion to it (direction), and the best one is reported")
     p.add_argument("--greed", type=float, default=3.0, help="--score: the best cell is picked e^GREED times as often as the worst (default 3)")
     p.add_argument("--apply-best", action="store_true", help="--apply, and with --score: goal not reached in time → keep the path to the best-scored cell")
+    p.add_argument("--hold", type=int, default=0, help="a goal arrival counts only if some hold action then survives N ticks: --avoid never true, "
+                   "the goal still true at the end; the path includes that tail (any fight search: an attack already committed lands after)")
+    p.add_argument("--hold-actions", nargs="+", help="the tails tried in order, each cycled to N ticks (default: \".\" = stand still); "
+                   "e.g. . R L U D UR UL DR DL")
+    p.add_argument("--hold-no-goal", action="store_true", help="--hold: only --avoid must stay false, the goal need not hold at the end")
     p.set_defaults(fn=cmd_search)
     p = sp.add_parser("look"); p.add_argument("run"); p.add_argument("--at"); p.add_argument("--target", choices=("win", "wine")); p.add_argument("--scale", type=float, default=1.0); p.set_defaults(fn=cmd_look)
     p = sp.add_parser("strip"); p.add_argument("run"); p.add_argument("--from", dest="frm", type=int, required=True); p.add_argument("--to", type=int)

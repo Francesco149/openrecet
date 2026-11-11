@@ -17,13 +17,14 @@ something.
    run. `--force` replaces yours.
 3. **Per sub-goal: act, then read state.** `rd play` / `rd tap` with `--until EXPR` stops on the frame
    the predicate turns true. For walking / positioning / timing, **search instead of steering**:
-   `rd search <run> --goal EXPR --avoid EXPR --apply`.
+   `rd search <run> --goal EXPR --avoid EXPR --apply` (in a fight: add `--hold 30`, below).
 4. **When something does not happen, find out why before repeating it:** `rd status`, `rd text` (the
    strings on screen), `rd eval`, `rd strip` (a contact sheet), `rd ram mark` → act → `rd ram diff`.
    Never run the same failing thing twice.
 5. **Checkpoint before anything you might redo:** `rd ck <run> save NAME`; `load NAME` returns in
    0.2 ms. **A load is a step back in time: the movie is cut there and later checkpoints are dropped.**
-   `rd undo` reverts the last state-changing command — a `ck load` or `rewind` included, 8 deep, and
+   `rd undo` reverts the last state-changing command — a `ck load` or `rewind` included (a search that applied
+   nothing is not one: undo after it steps back over the command before), 8 deep, and
    it survives a session rebuild (then it replays instead of restoring). To only read an earlier
    state: `rd eval <run> EXPR --at NAME` or `--at-frame F`; per-tick rows over a stretch of your movie:
    `rd scan <run> --from F --to T --watch ..` (the run does not move — below).
@@ -50,6 +51,7 @@ rd ram R mark ; (act) ; rd ram R diff [--lo VA --hi VA] [--save NAME] [--minus N
 rd ck R save NAME | load NAME | list        rd undo R        rd rewind R --to F
 rd search R --goal EXPR [--avoid EXPR] [--cell "(a, b)"] [--actions SPEC ..] [--time-limit S] [--apply] [-j N]
             [--score EXPR [--apply-best] [--greed G]]          # --apply-best = --apply + keep the best cell's path
+            [--hold N [--hold-actions SPEC ..] [--hold-no-goal]]  # an arrival counts only if it survives N more ticks
 rd look R [--at F,F]        rd strip R --from F --to F [--every N]      # PNGs → Read them
 rd check R TASK.md        rd verify R [--real]        rd lint TASK.md --on RUN
 rd endsave R        rd file R NAME        rd port R        rd stop R        rd ls
@@ -107,6 +109,23 @@ macro-actions until the **goal** holds, then spends `--refine` seconds shortenin
   in time, the path to the best-scored cell is kept** — search again from there instead of losing
   the minute. `--apply-best` also applies a found path (it implies `--apply`). Without a score a failed search keeps
   nothing.
+- **Fights: always `--hold N`** (30 is a good default; longer than the slowest enemy wind-up you know of). Without it
+  the search stops on the first tick the goal holds, and in a fight that tick often already has an enemy attack
+  committed (a charge, a fan ring, a thrown record in flight): the hit lands a few ticks after the "success" and every
+  later search starts doomed ("one cell" after its full time limit). With `--hold N` an arrival is a goal only if,
+  from it, one of the hold actions survives N more ticks with `--avoid` never true and the goal still true at the end
+  (`--hold-no-goal`: only the avoid); the first that survives is part of the applied path (`frames` = arrival + N).
+  Hold actions are tried in order, each repeated to N ticks; default `.` (stand still). Give the escapes:
+  `--hold-actions . R L U D UR UL DR DL` or aimed ones (`"{dpad(px - a1x, pz - a1z)}*1"` = back off from a1). The
+  search prints how many arrivals the hold rejected; many rejections and no survivor = the attack cannot be
+  dodged from where the goal is reached: change the approach (actions, cell), not the hold.
+  Measured (6 chained searches of −30 enemy HP, `--avoid "hp < H"`): 45F black knight + 3 knights — without hold the
+  4th applied path was hit 30 ticks later and searches 5–6 found nothing (one cell, 60 s each); `--hold 30`: 6/6 found,
+  33–38 arrivals rejected, HP intact. The hold covers N ticks only, and a single-mask tail does not outrun a TRACKING
+  attack: on the 40F Ohm pair (60-tick wind-up, then a 60-tick charge that steers at you) every variant (hold 30 / 60 /
+  120, idle / 8 directions / aimed strafes) still ran into a state where no arrival survived (300–670 rejected per
+  60 s search). There: a longer, multi-segment hold action (`"{strafe a0}*20 {strafe the other way}*20"`), or plan
+  the dodge itself as a goal (`ost == 2` → a search for "the charge ended, hp intact") before the next hit.
 - `-j N` runs N independent explorations (N sessions) and applies the shortest path. Use it for
   hard goals; a single session does ~800 ticks/s in a 3D scene, ~5,000 in menus / dialogue.
 - Wall-time bounded ⇒ not reproducible: apply or save what you got.

@@ -265,12 +265,14 @@ More, per sub-goal:
 ./rd search fus --goal "portal > 0" --score "-exitd" --apply-best --time-limit 60 -j 6
                                                     # direction + progress kept when the goal is not reached in time
 ./rd eval fus "atan2(a1z - pz, a1x - px) * 180 / pi" "hypot(px - ex, pz - ez)"
-./rd ck fus load home ; ./rd undo fus               # a step back, and back again (8 deep; survives a session rebuild)
+./rd ck fus load home ; ./rd undo fus               # a step back, and back again (8 deep; survives a session rebuild;
+                                                    # a search that applied nothing leaves no undo entry)
 ```
 ```sh
 ./rd play fus "{dpad(ex - px, ez - pz)}*200" --until "portal > 0"       # an input that reads state: walk at the exit
 ./rd search fus --goal "a1hp <= 0" --score "-a1hp" --avoid "hp < 40" \
-    --actions "{dpad(a1x - px, a1z - pz)}*8" "{dpad(a1x - px, a1z - pz) | A} .*9" "{dpad(px - a1x, pz - a1z)}*8" ".*8"
+    --actions "{dpad(a1x - px, a1z - pz)}*8" "{dpad(a1x - px, a1z - pz) | A} .*9" "{dpad(px - a1x, pz - a1z)}*8" ".*8" \
+    --hold 30 --hold-actions . "{dpad(a1z - pz, px - a1x)}" "{dpad(pz - a1z, a1x - px)}" R L U D   # the hit must not be a trade
 ```
 `{EXPR}*N` (rh_live `pID:N` segments, 2026-11-11): the mask is a program's value per tick; `pad` / `dpad` turn a
 world vector into the d-pad mask. Measured on dungeon 2's 25F: an aimed walk closes 12 → 7 units in 30 ticks, the
@@ -352,7 +354,24 @@ scratch name (`_rd-<run>`).
   best cell's path. Measured (shop, 13 units to the door, the goal needs the right side + facing; 3 seeds, 40 s):
   unscored found 2/3 (5.4 s, 11.6 s), scored 3/3 (3.1 s, 10.3 s, 27.6 s) — the score is not a faster search on a
   short goal, it is a search that always returns ground gained (4 s: unscored nothing, scored at the door).
-  Fights: one hit per call, HP in the cell, as in the Kirby recipe.
+  Fights: one hit per call, HP in the cell, as in the Kirby recipe, and `--hold N` (below).
+- **Goal-frame traps → `search --hold N [--hold-actions SPEC ..] [--hold-no-goal]`** (2026-11-11). The search stops on
+  the first tick the goal holds; in a fight that tick often has an enemy attack already committed, the hit lands after the
+  "success" and the next searches start doomed (probes obsidian-6f-10f .. -41f-50f: 5 of 6 hits in the last one). With
+  `--hold N`, `explore` (rh_live.c, server side) savestates each goal arrival that would improve the best, plays each hold
+  action (default `.`; each cycled to N ticks) from it, restoring between tries: the first that keeps `--avoid` false for
+  N ticks and the goal true at the end (`hgoal=0`: not required) makes the arrival a goal, its tail part of the path
+  (`frames` = arrival + N; the reply adds `hold= held= rejected= arrive= tail=`). An arrival no tail survives ends its
+  branch like an avoid-pruned one; the cells before it keep exploring. `--apply` / `--apply-best` / `-j N` unchanged.
+  Measured on the 45F black knight + 3 knights (obsidian-41f-50f-finale@16000) and the 40F Ohm pair
+  (obsidian-31f-40f-ohms@40600), 6 chained searches of −30 enemy HP each (`--avoid "hp < H"`, 60 s, `-j 1`, the HP sum
+  in the cell, 8 walks + swing + aimed approach): 45F without hold — 4 found, the 4th path hit 30 ticks after apply
+  (202 → 151), 5–6 nothing (one cell); `--hold 30` (idle, or idle + 8 directions) — 6/6 found, 38 / 33 rejected,
+  HP 202 over every applied path. Ohms without hold — 5 found, the 5th hit (163 → 125), the 6th nothing; with hold
+  (30 / 60 / 120 ticks; idle, 8 directions, aimed strafes) 1–4 found, then 300–670 arrivals rejected per search and
+  none survived: the charge steers at the player for 60 ticks after a 60-tick wind-up, a one-mask tail does not escape
+  it. HP stayed intact over every applied path in all hold runs; what the hold cannot see is a hit after the tail.
+  `rd play --until` has no hold: its inputs are the spec itself, there is nothing to choose among.
 - Windows sessions share the box with gates (one admission budget): during a gates batch, `-j N` may get fewer workers
   ("not admitted") and an `auto` session falls back to wine after 60 s. Idle sessions hold a slot for 30 min: `rd stop`.
 - Retail's render code runs every tick (it writes state the sim reads): ~70% of a 3D-scene tick. Live

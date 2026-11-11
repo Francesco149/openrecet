@@ -163,7 +163,7 @@ def stage(build=True):
             return sha
         gs, ss = game_sig(), scripts_sig()
         have = ssh(f"cat {W}/root/game/.orc-staged 2>/dev/null; echo; cat {W}/bin/.orc-staged 2>/dev/null; echo; "
-                   f"test -f {W}/root/bin/{sha}/rhost.exe && echo BIN", capture=True).split("\n")
+                   f"test -f {W}/root/bin/{sha}/rhost.exe && echo BIN || true", capture=True)     # no BIN yet = exit 1: not an error.split("\n")
         if "BIN" not in have:
             ssh(f"mkdir -p {W}/root/bin/{sha}")
             rsync(os.path.join(rhost.BUILD, "rhost.exe"), os.path.join(rhost.BUILD, "v3proxy_d3d8.dll"), f"{HOST}:{W}/root/bin/{sha}/")

@@ -197,4 +197,48 @@ eq([f for f, _ in D.scan_filter(rows, 10, 2, changes=True)], [10, 12, 14], "scan
 eq([f for f, _ in D.scan_filter(rows, 10, 2, where=True)], [10, 12, 13, 14], "scan: --where (the last column)")
 eq(D.scan_filter(rows, 10, 2, where=True)[0], (10, [1, 0]), "scan: the where column is not shown")
 
+# rd search: every program compiled up front (a bad one is its message, before any session moves — with -j N it died in a
+# worker thread as a traceback); --hold → explore's hold= / hacts= / hgoal=
+import argparse  # noqa: E402
+sa = argparse.Namespace(goal="scene == 6", avoid="px < 3", score=None, cell="(scene, int(px))", actions=["R*2", "{dpad(1, 0)}*3"],
+                        hold=30, hold_actions=None, hold_no_goal=False, greed=3.0, time_limit=60, refine=6, max_len=8, sticky=60)
+P = D.search_progs(V, sa)
+eq((P["goal"], len(P["cell"]), P["score"]), ([SC, "s32", "6", "=="], 2, None), "search_progs")
+c = D.explore_cmd(Fake({}), V, sa, 1, False, P)
+eq((" hold=30 hacts=0:1 " in c, "hgoal" in c), (True, False), "--hold: default tail = stand still, goal required")
+sa.hold_actions, sa.hold_no_goal = [".", "R", "{dpad(px, 0)}"], True
+c = D.explore_cmd(Fake({}), V, sa, 1, False, P)
+eq((c.split(" hacts=")[1].split()[0].split("|")[:2], " hgoal=0" in c), (["0:1", f"{D.BTN['R']:x}:1"], True), "--hold-actions / --hold-no-goal")
+sa.hold = 0
+eq(" hold=" in D.explore_cmd(Fake({}), V, sa, 1, False, P), False, "no --hold: no hold")
+for k, v in (("avoid", long_), ("goal", "nosuch > 1"), ("hold_actions", ["{nosuch}*2"]), ("hold", -1)):
+    sb = argparse.Namespace(**{**vars(sa), "hold": 30, k: v})
+    try:
+        D.search_progs(V, sb)
+    except SystemExit:
+        n += 1
+    else:
+        raise SystemExit(f"FAIL: search_progs accepted {k}={v!r}")
+
+
+# rd undo: a search that applied nothing takes its undo entry back (the next undo steps over the command before)
+class FakeRun:
+    drop_undo, sid_ok = D.Run.drop_undo, D.Run.sid_ok
+
+    def __init__(self, d):
+        self.dir, self.live, self.sess, self.saved = d, None, None, 0
+        self.meta = {"undo": [{"sid": None, "frame": 10, "tail": None}, {"sid": None, "frame": 20, "tail": "undo/x.jsonl"}]}
+
+    def save_meta(self):
+        self.saved += 1
+
+
+with tempfile.TemporaryDirectory() as d:
+    os.makedirs(os.path.join(d, "undo"))
+    open(os.path.join(d, "undo", "x.jsonl"), "w").write("")
+    fr = FakeRun(d)
+    fr.drop_undo()
+    eq(([u["frame"] for u in fr.meta["undo"]], os.path.exists(os.path.join(d, "undo", "x.jsonl")), fr.saved), ([10], False, 1),
+       "drop_undo: the top entry and its movie copy")
+
 print(f"OK: drive ({n} checks)")
