@@ -137,7 +137,7 @@ _none_
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
-| NONE | src/scene.c:52 | active save-slot pinned to bank 0; |
+| NONE | src/scene.c:58 | active save-slot pinned to bank 0; |
 
 ## scaffold (0)
 
@@ -152,7 +152,7 @@ _none_
 | kind | retire | location | what's synthetic |
 |------|--------|----------|------------------|
 | actor-table-split | FUN_0041f4a6 | src/actor_table.h:17 | fold its users onto g_actor. |
-| continue-arm | FUN_0049a59e | src/scene.c:94 | the rest of the arm (the |
+| continue-arm | FUN_0049a59e | src/scene.c:121 | the rest of the arm (the |
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:132 | box_pos_mode/off (DAT_005c7984/80) are |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:819 | the engine frees the shop |

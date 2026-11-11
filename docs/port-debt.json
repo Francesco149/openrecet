@@ -87,7 +87,7 @@
    "engine_fn": "FUN_0049a59e",
    "desc": "the rest of the arm (the",
    "file": "src/scene.c",
-   "line": 94,
+   "line": 121,
    "kind_known": false
   },
   {
@@ -111,7 +111,7 @@
    "engine_fn": "NONE",
    "desc": "active save-slot pinned to bank 0;",
    "file": "src/scene.c",
-   "line": 52,
+   "line": 58,
    "kind_known": true
   },
   {

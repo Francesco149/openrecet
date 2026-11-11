@@ -14574,6 +14574,7 @@
    "quality_flags": [],
    "src": [
     "src/main.c",
+    "src/scene.c",
     "src/scene.h",
     "src/scene_worldmap.c",
     "src/scene_worldmap.h",
@@ -19481,6 +19482,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene.c",
     "src/scene.h",
     "src/scene_guild.c",
     "src/scene_guild.h",
@@ -19777,6 +19779,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene.c",
     "src/scene_guild.c",
     "src/scene_guild.h",
     "src/scene_worldmap.c"
@@ -21784,6 +21787,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene.c",
     "src/scene_day_end.c",
     "src/scene_gameover.c",
     "src/scene_gameover.h"
@@ -22076,6 +22080,7 @@
    "src": [
     "src/event_probe.h",
     "src/main.c",
+    "src/scene.c",
     "src/scene.h",
     "src/scene1_player_ctrl.c",
     "src/scene_worldmap.c",

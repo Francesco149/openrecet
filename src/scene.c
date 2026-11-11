@@ -10,6 +10,9 @@
 #include "scene_title.h"   /* g_scene_title_anim.continue_mode */
 #include "save_work.h"     /* seed working slot 0 */
 #include "scene_adv_guild.h" /* adv_guild_continue_reset */
+#include "scene_gameover.h"  /* FUN_0049d2e5 — resume mode 2 */
+#include "scene_guild.h"     /* FUN_00490e16 — resume modes 3 / 4 */
+#include "stage_palette.h"   /* g_stage_b4dc — DAT_0438b4dc */
 #include "scene1_top_hud.h" /* load DAT_0438b918 money from the working slot */
 #include "stage_post_load.h"
 #include "worker_load.h"
@@ -37,6 +40,9 @@ void scene_post_fade_init(void)
      * slot-picker stored it on the anim. 1 = continue (the picker has
      * ALREADY loaded the chosen save into working slot 0); 0 = new. */
     const int continue_mode = g_scene_title_anim.continue_mode;
+    /* DAT_0438b1c0 after the commit: 1 (house) for NEW; CONTINUE dispatches
+     * on the saved resume mode (below). */
+    int32_t resume_state = SCENE_STATE_INGAME;
 
     /* Engine FUN_0049a59e L65 — write DAT_09643684 = 0 between the
      * LOADING and INGAME state writes (= save-dialog state reset).
@@ -76,24 +82,45 @@ void scene_post_fade_init(void)
         save_work_set_active_slot(0);
 
         /* Engine FUN_0049a59e L100639-100642: resume into the saved scene
-         * mode (RESUME_MODE, bank dword 0xb381).  For mode 0 (house/shop —
-         * the only mode this port resumes; the shared tail below sets
-         * INGAME) the engine additionally CLEARS the from-world-map camera
-         * flag HOUSE_CAM_FLAG (0xb37d) to 0.  A save taken right after a
-         * map->house return carries a stale 1 in that field; without this
-         * clear the port re-commits the stale 1 while retail commits 0 — a
-         * persistent-state divergence invisible to every frame pillar that
-         * the save pillar caught (findings/parity-save-producer.md).  The
-         * port does not read HOUSE_CAM_FLAG, so this is render-neutral —
-         * purely a save-state correctness fix.  Resume modes 2/3/4/6
-         * (world-map/dungeon) are PORT-DEBT(scene-resume-modes). */
+         * mode (RESUME_MODE, bank dword 0xb381).  For mode 0 (house/shop) the
+         * engine additionally CLEARS the from-world-map camera flag
+         * HOUSE_CAM_FLAG (0xb37d) to 0: a save taken right after a map->house
+         * return carries a stale 1 (findings/parity-save-producer.md). */
         uint32_t *work = save_work_dwords_at(save_work_active_slot());
-        if (work && work[SAVE_BANK_FIELD_RESUME_MODE] == 0)
-            work[SAVE_BANK_FIELD_HOUSE_CAM_FLAG] = 0;
+        /* all_ida 111824-111853: DAT_0438b4dc = work +0x2cde0 (the shop
+         * tier's stage), then the resume-mode dispatch on work dword 0xb381
+         * (written by the pause-menu Save with the scene it was taken in):
+         *   0 → mode 1 (house) + HOUSE_CAM_FLAG cleared;
+         *   2 → mode 2 (FUN_0049d2e5);  3 → mode 6 FUN_00490e16(0);
+         *   4 → mode 6 FUN_00490e16(1); any other (1 = the town map) → mode 8.
+         * The worker spawned below loads that mode (case 8: FUN_0049de20 +
+         * FUN_004735ad — no house stage entry, so no floor-layout draws). */
+        if (work) {
+            g_stage_b4dc = (int32_t)work[0x2cde0 / 4];
+            switch (work[SAVE_BANK_FIELD_RESUME_MODE]) {
+            case 0:
+                resume_state = SCENE_STATE_INGAME;
+                work[SAVE_BANK_FIELD_HOUSE_CAM_FLAG] = 0;
+                break;
+            case 2:
+                resume_state = 2;
+                scene_gameover_enter();          /* FUN_0049d2e5 */
+                break;
+            case 3:
+            case 4:
+                resume_state = 6;                /* FUN_00490e16(mode == 4) */
+                scene_guild_set_variant(work[SAVE_BANK_FIELD_RESUME_MODE] == 4 ? 1 : 0);
+                scene_guild_enter_reset();       /* FUN_0049174e */
+                break;
+            default:
+                resume_state = SCENE_STATE_WORLDMAP;
+                break;
+            }
+        }
         /* L111855-111863: the expedition bag size by merchant level + an empty
          * bag.  PORT-DEBT(continue-arm, FUN_0049a59e): the rest of the arm (the
-         * stock / equip validity sweeps, DAT_0438b4dc = work +0x2cde0, the
-         * resume-mode dispatch) is not ported. */
+         * stock / equip validity sweeps, the title-menu entry 4 / 6 arms) is
+         * not ported. */
         if (work)
             adv_guild_continue_reset((int)work[SAVE_BANK_FIELD_MERCHANT_LEVEL]);
     }
@@ -133,7 +160,7 @@ void scene_post_fade_init(void)
      * CONTINUE branch 1 (all_ida 111803 / 111808).  See src/guild_stock.h. */
     guild_stock_daily(continue_mode ? 1 : 0);
 
-    g_scene_state    = SCENE_STATE_INGAME;
+    g_scene_state    = resume_state;
     g_scene_substate = 0;
     scene1_beat_set_flag(0);             /* DAT_0438b928 = 0 */
 
