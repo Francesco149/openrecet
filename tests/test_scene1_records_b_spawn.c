@@ -6,6 +6,9 @@
 
 #include "t.h"
 #include "actor_table.h"
+/* the actor table fields FUN_0044376a case 104 scans */
+#define PPL_I(idx, off) (*(int32_t *)(void *)(g_actor[idx].b + (off)))
+#define PPL_F(idx, off) (*(float *)(void *)(g_actor[idx].b + (off)))
 
 #include <math.h>
 #include <stdint.h>
@@ -2096,6 +2099,7 @@ int test_records_b_spawn_entity_c8j9_implemented_macro(void)
 static void zero_people_table(void)
 {
     memset(g_scene1_people, 0, sizeof g_scene1_people);
+    memset(g_actor, 0, sizeof g_actor);
 }
 
 int test_records_b_spawn_entity_68_implemented(void)
@@ -2141,12 +2145,12 @@ int test_records_b_spawn_entity_68_matching_people_uses_target(void)
     seed_owner_a_yaw();
     rng_seed(1);
 
-    g_scene1_people[0].alive       = 1;
-    g_scene1_people[0].sister_720  = 0;
-    g_scene1_people[0].sister_724  = 0;
-    g_scene1_people[0].target[0]   = 12.0f;
-    g_scene1_people[0].target[1]   = 25.0f;
-    g_scene1_people[0].target[2]   = 32.0f;
+    PPL_I(0, 0x428)       = 1;
+    PPL_I(0, 0xb04)  = 0;
+    PPL_I(0, 0xb08)  = 0;
+    PPL_F(0, 0x3f0)   = 12.0f;
+    PPL_F(0, 0x3f4)   = 25.0f;
+    PPL_F(0, 0x3f8)   = 32.0f;
     /* owner.field_ea0 default from seed_owner_a_yaw is -1 — but we want
      * the FIRST matching entry to count, so set it to 0. */
     owner_write_i(g_owner_a, 0xea0, 0);
@@ -2173,12 +2177,12 @@ int test_records_b_spawn_entity_68_sister_gate_blocks_match(void)
     seed_owner_a_yaw();
     rng_seed(1);
 
-    g_scene1_people[0].alive       = 1;
-    g_scene1_people[0].sister_720  = 7;       /* blocks */
-    g_scene1_people[0].sister_724  = 0;
-    g_scene1_people[0].target[0]   = 12.0f;
-    g_scene1_people[0].target[1]   = 25.0f;
-    g_scene1_people[0].target[2]   = 32.0f;
+    PPL_I(0, 0x428)       = 1;
+    PPL_I(0, 0xb04)  = 7;       /* blocks */
+    PPL_I(0, 0xb08)  = 0;
+    PPL_F(0, 0x3f0)   = 12.0f;
+    PPL_F(0, 0x3f4)   = 25.0f;
+    PPL_F(0, 0x3f8)   = 32.0f;
     owner_write_i(g_owner_a, 0xea0, 0);
 
     scene1_record_b_spawn_entity(g_owner_a, 0x68, -1);
@@ -2191,10 +2195,10 @@ int test_records_b_spawn_entity_68_sister_gate_blocks_match(void)
     zero_people_table();
     seed_owner_a_yaw();
     rng_seed(1);
-    g_scene1_people[0].alive       = 1;
-    g_scene1_people[0].sister_720  = 0;
-    g_scene1_people[0].sister_724  = 9;       /* blocks */
-    g_scene1_people[0].target[1]   = 25.0f;
+    PPL_I(0, 0x428)       = 1;
+    PPL_I(0, 0xb04)  = 0;
+    PPL_I(0, 0xb08)  = 9;       /* blocks */
+    PPL_F(0, 0x3f4)   = 25.0f;
     owner_write_i(g_owner_a, 0xea0, 0);
     scene1_record_b_spawn_entity(g_owner_a, 0x68, -1);
     T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Y), 20.0f));
@@ -2204,8 +2208,8 @@ int test_records_b_spawn_entity_68_sister_gate_blocks_match(void)
     zero_people_table();
     seed_owner_a_yaw();
     rng_seed(1);
-    g_scene1_people[0].alive       = 2;       /* not 1 → fails */
-    g_scene1_people[0].target[1]   = 25.0f;
+    PPL_I(0, 0x428)       = 2;       /* not 1 → fails */
+    PPL_F(0, 0x3f4)   = 25.0f;
     owner_write_i(g_owner_a, 0xea0, 0);
     scene1_record_b_spawn_entity(g_owner_a, 0x68, -1);
     T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_ALT_POS_Y), 20.0f));
@@ -2221,12 +2225,12 @@ int test_records_b_spawn_entity_68_distance_gate_blocks(void)
     seed_owner_a_yaw();
     rng_seed(1);
 
-    g_scene1_people[0].alive       = 1;
-    g_scene1_people[0].sister_720  = 0;
-    g_scene1_people[0].sister_724  = 0;
-    g_scene1_people[0].target[0]   = 10000.0f;
-    g_scene1_people[0].target[1]   = 25.0f;
-    g_scene1_people[0].target[2]   = 30000.0f;
+    PPL_I(0, 0x428)       = 1;
+    PPL_I(0, 0xb04)  = 0;
+    PPL_I(0, 0xb08)  = 0;
+    PPL_F(0, 0x3f0)   = 10000.0f;
+    PPL_F(0, 0x3f4)   = 25.0f;
+    PPL_F(0, 0x3f8)   = 30000.0f;
     owner_write_i(g_owner_a, 0xea0, 0);
 
     scene1_record_b_spawn_entity(g_owner_a, 0x68, -1);
@@ -2245,12 +2249,12 @@ int test_records_b_spawn_entity_68_distance_is_horizontal_only(void)
     seed_owner_a_yaw();
     rng_seed(1);
 
-    g_scene1_people[0].alive       = 1;
-    g_scene1_people[0].sister_720  = 0;
-    g_scene1_people[0].sister_724  = 0;
-    g_scene1_people[0].target[0]   = 11.0f;   /* dx = -1 */
-    g_scene1_people[0].target[1]   = 99999.0f; /* dy ignored */
-    g_scene1_people[0].target[2]   = 29.0f;   /* dz =  1 */
+    PPL_I(0, 0x428)       = 1;
+    PPL_I(0, 0xb04)  = 0;
+    PPL_I(0, 0xb08)  = 0;
+    PPL_F(0, 0x3f0)   = 11.0f;   /* dx = -1 */
+    PPL_F(0, 0x3f4)   = 99999.0f; /* dy ignored */
+    PPL_F(0, 0x3f8)   = 29.0f;   /* dz =  1 */
     /* dx*dx + dz*dz = 2, sqrt = ~1.41 < 16 → match. */
     owner_write_i(g_owner_a, 0xea0, 0);
 
@@ -2270,19 +2274,19 @@ int test_records_b_spawn_entity_68_selector_picks_nth_match(void)
     seed_owner_a_yaw();
     rng_seed(1);
 
-    g_scene1_people[3].alive       = 1;
-    g_scene1_people[3].sister_720  = 0;
-    g_scene1_people[3].sister_724  = 0;
-    g_scene1_people[3].target[0]   = 12.0f;
-    g_scene1_people[3].target[1]   = 25.0f;
-    g_scene1_people[3].target[2]   = 32.0f;
+    PPL_I(3, 0x428)       = 1;
+    PPL_I(3, 0xb04)  = 0;
+    PPL_I(3, 0xb08)  = 0;
+    PPL_F(3, 0x3f0)   = 12.0f;
+    PPL_F(3, 0x3f4)   = 25.0f;
+    PPL_F(3, 0x3f8)   = 32.0f;
 
-    g_scene1_people[8].alive       = 1;
-    g_scene1_people[8].sister_720  = 0;
-    g_scene1_people[8].sister_724  = 0;
-    g_scene1_people[8].target[0]   = 14.0f;
-    g_scene1_people[8].target[1]   = 77.0f;
-    g_scene1_people[8].target[2]   = 28.0f;
+    PPL_I(8, 0x428)       = 1;
+    PPL_I(8, 0xb04)  = 0;
+    PPL_I(8, 0xb08)  = 0;
+    PPL_F(8, 0x3f0)   = 14.0f;
+    PPL_F(8, 0x3f4)   = 77.0f;
+    PPL_F(8, 0x3f8)   = 28.0f;
 
     /* Select second match. */
     owner_write_i(g_owner_a, 0xea0, 1);
@@ -2304,10 +2308,10 @@ int test_records_b_spawn_entity_68_selector_out_of_range_falls_back(void)
     seed_owner_a_yaw();
     rng_seed(1);
 
-    g_scene1_people[0].alive       = 1;
-    g_scene1_people[0].sister_720  = 0;
-    g_scene1_people[0].sister_724  = 0;
-    g_scene1_people[0].target[1]   = 25.0f;
+    PPL_I(0, 0x428)       = 1;
+    PPL_I(0, 0xb04)  = 0;
+    PPL_I(0, 0xb08)  = 0;
+    PPL_F(0, 0x3f4)   = 25.0f;
     owner_write_i(g_owner_a, 0xea0, 5);
 
     scene1_record_b_spawn_entity(g_owner_a, 0x68, -1);

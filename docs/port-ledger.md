@@ -629,7 +629,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x482033 | FUN_00482033 | 38 | ✓ |  | scene_pause.c, scene_pause.h |
 | 0x482059 | FUN_00482059 | 97 | ✓ |  | scene1_tutorial_dispatch.c, scene_day_end.c, scene_day_end.h (+3) |
 | 0x4820ba | FUN_004820ba | 2455 | ✓ |  | choice_box.c, encyclopedia.h, main.c (+2) |
-| 0x482a51 | FUN_00482a51 | 32 | ✓ |  | actor_ai.c, actor_table.h, dungeon_flow.c (+11) |
+| 0x482a51 | FUN_00482a51 | 32 | ✓ |  | actor_ai.c, actor_table.h, dungeon_flow.c (+12) |
 | 0x482a71 | FUN_00482a71 | 118 | ✓ |  | actor_ai.c, dungeon_party.c, scene1_bg_npc.c (+8) |
 | 0x482ae7 | FUN_00482ae7 | 348 | ✓ |  | actor_ai.c, dungeon_party.c, dungeon_party.h (+2) |
 | 0x482c43 | FUN_00482c43 | 1198 | ✓ |  | party_move.h |

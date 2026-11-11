@@ -39,6 +39,7 @@
 #include <math.h>
 #include <string.h>
 
+#include "actor_table.h"                 /* DAT_0076b970 */
 #include "math3d.h"
 #include "rng.h"
 #include "scene1_overlay.h"
@@ -266,9 +267,16 @@ static inline int32_t aux_43ab6e_call(int32_t *slot,
     return -1;
 }
 
+/* the actor table's +0x428 anchor (DAT_0076bd98, stride 0xba4): rec[0] = in
+ * use, rec[0x1b3] = +0xaf4, rec[0x1b7] = +0xb04, rec[-0xe..-0xc] = the point
+ * +0x3f0, rec[-0xb..-0x9] = the velocity +0x3fc.  Production reads g_actor
+ * (rhost: hire-griff f1798 — with the old NULL default record 131 pulled
+ * nothing and its hit came a tick late); tests install their own table. */
 static inline int32_t *sw_record_at(int idx)
 {
-    return g_sw_record_at_hook ? g_sw_record_at_hook(idx) : NULL;
+    if (g_sw_record_at_hook) return g_sw_record_at_hook(idx);
+    if (idx < 0 || idx >= ACTOR_COUNT) return NULL;
+    return (int32_t *)(void *)(g_actor[idx].b + ACT_INUSE);
 }
 
 static inline int aux_4319d6_call(void)
@@ -6639,6 +6647,47 @@ alive:
     scene1_records_b_run_lab_00440dc1(i);
 }
 
+/* type 0x9d (157): Arma's beam (FUN_0043ae20, the `*v0 == 157` block).  It
+ * sits 3.5·LIFE_MULT ahead of the owner along ROT_X, 2·LIFE_MULT up, with a
+ * unit velocity along ROT_X; SE 705 and the shake at 80; DRAG 2.5; 80..159
+ * it sweeps 20 unit steps a tick (the state machine at each), then steps
+ * back; dead at 175 or when the owner is hurt (+0xcf8). */
+static void body_0x9d(int i)
+{
+    static const float k3p5 = 3.5f, k20 = 20.0f;
+    int32_t *slot = slot_base(i);
+    const void *owner = slot_owner_a(i);
+    if (!owner) return;
+    const float lm = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT);
+    const double rot = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
+    const float sn = spill32(x87_crt_sin(rot));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)sn * lm * k3p5 + owner_read_f(owner, 0x20)));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)lm + lm + owner_read_f(owner, 0x24)));
+    const float cs = spill32(x87_crt_cos(rot));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)cs * lm * k3p5 + owner_read_f(owner, 0x28)));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sn);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cs);
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 80) se_play(705);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 2.5f);
+    const int32_t age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
+    if (age >= 80 && age < 160) {
+        for (int k = 20; k != 0; --k) {
+            state_machine_call(slot);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X) + slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X)));
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y) + slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y)));
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z) + slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z)));
+        }
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32(slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X) - (long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X) * k20));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32(slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y) - (long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y) * k20));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32(slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z) - (long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z) * k20));
+    }
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 80) notify_queue_call(10, 4, 4, 1.0f);
+    if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 175) scene1_records_b_tick_kill_slot(i);
+    if (owner_read_i(owner, 0xcf8) != 0) scene1_records_b_tick_kill_slot(i);
+    scene1_records_b_run_lab_00440dc1(i);
+}
+
 static void dispatch_default(int slot_idx, int32_t type)
 {
     /* C8j-tick.2 — anchor cascade.  Per the engine's nested if/goto
@@ -6909,6 +6958,9 @@ static void dispatch_default(int slot_idx, int32_t type)
         break;
     case 0x6a:
         body_0x6a(slot_idx);
+        break;
+    case 0x9d:
+        body_0x9d(slot_idx);
         break;
     default:
         /* LAB_00440dc1 default-tail wall-bounce body (C8j-tick.16).

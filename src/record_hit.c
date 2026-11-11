@@ -1678,9 +1678,19 @@ static int32_t record_home(int32_t *slot, float vmax, float cap, float gain, flo
     return found;
 }
 
+/* the table-B tick's calls into the party: FUN_00485979 (the hurt voice,
+ * one bag draw), FUN_00482a51 on a party anim record (passed as its 32-bit
+ * address), FUN_00499519 */
+static void rec_hurt_voice(int32_t down) { party_hurt_voice(down); }
+static void rec_anim_set(int32_t rec, int32_t anim) { party_anim_set((int32_t *)(intptr_t)rec, anim); }
+static void rec_se(uint16_t id) { audio_play_se_by_id(id); }
+
 void record_sm_install(void)
 {
     scene1_records_b_set_aux_43ab6e_hook(record_home);        /* FUN_0043ab6e */
+    scene1_records_b_set_aux_485979_hook(rec_hurt_voice);     /* FUN_00485979 */
+    scene1_records_b_set_aux_482a51_hook(rec_anim_set);       /* FUN_00482a51 */
+    scene1_records_b_set_se_hook(rec_se);                     /* FUN_00499519 */
     scene1_records_b_set_wall_destroy_hook(mover_destroyed);   /* FUN_0042353c */
     scene1_records_b_set_ground_query_hook(ground_hit);
     scene1_records_b_set_wall_raycast_hook(wall_ray);

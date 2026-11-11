@@ -1814,21 +1814,25 @@ static int init_entity_68(int i, const void *owner, int type, int flag,
     int found         = 0;
     float alt_x = 0.0f, alt_y = 0.0f, alt_z = 0.0f;
 
-    for (int idx = 0; idx < SCENE1_PEOPLE_COUNT; idx++) {
-        const scene1_people_entry_t *p = &g_scene1_people[idx];
-        if (p->alive != 1)       continue;
-        if (p->sister_724 != 0)  continue;
-        if (p->sister_720 != 0)  continue;
+    /* the actor table itself (DAT_0076b970, stride 0xba4): +0x428 == 1,
+     * +0xb08 == 0, +0xb04 == 0, the point +0x3f0 within 16 (rhost:
+     * hire-tielle f1987 — the old people-table view never matched, so every
+     * arrow took the 2-rand fallback) */
+    for (int idx = 0; idx < ACTOR_COUNT; idx++) {
+        const actor_t *p = &g_actor[idx];
+        if (act_geti(p, ACT_INUSE) != 1) continue;
+        if (act_geti(p, 0xb08) != 0)     continue;
+        if (act_geti(p, 0xb04) != 0)     continue;
 
-        float dx = owner_x - p->target[0];
-        float dz = owner_z - p->target[2];
+        float dx = owner_x - act_getf(p, 0x3f0);
+        float dz = owner_z - act_getf(p, 0x3f8);
         float dist_h = sqrtf(dx * dx + dz * dz);
         if (!(dist_h < 16.0f)) continue;
 
         if (matched_count == wanted_match) {
-            alt_x = p->target[0];
-            alt_y = p->target[1];
-            alt_z = p->target[2];
+            alt_x = act_getf(p, 0x3f0);
+            alt_y = act_getf(p, 0x3f4);
+            alt_z = act_getf(p, 0x3f8);
             found = 1;
             break;
         }

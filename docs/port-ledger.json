@@ -17017,6 +17017,7 @@
     "src/actor_table.h",
     "src/dungeon_flow.c",
     "src/dungeon_party.h",
+    "src/record_hit.c",
     "src/scene1_bg_npc.c",
     "src/scene1_bg_npc.h",
     "src/scene1_combat_sm.c",
