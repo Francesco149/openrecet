@@ -196,7 +196,7 @@
    "engine_fn": "FUN_004536cb",
    "desc": "retail freezes the *entire",
    "file": "src/sim.c",
-   "line": 498,
+   "line": 506,
    "kind_known": true
   },
   {

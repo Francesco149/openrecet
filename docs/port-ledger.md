@@ -373,7 +373,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4532bc | FUN_004532bc | 29 | ✓ |  | actor_ai.c, record_hit.c, scene1_fx_overlays.h (+5) |
 | 0x453373 | FUN_00453373 | 8 | ✓ |  | dungeon_results.c, main.c, scene_day_end.c (+2) |
 | 0x45337b | FUN_0045337b | 9 | ✓ |  | esc_dispatch.c, esc_dispatch.h, scene_pause.c (+2) |
-| 0x453384 | FUN_00453384 | 821 | ✓ |  | esc_dispatch.c, scene.h, scene1_day_close.c (+11) |
+| 0x453384 | FUN_00453384 | 821 | ✓ |  | esc_dispatch.c, scene.h, scene1_day_close.c (+12) |
 | 0x4536b9 | FUN_004536b9 | 9 | ✓ |  | scene1_day_close.c, scene1_day_close.h, scene_day_end.c (+2) |
 | 0x4536c2 | FUN_004536c2 | 9 | ✓ |  | scene1_sim.c, scene_pause.c |
 | 0x4536cb | FUN_004536cb | 1745 | ✓ |  | font.h, input_segtrace.h, movie.h (+17) |

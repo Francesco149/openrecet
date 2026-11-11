@@ -119,7 +119,7 @@ _none_
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
-| FUN_004536cb | src/sim.c:498 | retail freezes the *entire |
+| FUN_004536cb | src/sim.c:506 | retail freezes the *entire |
 | FUN_00465db4 | src/customer_service.c:1568 | <D1>'s length is DAT_0730b274 = |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:442 | the engine teardown also restores the |
 | FUN_00490e56 | src/guild_stock.c:41 | the other runtime globals it crosses |

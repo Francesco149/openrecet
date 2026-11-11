@@ -1737,7 +1737,8 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
          + [("portrng", s) for s in ("day8-visitor", "stand-item-status", "move-tables-persist", "venders-limit",
                                       "hire-caillou", "hire-tielle", "hire-elan", "hire-nagi", "hire-griff", "hire-arma",
                                       "obsidian-1f", "guild-roster-8", "pause-equip-dungeon", "dungeon2-25f-crown-kill",
-                                      "crown-slime-arms", "crown-slime-wipe", "mushroom-king-arms", "charme-arms")])
+                                      "crown-slime-arms", "crown-slime-wipe", "mushroom-king-arms", "charme-arms",
+                                      "item-status-pause")])
 
 
 GATE_KEYS = ("save:", "anchors:", "first ", "window", "IDENTICAL", "frames with", "error", "scp failed")

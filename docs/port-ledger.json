@@ -8905,6 +8905,7 @@
     "src/scene_guild.h",
     "src/scene_pause.c",
     "src/scene_pause.h",
+    "src/sim.c",
     "src/skip_event.c"
    ],
    "status": "ported"

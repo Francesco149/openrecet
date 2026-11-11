@@ -445,6 +445,14 @@ void sim_step_a(void)
         return;
     }
 
+    /* 0x4538c0 (all_ida 54659): the pad's pause button (pressed 0x100) in any
+     * non-title scene = FUN_00453384(0), the same dispatch as the WndProc ESC —
+     * on the press tick, before the ramp==3 commit and the scene dispatch, so
+     * the scene freezes from this tick (DAT_06a49954 == 0 here: the busy
+     * branch returned above). */
+    if ((g_sim_buttons[0].pressed & 0x100u) != 0 && g_scene_state != SCENE_STATE_TITLE)
+        pause_dispatch(0);
+
     /* Opening-prologue dialogue. Ticks on INGAME, non-loading frames (we only
      * reach here with the worker idle), driving the iv1_1→iv1_2 reveal +
      * TEXT_ANIM_START/END anchors off player 1's held buttons. Dormant unless
