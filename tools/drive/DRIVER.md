@@ -161,6 +161,17 @@ macro-actions until the **goal** holds, then spends `--refine` seconds shortenin
   (`aNrel` > pi/4 / > 3pi/4), ×1.2 while the enemy attacks (`aNst` 1..6); `aNunhit != 0` = cannot be hit. Names per
   actor slot N = 0..5: `aNx aNz aNhp aNst aNt aNsub aNpow aNd aNrel aNtype aNuse`. Read the boss's card before a
   boss floor: most have a damage gate (a power that must shed, a flip, a stun, a hit counter).
+- **Floors by route, not by wandering** (probes amber-26f-30f, obsidian-3f-5f: 31 legs, every one found first try, no
+  damage): the maze grid is in memory — W / H `s32(0x5cc2e8)` / `s32(0x5cc2ec)`, open cells
+  `s32(0x73dfd08 + 4*(y*W + x)) == 1`, start / exit cells at `0x438b434..440`, cell (x, y) = world (−40x, −40y). BFS it
+  (read the grid with `rd ram R dwords 0x73dfd08 N`), then one scored search per 40-unit leg: `--score "-dist"` to the
+  next cell centre, `--cell "(int(px/2), int(pz/2))"`, actions = an aimed 12-tick walk + the 8 plain ones,
+  `--avoid "hp < H"` (H = the HP now), `-j 2`. Wait for `ticker == 0` first (the floor banner freezes play although
+  `lock == -1`). Boss floors: the exit is not object 0 — use `estage == 1`, then the portal / door (`portal > 0`; a door
+  answers from one side only); the pad is dead ~120 ticks after a clear.
+- Enemy stats live at `0x5c23f0 + type*0x68` (+0x2c HP, +0x34 AT, +0x38 DF, +0x3c MA, +0x40 MD): read them, the cards'
+  code-read stats were wrong more than once. Hit records: `0x69324b0 + i*0x124` (type +0, side +4, age +0x98).
+- `rd` reads state AFTER the tick (a state entered this tick shows tick 0); wrap `--expr` defines in parentheses.
 - Sessions are capped machine-wide (memory): use `-j 2` at most; "not admitted" = wait or `rd stop` an idle run.
 - Level-15+ saves (`save:2afe7fb42617`): vending machines are bought at the Market ("Venders") and
   placed from a table's display menu (`cc04 == 1`, `L`/`R` to "Venders"); the machine's own menu is

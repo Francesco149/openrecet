@@ -994,7 +994,7 @@ def cmd_ram(a):
         import struct
         lv = r.attach()
         px, pz = r.ev("px", "pz")
-        print("  i type use     hp       x       z    yaw  st    t  sub   pow  dist  unhit stag   (aI<field> names: `rd ram R list`)")
+        print("  i type use     hp       x       y       z    yaw  st    t  sub  ae4   pow  dist  unhit stag   age   (aI<field> names: `rd ram R list`)")
         for i in range(128):
             h = bytes.fromhex(lv.cmd(f"r {0x76b970 + i * 0xba4:x} {0xba4}").split()[1])
             s32_ = lambda o: int.from_bytes(h[o:o + 4], "little", signed=True)
@@ -1002,8 +1002,8 @@ def cmd_ram(a):
             if not s32_(0x428):
                 continue
             x, z = f32_(0x3f0), f32_(0x3f8)
-            print(f"{i:3d} {s32_(0x424):4d} {s32_(0x428):3d} {f32_(0x42c):6.0f} {x:7.2f} {z:7.2f} {f32_(0x420):6.2f} {s32_(0xa54):3d} {s32_(0xa58):4d} {s32_(0xa5c):4d} "
-                  f"{f32_(0xab8):5.2f} {math.hypot(x - px, z - pz):5.1f} {s32_(0xb08):6d} {s32_(0x440):4d}")
+            print(f"{i:3d} {s32_(0x424):4d} {s32_(0x428):3d} {f32_(0x42c):6.0f} {x:7.2f} {f32_(0x3f4):7.2f} {z:7.2f} {f32_(0x420):6.2f} {s32_(0xa54):3d} {s32_(0xa58):4d} {s32_(0xa5c):4d} "
+                  f"{s32_(0xae4):4d} {f32_(0xab8):5.2f} {math.hypot(x - px, z - pz):5.1f} {s32_(0xb08):6d} {s32_(0x440):4d} {s32_(0x398):5d}")
     elif a.op == "dwords":                     # N dwords from VA: hex, signed, float
         import struct
         va, n = int(a.args[0], 16), int(a.args[1], 0) if len(a.args) > 1 else 16
