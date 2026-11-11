@@ -9,7 +9,9 @@ its MOVIE (every input since boot); a dead session is rebuilt by replaying it.
     rd new R --from fresh | SCENARIO[@F] | RUN[:CK|@F] | end:SCENARIO     start a run
     rd play R "A . A*3 .*30 ~ R*40"  [--until EXPR] [--avoid EXPR] [--watch EXPR,..] [--every N]
     rd tap R "A" [--n 40] [--gap 8] [--until EXPR]                        press, release, repeat
-    rd status R | rd text R | rd eval R EXPR.. | rd ram R list | read VA [N] | dwords VA [N] | str VA | define NAME .. | mark | diff
+    rd status R | rd text R | rd eval R EXPR.. [--at CK | --at-frame F] | rd ram R list | read VA [N] | dwords VA [N] | str VA | define NAME .. | mark | diff
+    rd scan R --from F [--to T] --watch EXPR,.. [--every N] [--changes] [--where EXPR] [--at-run RUN] [--fresh]
+                                                rows of state at earlier frames: the movie replayed in a side session
     rd ck R save NAME | load NAME | list        rd undo R        rd rewind R --to F
     rd search R --goal EXPR [--avoid EXPR] [--cell TUPLE] [--actions SPEC ..] [--apply] [-j N]
     rd look R [--at F,F..]      rd strip R --from F --to F [--every N]    pictures (real-device replay)
@@ -167,7 +169,70 @@ def segs_to_spec(path):
 
 
 # ------------------------------------------------------------------ expressions → postfix programs
-TYPES = {"u8": "r8", "s8": "s8", "u16": "r16", "s16": "s16", "u32": "r32", "s32": "s32", "i32": "s32", "f32": "f32", "f64": "f64"}
+# rh_live.c limits: a command line is split into at most 600 tokens (`prog ID` + 598: a longer program is cut
+# SILENTLY), the VM stack holds 64 values, NPROG 256 program ids (the client wraps its ids at 250), `eval` takes
+# 64 ids, `run s=` 32, `run esc=` / `rng=` 16 each, a command line 64 KiB.
+MAX_PROG_TOKENS = 598
+MAX_STACK = 64
+EVAL_CHUNK = 48                   # programs defined + evaluated per `eval` (< 64 ids, far from the id wrap at 250)
+MAX_SAMPLED = 32
+MAX_RUN_OPS = 16
+MAX_LINE = 60000
+
+# actors(COND): COND is evaluated per actor slot (0x76b970 + i*0xba4) with these names bound to the slot's fields
+ACTOR_BASE, ACTOR_SIZE, ACTOR_SLOTS = 0x76b970, 0xba4, 64
+ACTOR_FIELDS = {"T": (0x424, "s32"), "U": (0x428, "s32"), "HP": (0x42c, "f32"), "X": (0x3f0, "f32"), "Y": (0x3f4, "f32"),
+                "Z": (0x3f8, "f32"), "YAW": (0x420, "f32"), "ST": (0xa54, "s32"), "TK": (0xa58, "s32"), "SUB": (0xa5c, "s32"),
+                "POW": (0xab8, "f32"), "UNHIT": (0xb08, "s32"), "STAG": (0x440, "s32"), "AGE": (0x398, "s32"), "AE4": (0xae4, "s32")}
+
+_ARITY = {"r8": 1, "r16": 1, "r32": 1, "s8": 1, "s16": 1, "s32": 1, "f32": 1, "f64": 1, "~": 1, "not": 1, "neg": 1, "abs": 1,
+          "sqrt": 1, "sin": 1, "cos": 1, "sel": 3, "frame": 0, "rng": 0}
+_BINARY = {"+", "-", "*", "/", "//", "%", "&", "|", "^", "<<", ">>", "<", "<=", ">", ">=", "==", "!=", "and", "or", "min", "max",
+           "atan2", "hypot", "pow"}
+
+
+def stack_depth(tokens):
+    """the VM stack's high-water mark for a postfix program"""
+    sp = hi = 0
+    for t in tokens:
+        if t in _BINARY:
+            sp -= 1
+        elif t in _ARITY:
+            sp += 1 - _ARITY[t]
+        else:
+            sp += 1
+        hi = max(hi, sp)
+    return hi
+
+
+def prog_check(tokens, what="expression"):
+    """a program the server runs as written: ≤ MAX_PROG_TOKENS tokens (more are cut without an error), ≤ MAX_STACK deep"""
+    if len(tokens) > MAX_PROG_TOKENS:
+        raise SystemExit(f"{what}: {len(tokens)} postfix tokens > {MAX_PROG_TOKENS} (the live server's limit). Values read by "
+                         "eval / --watch / scan may be sums of programs (a top-level `+`, sum(..), actors(..)); a stop condition "
+                         "(--until, --avoid, --goal, --score, a task step) is one program: narrow it — actors(COND, LO, HI) over fewer slots")
+    if stack_depth(tokens) > MAX_STACK:
+        raise SystemExit(f"{what}: needs a stack of {stack_depth(tokens)} values > {MAX_STACK}: nest less (a + (b + (c + ..))) → a + b + c ..)")
+    return tokens
+
+
+def split_top(s, sep=","):
+    """"a, hypot(b, c), (d, e)" → ["a", "hypot(b, c)", "(d, e)"]: split on SEP outside brackets only; empty items dropped"""
+    out, depth, cur = [], 0, []
+    for ch in s or "":
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        if ch == sep and depth == 0:
+            out.append("".join(cur)); cur = []
+        else:
+            cur.append(ch)
+    out.append("".join(cur))
+    return [x.strip() for x in out if x.strip()]
+
+
+TYPES ={"u8": "r8", "s8": "s8", "u16": "r16", "s16": "s16", "u32": "r32", "s32": "s32", "i32": "s32", "f32": "f32", "f64": "f64"}
 BINOP = {ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/", ast.FloorDiv: "//", ast.Mod: "%", ast.BitAnd: "&",
          ast.BitOr: "|", ast.BitXor: "^", ast.LShift: "<<", ast.RShift: ">>"}
 CMPOP = {ast.Lt: "<", ast.LtE: "<=", ast.Gt: ">", ast.GtE: ">=", ast.Eq: "==", ast.NotEq: "!="}
@@ -176,9 +241,10 @@ CMPOP = {ast.Lt: "<", ast.LtE: "<=", ast.Gt: ">", ast.GtE: ">=", ast.Eq: "==", a
 class Vars:
     """named state: tools/drive/vars.json (shared, committed) + <run>/vars.json (the run's own)"""
 
-    def __init__(self, run_dir=None):
-        self.defs, self.local_path = {}, run_dir and os.path.join(run_dir, "vars.json")
-        for p in (VARS, self.local_path):
+    def __init__(self, run_dir=None, also=()):
+        """ALSO: other runs' dirs whose names are visible too (below this run's own)"""
+        self.defs, self.local_path, self._slot = {}, run_dir and os.path.join(run_dir, "vars.json"), None
+        for p in [VARS] + [os.path.join(d, "vars.json") for d in also] + [self.local_path]:
             if p and os.path.exists(p):
                 self.defs.update({k: v for k, v in json.load(open(p)).items() if not k.startswith("_")})
 
@@ -203,6 +269,8 @@ class Vars:
         if isinstance(n, ast.Constant) and isinstance(n.value, (int, float, bool)):
             return [repr(float(n.value)) if isinstance(n.value, float) else str(int(n.value))]
         if isinstance(n, ast.Name):
+            if self._slot is not None and n.id in self._slot:
+                return list(self._slot[n.id])
             if n.id in ("frame", "rng"):
                 return [n.id]
             if n.id == "pi" and "pi" not in self.defs:
@@ -226,6 +294,10 @@ class Vars:
                 for a in n.args[1:]:
                     out += c(a) + [f]
                 return out
+            if f == "sum":
+                return self._fold([c(e) for e in self._sum_args(n, src)])
+            if f == "actors":
+                return self._fold(self._actor_terms(n, depth, src))
             if f == "abs" and len(n.args) == 1:
                 return c(n.args[0]) + ["abs"]
             if f == "int" and len(n.args) == 1:
@@ -240,7 +312,8 @@ class Vars:
                 x, z = (f"({'-' if f == 'dpad' else ''}({ast.unparse(a)}))" for a in n.args)
                 return self.compile(f"((1 if {x} > 0 else 2) if abs({x}) > 0.41421356 * abs({z}) else 0) + "
                                     f"((8 if {z} > 0 else 4) if abs({z}) > 0.41421356 * abs({x}) else 0)", depth + 1)
-            raise SystemExit(f"unknown function {f}() in {src!r} (u8 s8 u16 s16 u32 s32 f32 f64 min max abs int sqrt sin cos atan2 hypot pow pad dpad)")
+            raise SystemExit(f"unknown function {f}() in {src!r} (u8 s8 u16 s16 u32 s32 f32 f64 min max abs int sqrt sin cos atan2 hypot pow "
+                             "pad dpad sum actors)")
         if isinstance(n, ast.BinOp) and isinstance(n.op, ast.Pow):
             return c(n.left) + c(n.right) + ["pow"]
         if isinstance(n, ast.BinOp) and type(n.op) in BINOP:
@@ -281,6 +354,103 @@ class Vars:
                 left = right
             return out
         raise SystemExit(f"unsupported syntax in {src!r}: {ast.dump(n)[:80]}")
+
+    @staticmethod
+    def _fold(terms):
+        """[t1, t2, t3] → t1 t2 + t3 + (a left fold: the stack stays 2 deep)"""
+        out = list(terms[0]) if terms else ["0"]
+        for t in terms[1:]:
+            out += t + ["+"]
+        return out
+
+    @staticmethod
+    def _sum_args(n, src):
+        """sum(e1, e2, ..) or sum((e1, e2, ..)) / sum([..]) → the element nodes"""
+        if n.keywords:
+            raise SystemExit(f"sum() takes no keywords in {src!r}")
+        if len(n.args) == 1 and isinstance(n.args[0], (ast.Tuple, ast.List)):
+            return n.args[0].elts
+        if len(n.args) == 1 and not isinstance(n.args[0], ast.Constant):
+            raise SystemExit(f"sum() takes the terms themselves: sum(a, b, c) or sum((a, b, c)) — no comprehensions ({src!r})")
+        return n.args
+
+    def _actor_terms(self, n, depth, src):
+        """actors(COND[, LO, HI]) → one program per slot LO..HI (default 0..63): 1 when the slot is in use (U != 0, unless
+        COND names U itself) and COND holds; COND reads the slot as T U HP X Y Z YAW ST TK SUB POW UNHIT STAG AGE AE4, and I
+        (the slot index)"""
+        if self._slot is not None:
+            raise SystemExit(f"actors() cannot nest ({src!r})")
+        if not 1 <= len(n.args) <= 3 or n.keywords:
+            raise SystemExit(f"actors(COND) / actors(COND, HI) / actors(COND, LO, HI) in {src!r}")
+        try:
+            rng_ = [int(ast.literal_eval(a)) for a in n.args[1:]]
+        except ValueError:
+            raise SystemExit(f"actors(): the slot range must be numbers ({src!r})")
+        lo, hi = (0, ACTOR_SLOTS - 1) if not rng_ else (0, rng_[0]) if len(rng_) == 1 else tuple(rng_)
+        if not 0 <= lo <= hi < 128:
+            raise SystemExit(f"actors(): slots {lo}..{hi} outside 0..127 ({src!r})")
+        cond = n.args[0]
+        names_u = any(isinstance(x, ast.Name) and x.id == "U" for x in ast.walk(cond))
+        terms = []
+        for i in range(lo, hi + 1):
+            base = ACTOR_BASE + i * ACTOR_SIZE
+            self._slot = {k: [str(base + off), TYPES[ty]] for k, (off, ty) in ACTOR_FIELDS.items()}
+            self._slot["I"] = [str(i)]
+            try:
+                t = self._c(cond, depth, src)
+                if not names_u:
+                    t = self._slot["U"] + t + ["and"]                 # and → 0 / 1
+                elif not (isinstance(cond, (ast.Compare, ast.BoolOp)) or (isinstance(cond, ast.UnaryOp) and isinstance(cond.op, ast.Not))):
+                    t = t + ["0", "!="]                              # a count, not a sum of values
+            finally:
+                self._slot = None
+            terms.append(t)
+        return terms
+
+    def _terms(self, n, depth, src):
+        """the top-level summands of an expression: [(sign, tokens)] (a + b - c, sum(..), actors(..), a name defined as one)"""
+        if isinstance(n, ast.BinOp) and isinstance(n.op, (ast.Add, ast.Sub)):
+            right = self._terms(n.right, depth, src)
+            if isinstance(n.op, ast.Sub):
+                right = [(-s, t) for s, t in right]
+            return self._terms(n.left, depth, src) + right
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "sum":
+            return [x for e in self._sum_args(n, src) for x in self._terms(e, depth, src)]
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "actors":
+            return [(1, t) for t in self._actor_terms(n, depth, src)]
+        if isinstance(n, ast.Name) and n.id in self.defs and "expr" in self.defs[n.id] and depth <= 12:
+            d = self.defs[n.id]["expr"]
+            try:
+                return self._terms(ast.parse(d.strip(), mode="eval").body, depth + 1, d)
+            except SyntaxError as e:
+                raise SystemExit(f"bad expression {d!r}: {e.msg}")
+        return [(1, self._c(n, depth, src))]
+
+    def compile_parts(self, expr):
+        """infix → [tokens, ..] whose values SUM to the expression's: one program when it fits the server's limits, else
+        its top-level summands packed into programs that do (for values read by eval / --watch / scan)"""
+        toks = self.compile(expr)
+        if len(toks) <= MAX_PROG_TOKENS and stack_depth(toks) <= MAX_STACK:
+            return [toks]
+        terms = self._terms(ast.parse(expr.strip(), mode="eval").body, 0, expr)
+        if len(terms) == 1:
+            prog_check(toks, repr(expr))                     # not a sum: nothing to split
+        parts, cur = [], None
+        for s, t in terms:
+            if len(t) + 1 > MAX_PROG_TOKENS or stack_depth(t) + 1 > MAX_STACK:
+                prog_check(["0"] + t + ["+"], f"a summand of {expr!r}")
+            if cur is not None and len(cur) + len(t) + 1 <= MAX_PROG_TOKENS:
+                cur += t + (["+"] if s > 0 else ["-"])
+            else:
+                if cur is not None:
+                    parts.append(cur)
+                cur = t + ([] if s > 0 else ["neg"])
+        parts.append(cur)
+        return parts
+
+    def program(self, expr, what=None):
+        """infix → ONE program (a stop condition, a goal, a mask): SystemExit when it exceeds the server's limits"""
+        return prog_check(self.compile(expr), what or repr(expr))
 
     def compile_tuple(self, expr):
         """"(scene, px//1, pz//1)" → [tokens, tokens, ..]"""
@@ -389,6 +559,22 @@ class Movie:
             s += " rng=" + ",".join(f"{t}:{v:x}" for t, v in rngs)
         return s
 
+    def chunks(self, lo, hi, max_ticks=4000):
+        """ticks lo+1..hi as [(a, b)] windows whose `run` fits the server: ≤ MAX_RUN_OPS ESC and rngseed ops each (it drops
+        the rest silently), a line < MAX_LINE"""
+        out, a = [], lo
+        while a < hi:
+            b = min(hi, a + max_ticks)
+            while b > a + 1:
+                esc = sum(1 for f, k, _ in self.ops if a < f <= b and k == "e")
+                rng = sum(1 for f, k, _ in self.ops if a < f <= b and k == "r")
+                if esc <= MAX_RUN_OPS and rng <= MAX_RUN_OPS and len(self.run_args(a, b)) < MAX_LINE:
+                    break
+                b = a + (b - a) // 2
+            out.append((a, b))
+            a = b
+        return out
+
 
 # ------------------------------------------------------------------ a live rhost process
 class SessionEnded(Exception):
@@ -427,6 +613,7 @@ class Live:
         return dict(t.split("=", 1) for t in r.split()[1:] if "=" in t)
 
     def prog(self, tokens):
+        prog_check(tokens, "program " + " ".join(tokens[:8]) + (" …" if len(tokens) > 8 else ""))
         if self.nprog >= 250:
             self.nprog = 0
         pid = self.nprog
@@ -439,6 +626,50 @@ class Live:
             self.s.close()
         except OSError:
             pass
+
+
+def num(v):
+    return int(v) if v == int(v) and abs(v) < 1e15 else v
+
+
+def eval_exprs(lv, V, exprs):
+    """the expressions' values now; batched (EVAL_CHUNK programs per `eval`), an over-long sum split (compile_parts)"""
+    flat = [(i, p) for i, e in enumerate(exprs) for p in V.compile_parts(e)]
+    vals = [0.0] * len(exprs)
+    for c in range(0, len(flat), EVAL_CHUNK):
+        batch = flat[c:c + EVAL_CHUNK]
+        ids = [lv.prog(p) for _, p in batch]
+        for (i, _), x in zip(batch, Live.kv(lv.cmd("eval " + ",".join(map(str, ids))))["v"].split(":")):
+            vals[i] += float(x)
+    return [num(v) for v in vals]
+
+
+def sampled_cols(lv, V, exprs, room=MAX_SAMPLED):
+    """programs for sampled columns (`run s=`) → (ids, slices): a column's value = the sum of its slice of the row"""
+    ids, slices = [], []
+    for e in exprs:
+        parts = V.compile_parts(e)
+        slices.append((len(ids), len(ids) + len(parts)))
+        ids += [None] * len(parts)
+        if len(ids) > room:
+            raise SystemExit(f"at most {room} sampled programs per run (the live server's limit; a long actors()/sum column "
+                             f"takes several): {len(ids)}+ for {len(exprs)} columns — split the watch list over two calls")
+        for k, p in enumerate(parts):
+            ids[slices[-1][0] + k] = lv.prog(p)
+    return ids, slices
+
+
+def fold_row(vals, slices):
+    return [num(sum(vals[a:b])) for a, b in slices]
+
+
+def parse_samples(text):
+    """`run … e=1` samples "f:v:v;f:v:v" → [(frame, [float])]"""
+    rows = []
+    for row in filter(None, (text or "").split(";")):
+        p = row.split(":")
+        rows.append((int(p[0]), [float(x) for x in p[1:]]))
+    return rows
 
 
 def wine_env():
@@ -768,7 +999,8 @@ def sess_file(s, f, dst):
 
 # ------------------------------------------------------------------ a run
 class Run:
-    def __init__(self, name, create=False):
+    def __init__(self, name, create=False, lock=True):
+        """lock=False: a read-only view (movie, checkpoints, names) that never writes the run and does not wait for it"""
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name):
             raise SystemExit(f"bad run name {name!r}")
         self.name, self.dir = name, os.path.join(RUNS, name)
@@ -776,11 +1008,14 @@ class Run:
             os.makedirs(self.dir, exist_ok=True)
         elif not os.path.exists(os.path.join(self.dir, "meta.json")):
             raise SystemExit(f"no run {name!r} (rd ls; rd new {name} --from ..)")
-        self.lock = open(os.path.join(self.dir, ".lock"), "w")
-        try:
-            fcntl.flock(self.lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError:
-            raise SystemExit(f"run {name} is busy: another rd command is working on it — wait for it")
+        self.lock = None
+        if lock:
+            self.lock = open(os.path.join(self.dir, ".lock"), "w")
+            try:
+                fcntl.flock(self.lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                self.lock.close()
+                raise SystemExit(f"run {name} is busy: another rd command is working on it — wait for it")
         self.meta_p, self.sess_p, self.movie_p = (os.path.join(self.dir, f) for f in ("meta.json", "session.json", "movie.jsonl"))
         self.meta = json.load(open(self.meta_p)) if os.path.exists(self.meta_p) else {"checkpoints": {}, "poked": False}
         self.movie = Movie.load(self.movie_p) if os.path.exists(self.movie_p) else Movie()
@@ -894,11 +1129,7 @@ class Run:
 
     # ---- reading state
     def ev(self, *exprs):
-        lv = self.attach()
-        ids = [lv.prog(self.vars.compile(e)) for e in exprs]
-        r = lv.cmd("eval " + ",".join(map(str, ids)))
-        vals = [float(x) for x in Live.kv(r)["v"].split(":")]
-        return [int(v) if v == int(v) and abs(v) < 1e15 else v for v in vals]
+        return eval_exprs(self.attach(), self.vars, exprs)
 
     def status_line(self):
         lv = self.attach()
@@ -925,10 +1156,18 @@ class Run:
             cmd += f" u={lv.prog(self.vars.compile(until))}"
         if avoid:
             cmd += f" a={lv.prog(self.vars.compile(avoid))}"
+        ids, wsl = sampled_cols(lv, self.vars, watch)
         ev_names = [n for n, d in self.vars.defs.items() if d.get("event")]
+        if len(ids) + len(ev_names) > MAX_SAMPLED:      # the watch columns first; the event names get what is left
+            if not quiet:
+                print(f"[--watch takes {len(ids)} of the {MAX_SAMPLED} sampled programs: events not tracked this call: "
+                      f"{' '.join(ev_names[MAX_SAMPLED - len(ids):])}]")
+            ev_names = ev_names[:MAX_SAMPLED - len(ids)]
+        ids += [lv.prog(self.vars.program(e)) for e in ev_names]
+        nw = len(ids) - len(ev_names)
         cols = list(watch) + ev_names
         if cols:
-            cmd += " s=" + ",".join(str(lv.prog(self.vars.compile(e))) for e in cols)
+            cmd += " s=" + ",".join(map(str, ids))
             cmd += f" e={every if (every and watch) else 1}"
         r = lv.cmd(cmd)
         k = Live.kv(r)
@@ -937,12 +1176,10 @@ class Run:
         out = {"ran": int(k["ran"]), "stop": k["stop"], "frame": int(k["frame"]), "rows": [], "events": []}
         if cols and k.get("samples"):
             prev = None
-            for row in k["samples"].split(";"):
-                p = row.split(":")
-                f, vals = int(p[0]), [float(x) for x in p[1:]]
+            for f, vals in parse_samples(k["samples"]):
                 if watch and (not every or (f - (out["frame"] - out["ran"])) % every == 0):
-                    out["rows"].append((f, vals[:len(watch)]))
-                evs = vals[len(watch):]
+                    out["rows"].append((f, fold_row(vals[:nw], wsl)))
+                evs = vals[nw:]
                 if prev is not None:
                     for n, a, b in zip(ev_names, prev, evs):
                         if a != b:
@@ -993,13 +1230,98 @@ class Run:
     def close(self):
         if self.live:
             self.live.close()
-        self.lock.close()
+            self.live = None
+        if self.lock:
+            self.lock.close()
+            self.lock = None
 
 
 def fmt(v):
     if isinstance(v, float) and v != int(v):
         return f"{v:.4f}".rstrip("0").rstrip(".")
     return str(int(v))
+
+
+# ------------------------------------------------------------------ earlier frames: rd scan / rd eval --at-frame
+def replay_window(lv, movie, at, lo, hi, V, exprs):
+    """LV stands at frame AT (≤ LO) of MOVIE: feed it MOVIE's own inputs (masks, ESC posts, rngseed ops) to LO, then
+    sample EXPRS after every tick LO..HI → [(frame, [values])]. LO == HI: one row, any number of expressions."""
+    k = Live.kv(lv.cmd("ping"))
+    if int(k["frame"]) != at:
+        raise SystemExit(f"scan: the session is at frame {k['frame']}, expected {at}")
+    for a, b in movie.chunks(at, lo):
+        k = Live.kv(lv.cmd("run " + movie.run_args(a, b)))
+        if int(k["frame"]) != b:
+            raise SystemExit(f"scan: the replay stopped at frame {k['frame']} (run {a}..{b}: {k.get('stop')})")
+    if lo == hi:
+        return [(lo, eval_exprs(lv, V, exprs))]
+    ids, sl = sampled_cols(lv, V, exprs)
+    first = [float(f"{float(x):.9g}") for x in Live.kv(lv.cmd("eval " + ",".join(map(str, ids))))["v"].split(":")]
+    rows = [(lo, fold_row(first, sl))]           # (%.9g: as `run` prints its samples — one value, one spelling)
+    for a, b in movie.chunks(lo, hi):
+        k = Live.kv(lv.cmd(f"run {movie.run_args(a, b)} s={','.join(map(str, ids))} e=1"))
+        got = parse_samples(k.get("samples"))
+        if int(k["frame"]) != b or len(got) != b - a:
+            raise SystemExit(f"scan: run {a}..{b} ended at frame {k['frame']} with {len(got)} rows")
+        rows += [(f, fold_row(v, sl)) for f, v in got]
+    return rows
+
+
+def scan_frames(movie, V, lo, hi, exprs, live_run=None, tag="scan"):
+    """EXPRS at every frame LO..HI of MOVIE's replay → (rows, info). Never changes a run. Two ways:
+    - LIVE_RUN (a locked Run whose live session plays exactly MOVIE) holds a checkpoint savestate at or before LO: take a
+      savestate at its head, restore the nearest checkpoint (after checking the session's movie there is MOVIE's), play
+      MOVIE's inputs on, restore the head, free the savestate. The run's movie, checkpoints, undo stack stay as they were;
+    - else a FRESH side session (the best host, as `rd new` picks it) replays MOVIE from boot to LO; stopped afterwards."""
+    t0, info = time.time(), {}
+    if live_run is not None and live_run.attach(cached_only=True):
+        r, lv = live_run, live_run.live
+        cks = r.meta.get("checkpoints", {})
+        cands = [(sf, n, sid) for n, (sid, sf) in (r.sess.get("snaps") or {}).items()
+                 if n in cks and cks[n]["frame"] == sf and sf <= lo]
+        if r.movie.frame <= lo:
+            cands.append((r.movie.frame, "head", None))
+        best = max(cands, default=None)
+        if best and best[2] is None:                    # the head itself (LO = HI = the run's frame)
+            rows = replay_window(lv, movie, best[0], lo, hi, V, exprs)
+            return rows, dict(how="the run's live session at its head", host=r.sess.get("host", "wine"), reach=0,
+                              wall=time.time() - t0)
+        if best:
+            sf, n, sid = best
+            sr = lv.cmd("snap", check=False)
+            if sr.startswith("ok") and int(Live.kv(sr).get("epoch", -1)) == r.sess.get("epoch"):
+                here = int(Live.kv(sr)["id"])
+                try:
+                    rr = lv.cmd(f"restore {sid}", check=False)
+                    if rr.startswith("ok") and int(Live.kv(rr)["frame"]) == sf and \
+                            Movie.from_server(lv.cmd("movie"), None).ops == movie.truncated(sf).ops:
+                        rows = replay_window(lv, movie, sf, lo, hi, V, exprs)
+                        return rows, dict(how=f"the run's live session from checkpoint {n} (f{sf})", host=r.sess.get("host", "wine"),
+                                          reach=lo - sf, wall=time.time() - t0)
+                    print(f"[checkpoint {n}'s savestate is not this movie's any more: replaying from boot instead]")
+                finally:
+                    lv.cmd(f"restore {here}")
+                    lv.cmd(f"free {here}")
+                    k = Live.kv(lv.cmd("ping"))
+                    if int(k["frame"]) != r.movie.frame:
+                        raise SystemExit(f"scan: the run's session did not return to its head (f{k['frame']}, movie f{r.movie.frame})")
+            elif sr.startswith("ok"):                    # (the session.json epoch was stale: keep the truth)
+                lv.cmd(f"free {Live.kv(sr)['id']}", check=False)
+                r.epoch_check(sr)
+                r.save_sess()
+    h = spawn_live(tag, movie.truncated(hi), upto=lo, idle=300)
+    try:
+        lv = Live(h["port"])
+        try:
+            lv.cmd("ping")                              # answers once the replay to LO is done
+            t1 = time.time()
+            rows = replay_window(lv, movie, lo, lo, hi, V, exprs)
+        finally:
+            lv.close()
+    finally:
+        kill_session(h)
+    return rows, dict(how=f"a fresh session replaying from boot", host=h["host"], reach=lo, wall=time.time() - t0,
+                      spawn=t1 - t0, sample=time.time() - t1)
 
 
 # ------------------------------------------------------------------ start points
@@ -1114,7 +1436,7 @@ def cmd_new(a):
 
 def cmd_play(a):
     r = Run(a.run)
-    r.play(a.spec, until=a.until, avoid=a.avoid, watch=[w for w in (a.watch or "").split(",") if w.strip()], every=a.every, rows=a.rows)
+    r.play(a.spec, until=a.until, avoid=a.avoid, watch=split_top(a.watch), every=a.every, rows=a.rows)
     r.close()
 
 
@@ -1192,28 +1514,75 @@ def cmd_status(a):
 
 def cmd_eval(a):
     r = Run(a.run)
-    if a.at:                                   # peek: savestate here, restore the checkpoint's, evaluate, come back
+    if a.at or a.at_frame is not None:
+        # peek at an earlier frame: the nearest checkpoint savestate of the live session (restored, then the head again),
+        # else a fresh side session replaying the movie — the run itself does not move
         cks = r.meta.get("checkpoints", {})
-        if a.at not in cks:
+        if a.at and a.at not in cks:
             raise SystemExit(f"no checkpoint {a.at!r} ({', '.join(cks) or 'none'})")
-        lv = r.attach()
-        sid = (r.sess["snaps"].get(a.at) or [None])[0]
-        here = r.snap()
-        if sid is None or not lv.cmd(f"restore {sid}", check=False).startswith("ok"):
-            lv.cmd(f"free {here}")
-            raise SystemExit(f"checkpoint {a.at} has no savestate in this session (the session was rebuilt, or a search re-anchored): "
-                             f"`rd ck {a.run} load {a.at}`, eval, `rd undo {a.run}`")
-        try:
-            vals = r.ev(*a.exprs)
-        finally:
-            lv.cmd(f"restore {here}")
-            lv.cmd(f"free {here}")
-        print(f"at checkpoint {a.at} (frame {cks[a.at]['frame']}); the run stays at frame {r.movie.frame}")
+        fr = cks[a.at]["frame"] if a.at else a.at_frame
+        if not 0 <= fr <= r.movie.frame:
+            raise SystemExit(f"frame {fr} is outside the movie (0..{r.movie.frame})")
+        rows, info = scan_frames(r.movie, r.vars, fr, fr, a.exprs, live_run=r, tag=f"{r.name}-at")
+        vals = rows[0][1]
+        print(f"at {'checkpoint ' + a.at + ', ' if a.at else ''}frame {fr} ({info['how']}, {info['host']}, {info['wall']:.1f}s); "
+              f"the run stays at frame {r.movie.frame}")
     else:
         vals = r.ev(*a.exprs)
     for e, v in zip(a.exprs, vals):
-        print(f"{e} = {fmt(v)}" + (f"  (0x{int(v) & 0xffffffff:x})" if isinstance(v, int) and abs(v) > 9 else ""))
+        print(f"{e} = {repr(v) if a.raw else fmt(v)}" + (f"  (0x{int(v) & 0xffffffff:x})" if isinstance(v, int) and abs(v) > 9 else ""))
     r.close()
+
+
+def scan_filter(rows, lo, nw, every=0, changes=False, where=False):
+    """rows [(f, [watch values.., where value])] → the rows to print: every N-th tick from LO, only those whose watched
+    values differ from the previous printed row (--changes), only where the last column holds (--where)"""
+    out, prev = [], None
+    for f, v in rows:
+        if every and (f - lo) % every:
+            continue
+        if where and not v[nw]:
+            continue
+        if changes and prev is not None and v[:nw] == prev:
+            continue
+        out.append((f, v[:nw]))
+        prev = v[:nw]
+    return out
+
+
+def cmd_scan(a):
+    exprs = split_top(a.watch)
+    if not exprs:
+        raise SystemExit("--watch EXPR,EXPR..: what to read at each frame")
+    view = Run(a.run, lock=False)                      # the names (and, without --at-run, the movie): read only
+    src = Run(a.at_run, lock=False) if a.at_run else view
+    V = Vars(view.dir, also=[src.dir] if a.at_run else ())
+    live_run = None
+    if not a.fresh and not a.at_run and os.path.exists(view.sess_p):
+        try:                                           # its live session's checkpoints are a head start
+            live_run = Run(a.run)
+        except SystemExit:
+            live_run = None
+    try:
+        movie = (live_run or src).movie
+        lo, hi = a.frm, movie.frame if a.to is None else a.to
+        if not 0 <= lo <= hi <= movie.frame:
+            raise SystemExit(f"--from {lo} --to {hi}: the movie of {src.name} is 0..{movie.frame}")
+        cols = exprs + ([a.where] if a.where else [])
+        rows, info = scan_frames(movie, V, lo, hi, cols, live_run=live_run, tag=f"{a.run}-scan")
+    finally:
+        if live_run:
+            live_run.close()
+    shown = scan_filter(rows, lo, len(exprs), a.every, a.changes, bool(a.where))
+    sampled = hi - lo + 1
+    print(f"scan {src.name} f{lo}..f{hi}: {sampled} frames in {info['wall']:.1f}s — {info['how']} on {info['host']}, "
+          f"{info['reach']} ticks to f{lo}" + (f" (spawn + replay {info['spawn']:.1f}s, sampling {info['sample']:.2f}s = "
+                                              f"{sampled / max(info['sample'], 1e-3):.0f} frames/s)" if "spawn" in info else "")
+          + (f"; {len(shown)} rows shown" if len(shown) != len(rows) else ""))
+    print("  frame  " + "  ".join(exprs))
+    show = (lambda x: repr(x)) if a.raw else fmt
+    for f, v in shown:
+        print(f"  {f:6d} " + "  ".join(show(x) for x in v))
 
 
 def cmd_ram(a):
@@ -1420,6 +1789,8 @@ def explore_cmd(lv, V, a, seed, apply):
 
 
 def cmd_search(a):
+    if a.apply_best:
+        a.apply = True                                 # --apply-best keeps a found path too, not only the best cell's
     r = Run(a.run)
     lv = r.attach()
     if not a.cell:
@@ -1741,9 +2112,7 @@ def walk_movie(movie, V, preds, after=0, stop_when=None):
         lv = Live(h["port"])
         ids = [lv.prog(V.compile(e)) for _, e in preds]
         truth = [[] for _ in preds]
-        at = 0
-        while at < movie.frame:
-            hi = min(movie.frame, at + 4000)
+        for at, hi in movie.chunks(0, movie.frame):
             k = Live.kv(lv.cmd(f"run {movie.run_args(at, hi)} s={','.join(map(str, ids))} e=1"))
             for row in filter(None, k.get("samples", "").split(";")):
                 p = row.split(":")
@@ -1751,7 +2120,6 @@ def walk_movie(movie, V, preds, after=0, stop_when=None):
                 for i, x in enumerate(p[1:]):
                     if float(x) != 0:
                         truth[i].append(f)
-            at = hi
         end = Live.kv(lv.cmd("hash"))
         lv.close()
         return truth, end
@@ -1927,7 +2295,20 @@ def main():
     p = sp.add_parser("text"); p.add_argument("run"); p.set_defaults(fn=cmd_text)
     p = sp.add_parser("endsave"); p.add_argument("run"); p.set_defaults(fn=cmd_endsave)
     p = sp.add_parser("eval"); p.add_argument("run"); p.add_argument("exprs", nargs="+")
-    p.add_argument("--at", help="evaluate at this checkpoint's state; the run does not move"); p.set_defaults(fn=cmd_eval)
+    p.add_argument("--at", help="evaluate at this checkpoint's state; the run does not move (no savestate: by replay)")
+    p.add_argument("--at-frame", type=int, help="evaluate at frame F of the run's movie (a replay; the run does not move)")
+    p.add_argument("--raw", action="store_true", help="full precision values (default: 4 decimals)")
+    p.set_defaults(fn=cmd_eval)
+    p = sp.add_parser("scan", help="rows of state at earlier frames: the movie replayed in a side session")
+    p.add_argument("run"); p.add_argument("--from", dest="frm", type=int, required=True); p.add_argument("--to", type=int)
+    p.add_argument("--watch", required=True, help="EXPR,EXPR..: the columns (commas inside brackets do not split)")
+    p.add_argument("--every", type=int, default=0, help="every N-th frame from --from")
+    p.add_argument("--changes", action="store_true", help="only rows where a watched value changed")
+    p.add_argument("--where", help="only rows where EXPR holds")
+    p.add_argument("--at-run", help="replay this run's movie instead (read only); names: R's, then RUN's")
+    p.add_argument("--fresh", action="store_true", help="always a fresh side session (not the run's checkpoint savestates)")
+    p.add_argument("--raw", action="store_true", help="full precision values (default: 4 decimals)")
+    p.set_defaults(fn=cmd_scan)
     p = sp.add_parser("ram"); p.add_argument("run"); p.add_argument("op"); p.add_argument("args", nargs="*")
     p.add_argument("--addr"); p.add_argument("--type", default="s32"); p.add_argument("--expr"); p.add_argument("--status", action="store_true")
     p.add_argument("--event", action="store_true"); p.add_argument("--note"); p.add_argument("--shared", action="store_true", help="define in tools/drive/vars.json (all runs)")
@@ -1943,7 +2324,7 @@ def main():
     p.add_argument("--sticky", type=int, default=60); p.add_argument("-j", "--jobs", type=int, default=1, help="parallel sessions, one exploration each")
     p.add_argument("--score", help="EXPR, higher = closer: cells are expanded in proportion to it (direction), and the best one is reported")
     p.add_argument("--greed", type=float, default=3.0, help="--score: the best cell is picked e^GREED times as often as the worst (default 3)")
-    p.add_argument("--apply-best", action="store_true", help="--score: goal not reached in time → keep the path to the best-scored cell")
+    p.add_argument("--apply-best", action="store_true", help="--apply, and with --score: goal not reached in time → keep the path to the best-scored cell")
     p.set_defaults(fn=cmd_search)
     p = sp.add_parser("look"); p.add_argument("run"); p.add_argument("--at"); p.add_argument("--target", choices=("win", "wine")); p.add_argument("--scale", type=float, default=1.0); p.set_defaults(fn=cmd_look)
     p = sp.add_parser("strip"); p.add_argument("run"); p.add_argument("--from", dest="frm", type=int, required=True); p.add_argument("--to", type=int)
@@ -1963,7 +2344,7 @@ def main():
     argv, i = [], 1
     while i < len(sys.argv):
         t = sys.argv[i]
-        if t in ("--goal", "--avoid", "--until", "--score", "--cell", "--watch", "--expr") and i + 1 < len(sys.argv) and sys.argv[i + 1].startswith("-") \
+        if t in ("--goal", "--avoid", "--until", "--score", "--cell", "--watch", "--expr", "--where") and i + 1 < len(sys.argv) and sys.argv[i + 1].startswith("-") \
                 and not sys.argv[i + 1].startswith("--"):
             argv.append(f"{t}={sys.argv[i + 1]}"); i += 2
         else:

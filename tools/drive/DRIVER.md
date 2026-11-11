@@ -25,7 +25,8 @@ something.
    0.2 ms. **A load is a step back in time: the movie is cut there and later checkpoints are dropped.**
    `rd undo` reverts the last state-changing command — a `ck load` or `rewind` included, 8 deep, and
    it survives a session rebuild (then it replays instead of restoring). To only read an earlier
-   state: `rd eval <run> EXPR --at NAME` (the run does not move).
+   state: `rd eval <run> EXPR --at NAME` or `--at-frame F`; per-tick rows over a stretch of your movie:
+   `rd scan <run> --from F --to T --watch ..` (the run does not move — below).
 6. **Finish:** `rd check <run> TASK.md` prints PASS (if there is a task file), `rd verify <run>`
    prints MATCH, and you have LOOKED at a strip of the moment the trace is about. Then report: run
    name, frames, what each step's frame was, state you named, game facts you learned, what the tool
@@ -41,12 +42,14 @@ rd new R --from fresh | SCENARIO[@F] | RUN[:CK|@F] | end:SCENARIO | save:SHA    
 rd play R "SPEC" [--until EXPR] [--avoid EXPR] [--watch EXPR,EXPR] [--every N] [--rows N]
 rd tap R "A" [--n 40] [--gap 8] [--until EXPR] [--text]   # (A .*gap) x n: advance dialogue, mash a menu;
                                                           # --text = a transcript (the new rows before each press)
-rd status R        rd text R        rd eval R EXPR [EXPR..] [--at CHECKPOINT]        rd ram R actors   # dungeon actor table
+rd status R        rd text R        rd eval R EXPR [EXPR..] [--at CHECKPOINT | --at-frame F] [--raw]
+rd scan R --from F [--to T] --watch "EXPR,EXPR.." [--every N] [--changes] [--where EXPR] [--at-run RUN] [--fresh] [--raw]
+rd ram R actors    # dungeon actor table
 rd ram R list | read VA [NBYTES] | dwords VA [N] | str VA | define NAME --addr HEX --type f32 | --expr "..." [--status] [--event]
 rd ram R mark ; (act) ; rd ram R diff [--lo VA --hi VA] [--save NAME] [--minus NAME] [--show N]
 rd ck R save NAME | load NAME | list        rd undo R        rd rewind R --to F
 rd search R --goal EXPR [--avoid EXPR] [--cell "(a, b)"] [--actions SPEC ..] [--time-limit S] [--apply] [-j N]
-            [--score EXPR [--apply-best] [--greed G]]
+            [--score EXPR [--apply-best] [--greed G]]          # --apply-best = --apply + keep the best cell's path
 rd look R [--at F,F]        rd strip R --from F --to F [--every N]      # PNGs → Read them
 rd check R TASK.md        rd verify R [--real]        rd lint TASK.md --on RUN
 rd endsave R        rd file R NAME        rd port R        rd stop R        rd ls
@@ -65,12 +68,19 @@ records the masks it gave, so replays do not depend on it). In EXPR, button lett
 enemy and swing: `{dpad(a1x - px, a1z - pz) | A} .*9`; back off: `{dpad(px - a1x, pz - a1z)}*8`; strafe around it:
 `{dpad(a1z - pz, px - a1x)}*8`. They work in `play`, in groups, and as `search --actions` — a search over
 "approach / attack / retreat / strafe left / strafe right / wait" needs far fewer cells than one over raw
-directions. `--watch` splits on commas: name an expression first (`rd ram R define d1 --expr "hypot(..)"`).
+directions. `--watch` splits on top-level commas only (`--watch "hp, hypot(a0x - px, a0z - pz)"` = 2 columns).
 
 **Expressions** (goals, `--until`, `--watch`, `eval`, task steps): Python syntax over named state
 (`rd ram R list`), `frame`, `rng`, raw reads `u8(va) s8 u16 s16 u32 s32 f32 f64` (nestable:
 `s32(u32(0x73dfcbc) + 4)`), `+ - * / // % ** & | ^ << >> ~`, comparisons, `and or not`,
-`x in (1, 2)`, `a if c else b`, `min max abs int sqrt sin cos atan2(y, x) hypot(a, b) pow`, `pi`.
+`x in (1, 2)`, `a if c else b`, `min max abs int sqrt sin cos atan2(y, x) hypot(a, b) pow`, `pi`,
+`sum(e1, e2, ..)` (additions; no comprehensions), and **`actors(COND)`** = how many actor slots 0..63 are in use
+(`U != 0`) with COND true, COND written over one slot's fields `T` (type) `U` (in use; 2 = dying) `HP X Y Z YAW ST`
+(AI state) `TK` (its tick) `SUB POW UNHIT STAG AGE AE4` and `I` (slot index); `actors(COND, LO, HI)` = slots LO..HI.
+`rd eval R "actors(T == 10)"` (bees alive), `"actors(U == 1 and T == 10)"`, `"actors(hypot(X - px, Z - pz) < 6)"`
+(anything within 6), `"actors(T == 67 and ST == 2)"` (Ohms charging). A long one is split into several programs for
+`eval` / `--watch` / `scan` (summed); as a stop condition (`--until`, `--goal`, a task step) it must fit one program
+(598 postfix tokens): narrow the slots (`actors(T == 10, 0, 23)`) if `rd` says it is too long.
 
 ## Search: how to think
 
@@ -87,7 +97,7 @@ macro-actions until the **goal** holds, then spends `--refine` seconds shortenin
 - **Actions:** ~8-tick macro-actions. Default: the 8 walking directions ×8 and ×2, `A .*7`, `B .*7`,
   `.*8`. Give what the sub-goal needs (`--actions "A .*3" "D .*3" "U .*3" ".*4"` for a menu).
   ESC (`~`) cannot be in an action.
-- Nothing is kept unless `--apply` (or `--save FILE`, then `rd play R "$(cat FILE)"`).
+- Nothing is kept unless `--apply` / `--apply-best` (or `--save FILE`, then `rd play R "$(cat FILE)"`).
 - `found: false` lists the newest cells = how far it got. One cell = your actions change nothing the
   cell sees. Split the goal there, add the action, or change the cell.
 - **Score (`--score EXPR`, higher = closer):** gives the search a direction — cells are expanded in
@@ -95,10 +105,31 @@ macro-actions until the **goal** holds, then spends `--refine` seconds shortenin
   its best-scored arrival. `--score "-exitd"` (minus the distance to the exit), `--score "-a1hp"`
   (damage dealt). The goal stays the stop condition. **`--apply-best`: when the goal is not reached
   in time, the path to the best-scored cell is kept** — search again from there instead of losing
-  the minute. Without a score a failed search keeps nothing.
+  the minute. `--apply-best` also applies a found path (it implies `--apply`). Without a score a failed search keeps
+  nothing.
 - `-j N` runs N independent explorations (N sessions) and applies the shortest path. Use it for
   hard goals; a single session does ~800 ticks/s in a 3D scene, ~5,000 in menus / dialogue.
 - Wall-time bounded ⇒ not reproducible: apply or save what you got.
+
+## Reading earlier frames (`rd scan`, `rd eval --at-frame`)
+
+What happened inside a search's applied path, a fight, a cutscene you already played: **scan your own movie** instead
+of side runs. `rd scan R --from F --to T --watch "a,b,c"` replays R's movie (its exact inputs: masks, `~` ESC posts,
+rngseed ops) and prints one row per tick F..T; R itself (movie, checkpoints, undo, session) does not change.
+- It starts from the nearest checkpoint ≤ F of R's live session (restored, then the head again: ~1,800 rows/s), else a
+  fresh side session replays from boot (~15–30 s for a 40k-frame movie, then ~1,600–2,200 rows/s) and is stopped.
+  Put a `rd ck R save NAME` before anything you will want to scan.
+- `--changes` = only rows where a watched value changed; `--where EXPR` = only rows where EXPR holds; `--every N`;
+  `--raw` = full precision. ≤ 32 programs per scan (a column split by `actors()` takes several).
+- `rd eval R EXPR.. --at-frame F` = one row, any number of expressions; `--at CK` falls back to the same replay
+  when the checkpoint's savestate is gone (a rebuild, a search's re-anchor).
+- `--at-run OTHER`: scan another run's movie (read only; names: yours, then its).
+
+```
+rd scan R --from 40500 --to 40800 --watch "hp, a0st, a1st, actors(T == 10)" --changes  # each state change of a fight
+rd scan R --from 31800 --to 32800 --watch "hp, px, pz" --where "p_hurt > 0" --every 5   # when was I hit, where
+rd eval R "actors(T == 10)" a0hp --at-frame 40650                                     # one earlier frame
+```
 
 ## Finding state
 

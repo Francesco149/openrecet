@@ -145,6 +145,45 @@ Gates on Windows: `rhost.py snap-check --target win -j 6` **159/159 PASS** (one 
 dungeon1-charme, dungeon2-21f-25f, dungeon2-25f-crown-kill, obsidian-21f-30f-griff): 7/7 equal; `rd check` /
 `rd endsave` on a Windows session: PASS / the same save as wine.
 
+## Reading earlier frames (`rd scan`, `rd eval --at-frame`, 2026-11-11)
+
+Four drivers on 2026-11-11 (probes obsidian-31f-40f, obsidian-21f-30f, amber-26f-30f, obsidian-6f-10f) needed state at
+frames their run had already passed; one spent 48 side runs / 16 min sampling one fight. `rd scan R --from F --to T
+--watch ..` replays R's movie with its own ops (masks, ESC posts, rngseed ops: `Movie.run_args`, the live `run`'s `esc=`
+/ `rng=`; hand-converting a movie to `{mask}` tokens diverged after ~100 frames because the `{"esc": F}` lines were not
+ESC on that tick) and samples the columns after every tick (`run … s=P,.. e=1`). Two ways (`scan_frames`):
+
+- **R's live session holds a checkpoint savestate ≤ F** (only checkpoints still in `meta.json` at the same frame): a
+  savestate at the head, restore the nearest one, check the session's movie there equals R's movie prefix, play R's
+  inputs on, restore the head, free. R's lock is held for the scan; its movie, checkpoints, undo stack and
+  `session.json` are not written. (`rd verify` after scans in the session: MATCH.)
+- **else a fresh side session** on the best host (`spawn_live`, the `rd new` choice; `RD_HOST` forces one) replays
+  the movie from boot to F (the trace dialect, `--frames F`), then the window; stopped in a `finally`. Without a live
+  session no lock is taken: the driver can keep working on R. `--fresh` forces this way; `--at-run OTHER` always
+  uses it (OTHER is only read).
+
+`rd eval R EXPR.. --at-frame F` is a one-row scan (any number of expressions, batched); `--at CK` is `--at-frame` at
+the checkpoint's frame, so it falls back to the replay when the savestate is gone instead of failing. Windows are cut
+into `run` commands that fit the server (`Movie.chunks`: ≤ 16 ESC and ≤ 16 rngseed ops each — `rh_live.c` drops the
+rest silently — and < 60 KB per line; `rd check` / `lint` use it too).
+
+Measured 2026-11-11 (rhost bin of that day; runs `scan-a` = obsidian-31f-40f-ohms@40500 + 2,115 played fight ticks,
+`scan-g` = griff-30f@32800):
+
+| | win (native) | bunker |
+|---|---|---|
+| fresh side session to f37,802 (spawn + replay) | 23.8–24.5 s | 25.8 s |
+| sampling 3,001 frames (13 columns, a 40F fight) | 1.83 s = 1,640 rows/s | 1.36 s = 2,200 rows/s |
+| from a checkpoint in R's session, 1,801 frames | 1.0 s (≈ 1,800 rows/s) | — |
+| fresh to f31,850 + 951 frames (griff-30f, two ESCs) | — | 14.0 s + 0.50 s (1,900 rows/s; pause menu) |
+
+Equality: scan rows = the live run's own `play --watch` rows at every frame (scan-a: 302 frames f40501..40802 with
+an ESC / pause menu, `{dpad}` input, a charge hit; 1,800 frames f40816..42615) — 0 differ, both ways (fresh, and from
+checkpoints); `rd eval --at c0..c3` (the live savestates) = the fresh scan's rows at 17 digits → 9 digits; `--at-frame
+40650` and `--at c2` after `rd stop` (replay fallback) = the savestate values bit for bit. win = bunker on all 3,001
+rows of the 13 columns (floats included). scan-g (bunker): the scan across ESC ops f31886 / f32706 = the run's head
+(replayed through the trace) at f32800 and an independent `--at-frame 32750` replay.
+
 ## Measured: the first campaign (2026-11-10)
 
 35 probes accepted in one session (task files in `tasks/`, reports in `docs/findings/probes/`), each: `rd check`
@@ -334,5 +373,11 @@ scratch name (`_rd-<run>`).
 ## Live protocol
 
 `rh_live.c`'s header lists every command. One line in, one line out, on `127.0.0.1:<port>` (the port
-is in `<session dir>/live.port`). `drive.py`'s `Live` class is 40 lines; a search or probe script can
+is in `<session dir>/live.port`). Limits the client respects (`drive.py` top of "expressions"): a command line is split
+into ≤ 600 tokens, so a program has ≤ 598 (longer ones were CUT silently — the "49 summed `and` terms evaluate to 0" of
+probe obsidian-21f-30f; `Live.prog` now refuses them), a VM stack of 64, 256 program ids (the client wraps at 250),
+`eval` ≤ 64 ids (`rd eval` batches 48 — the "undefined program" past ~40–600 expressions), `run s=` ≤ 32 (`play
+--watch` columns first, the `event` names get what is left — ~26 columns failed before), `esc=` / `rng=` ≤ 16 each.
+`compile_parts` splits an over-long top-level sum (`+`, `sum()`, `actors()`, or a name defined as one) into programs
+that fit; read contexts sum their values, a stop condition must be one program. `drive.py`'s `Live` class is 40 lines; a search or probe script can
 talk to a session directly.
