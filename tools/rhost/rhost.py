@@ -222,9 +222,11 @@ def local_rhost_procs():
     n = 0
     for d in os.listdir("/proc"):
         if d.isdigit():
-            try:                    # the game process itself (~0.75 GB), not wine's start.exe / xvfb-run wrappers
-                n += open(f"/proc/{d}/comm").read().strip() == "rhost.exe"
-            except OSError:
+            try:                    # the game process itself (~0.75 GB), not wine's start.exe / xvfb-run wrappers —
+                c = open(f"/proc/{d}/comm").read().strip()      # nor yet a wine loader still starting one (comm "wine*"
+                n += c == "rhost.exe" or (c.startswith("wine") and c != "wineserver" and   # for a second or two: parallel
+                                          any(x.endswith(b"rhost.exe") for x in open(f"/proc/{d}/cmdline", "rb").read().split(b"\0")))
+            except OSError:         # admissions all saw 0 of them, 2026-11-11)
                 continue
     return n
 
@@ -629,6 +631,8 @@ def run_batch(a, runs, tag, fetch=("rhost.log",)):
         a.extra = ((a.extra or "") + f" --watch {ENV_VA:x}").strip()
     if getattr(a, "target", "win") == "wine":
         return run_batch_wine(a, runs, tag)
+    if getattr(a, "target", "win") == "bunker":
+        return bunker().run_batch(a, runs, tag, fetch)
     if not _pruned and PRUNE_HOURS > 0 and not PREBUILT:   # once per command: keep C: from filling up
         _pruned = True
         prune_win_runs()
@@ -660,6 +664,13 @@ def run_batch(a, runs, tag, fetch=("rhost.log",)):
         list(ex.map(get, [(name, f) for name, *_ in runs for f in fetch]))
     print(f"[batch {batch}: {len(runs)} run(s) in {time.time() - t0:.1f}s → {bdir}]")
     return batch, bdir, results, out
+
+
+def bunker():
+    """tools/bunker/bunker.py: --target bunker (headless under wine on the temporary NixOS box, one bounded pool)"""
+    sys.path.insert(0, os.path.join(ROOT, "tools", "bunker"))
+    import bunker as bk
+    return bk
 
 
 def resolve_runs(names):
@@ -695,7 +706,7 @@ def cmd_run(a):
     if a.d3d:
         # the proxy's capture (v3cap.bin + census) stayed on Windows: fetch it next to the run
         for name, *_ in runs:
-            if getattr(a, "target", "win") != "wine":   # under wine the run dir is already local
+            if getattr(a, "target", "win") == "win":    # under wine the run dir is already local (bunker: no --d3d)
                 subprocess.run(["scp", "-q", "-r", f"{WIN}:C:/orc-rhost/runs/{batch}/{name}/v3", os.path.join(bdir, name)],
                                capture_output=True, text=True)
             cap = os.path.join(bdir, name, "v3", "v3cap.bin")
@@ -812,6 +823,8 @@ def run_port(a, batch, bdir, name, save, flat, frames, extra=(), fetch=(), files
     """the port (--det-loads, turbo) on rhost's flat trace of the same run, on Windows.
     Returns the local port dir; `fetch` names files the port wrote into it; `files` (local paths)
     go into it first (the port sees them as {pw}\\<basename>)."""
+    if getattr(a, "target", "win") == "bunker":
+        raise SystemExit("--target bunker is retail-only (headless batches): the port builds here and runs on win / wine")
     build_port()
     pdir_l = os.path.join(bdir, "port")
     os.makedirs(pdir_l)
@@ -1228,7 +1241,7 @@ def cmd_snap_check(a):
 
     if not PREBUILT and rhost_stale():
         cmd_build(None)
-    wine_stage() if a.target == "wine" else ensure_staged()      # once, here: the children must not race on it
+    {"wine": wine_stage, "bunker": lambda: bunker().stage()}.get(a.target, ensure_staged)()   # once, here: the children must not race on it
     child_env = dict(os.environ, RHOST_PREBUILT="1", RHOST_BIN_DIR=bin_dir())   # pinned: a rebuild meanwhile changes nothing
 
     def one(row):                                   # the window differs per scenario: a child `run` each, -j at a time
@@ -1798,6 +1811,8 @@ def cmd_gates(a):
 
 def prebuild(a):
     """build + stage rhost and the port once, prune once: children run with RHOST_PREBUILT=1"""
+    if getattr(a, "target", "win") == "bunker":
+        raise SystemExit("--target bunker is retail-only (headless batches): gates / port commands run on win / wine")
     global _pruned
     if rhost_stale():
         cmd_build(None)
@@ -2366,10 +2381,11 @@ def common(p):
     p.add_argument("--shot-at", help="F[,F..|end]: PNG of the game window at those frames")
     p.add_argument("--shot-every", type=int)
     p.add_argument("--show", action="store_true", help="normal on-screen window (default: --quiet off-screen)")
-    p.add_argument("--target", choices=("win", "wine"), default=os.environ.get("RHOST_TARGET", "win"))
+    p.add_argument("--target", choices=("win", "wine", "bunker"), default=os.environ.get("RHOST_TARGET", "win"),
+                   help="bunker: headless only (run --headless / headless-check / snap-check / skip-check), tools/bunker/README.md")
     p.add_argument("--headless", action="store_true",
                    help="retail on rhost's fake devices (rh_dev.c): no GPU / desktop / audio; wine runs without Xvfb")
-    p.add_argument("-j", "--jobs", type=int, help="parallel runs in a batch / gates rows (default: win 8, wine cores/2)")
+    p.add_argument("-j", "--jobs", type=int, help="parallel runs in a batch / gates rows (default: win 8, bunker 8, wine cores/2)")
     p.add_argument("--wine-timeout", type=int, default=14400, help="seconds per wine run (a long replay under contention takes hours)")
     p.add_argument("--no-golden", action="store_true", help="port commands: run retail afresh instead of its cached golden")
 
@@ -2507,7 +2523,7 @@ def main():
     p.add_argument("--force", action="store_true"); p.set_defaults(fn=cmd_restart_runner)
     a = ap.parse_args()
     if hasattr(a, "target") and getattr(a, "jobs", 0) is None:
-        a.jobs = 8 if a.target == "win" else max(1, (os.cpu_count() or 4) // 2)
+        a.jobs = 8 if a.target in ("win", "bunker") else max(1, (os.cpu_count() or 4) // 2)
     r = a.fn(a)
     sys.exit(r or 0)
 
