@@ -3,7 +3,9 @@
 **code-read**: IDA `sub_424B42` (AI, 0x424b42; phase compare checked in disassembly 0x424ba8..0x424bd2), `sub_42460A`
 (the on-damage hook, called by `sub_42E791`), `sub_42F7AD` case 28, `sub_44E08F` cases 29 / 49, the dungeon-3 arm
 inline in `sub_4427F1` (IDA 44146..44345). **Port: AI stub, death arm stub, d3 setup / events stub.**
-Shared rules: `boss-floor-common.md`. The hand of the 50F fight: `demon-hand.md`. Nothing run.
+Shared rules: `boss-floor-common.md`. The hand of the 50F fight: `demon-hand.md`. **Run 2026-11-11:** run `griff-30f` (probe
+`docs/findings/probes/obsidian-21f-30f.md`; Louie L40, ATK 56 / DEF 58 / MDEF 32): 30F fought and killed, `rd verify` MATCH at
+f39676. Arms marked **[obs fNNNN]** in §9; retail numbers in §10 override the code-read ones above where they differ.
 
 ## 1. Where
 
@@ -34,10 +36,11 @@ Stage 3 as above (sets bank+0x2bce7). Stage 4: tick 180 fade; stage 5: tick 30 e
 
 ## 2. Stats
 
-- Table (baked, no enemy.txt line): HP 150, EXP 30, AT 20, DF 20, MA 0, MD 10; rf0 0.6 → radius 1.2, half-height 1.2.
-  Boss flag 0 (a normal-class record: it staggers and is knocked back in phases 0 / 1).
-- d3 f29: lv 23 → **HP 840**. d3 f49: lv 28 → **HP 990**. d5 f42: lv 70 → 2250; f45: lv 75 → 2400. d3 Boss Rush
-  (floors 42 / 45): lv 32 / 36 → 1110 / 1230.
+- **Retail (read live, `0x5c23f0 + 28*0x68`): HP 200, EXP 25, AT 35, DF 30, MA 40, MD 30; rf 0.6, 1.5, 2, 2; flags 0.**
+  (The code-read "HP 150, EXP 30, AT 20, DF 20, MA 0, MD 10" was wrong.) Boss flag 0 (a normal-class record: it staggers and
+  is knocked back in phases 0 / 1) **[obs]**.
+- d3 f29: lv 23 → **HP 1120** **[obs f31614]** (`+0x434` 1120, `+0xae0` 23). With the retail table: d3 f49 lv 28 → 1320; d5 f42
+  lv 70 → 3000; f45 lv 75 → 3200; d3 Boss Rush (floors 42 / 45) lv 32 / 36 → 1480 / 1640 (computed, not run).
 
 ## 3. Phase — `s32(B+0xae4)`, recomputed every AI tick
 
@@ -117,11 +120,11 @@ fresh again). Hits ≥ 60 AI ticks apart are all fresh and never trigger the cou
 
 | attack | record | timing | notes |
 |---|---|---|---|
-| slash | 22 (phase 2: 23) — 2 records per call, direction = octant | state 1 t 7 | physical, AT 20·mul |
-| dash | 21, direction = octant | state 2 t 50; body moves 8 units over t 50..59 | Griff untouchable for all 85 ticks |
-| fan | 152 ×5, speed 0.3, `+0xa8 = 20` | state 3 t 7 | "magic" list → MA 0 → 1 damage (`boss-floor-common.md`) |
-| bat blast | 151 at each bat | state 4 | bats also bite on their own (type 6 drift AI) |
-| counter burst | 14 at Griff | counter t 4 | knock-down 70 |
+| slash | 22 (phase 2: 23) — **3 records** per call **[obs f32260]**, 1 ahead of Griff along the octant, reach 1.5 | state 1 t 7 | physical: Louie took 45 (ftol(35·3.3/2 − 58/4) = 43, +0..8) |
+| dash | 21, direction = octant | state 2 t 50; body moved **11.6** units (−35.75 → −47.36; v 0.656 then ×0.82 decay) **[obs f35051]** | Griff untouchable for all 85 ticks **[obs]**; Louie took 44 |
+| fan | 152 ×5, speed 0.3, `+0xa8 = 20` | state 3 t 7 | **retail MA is 40**: the 5 rings (y 0.25, reach 0.7) home on the player and erupt at age 120: Louie took **66** and **61** (ftol(40·3.3/2 − 32/4) = 58, +0..11) **[obs f32703, ≈f35700]** |
+| bat blast | 151 at each bat (reach 1.0) | state 4 | bats also bite on their own: each carries contact record 153 (magic, MA 15): Louie took 16 **[obs f≈36928]** |
+| counter burst | 14 at Griff, reach 2.0 | counter t 4 | knock-down 70; physical: Louie took 43 **[obs f35198]** |
 
 Record reach / lifetime / the 22-vs-23 difference: records table, not read here.
 
@@ -149,28 +152,49 @@ after a second hit, the counter, and the 60 guard ticks. Predicate for "open": `
 
 ## 9. Arms checklist
 
-| branch | predicate |
-|---|---|
-| intro release (d3 / d5) | `s32(B+0xa54)` 8 → 0 at `s32(0x438b8a0) == 3` / at t 240 |
-| roam heading pick | `s32(B+0xa54) == 0 and s32(B+0xa58) == 1` |
-| slash, record 22 | `s32(B+0xa54) == 1`; phase 2 → record 23 |
-| dash | `s32(B+0xa54) == 2`; `f32(B+0x3fc)**2 + f32(B+0x404)**2 > 0.6` at t 50..59 |
-| fan | `s32(B+0xa54) == 3` |
-| fan beats dash | both charges over threshold → state 3 |
-| phase 1 (30F: HP < 30 %; 50F: < 70 %) | `s32(B+0xae4) == 1` |
-| phase 2 (50F only) | `s32(B+0xae4) == 2 and s32(B+0xb54) == 1` |
-| swarm, side 1 / side 2 | `s32(B+0xa54) == 5`, `s32(B+0xa84)` 1 and 2; alpha 0 in sub 0 |
-| the 0-flag bats | bats with `s32(+0x9fc) == 0` (2 per swarm; 5 in phase 2) |
-| detonate with / without bats alive | `s32(B+0xa54) == 4` |
-| fresh hit | `s32(B+0xa64)` resets to 0, `s32(B+0x440) == 0` right after |
-| counter | `s32(B+0xa60) > 0`, then `s32(B+0xa6c) == 60` |
-| attack cancelled by a hit | state 1 / 3 → 0 with `s32(B+0x440) == 40` |
-| death d3 (walks to the party, shrinks at stage 7) / d5 (fades from tick 60) | `s32(B+0x428) == 2`, `s32(B+0xaf0)` |
-| already-beaten floor | bank+0x2bce5 / 0x2bce7 = 1 → `s32(0x438b8a0) == 8`, no type 28 |
+Run `griff-30f` (d3 f29). `rd` names (run-local `vars.json`): `gst gt gsub gctr ghc gpc gguard gdash gfan gside gph gunt gstag
+galpha guse ghp gx gz gyaw gdie` = `B+0xa54 a58 a5c a60 a64 a68 a6c a74 a78 a84 ae4 b08 440 3dc 428 42c 3f0 3f8 420 af0` with
+B = 0x76b970 (actor 0); `est etk` = `0x438b8a0 / a4`.
 
-## 10. Unresolved
+| branch | predicate | status |
+|---|---|---|
+| intro release (d3 / d5) | `s32(B+0xa54)` 8 → 0 at `s32(0x438b8a0) == 3` / at t 240 | d3 **[obs f31885]** (`est` 3 at `etk` 270; `gst` 0 on the next AI ticks). d5 not reached |
+| roam heading pick | `s32(B+0xa54) == 0 and s32(B+0xa58) == 1` | **[obs]** (state 0 `gt` 1 after every state end, e.g. f35091) |
+| slash, record 22 | `s32(B+0xa54) == 1`; phase 2 → record 23 | **[obs f32248]** state 1 (player 3.8 away on its axis), 3 records 22 at t 7, hit taken f32260. Record 23: not reached (floor 49 only) |
+| dash | `s32(B+0xa54) == 2`; `f32(B+0x3fc)**2 + f32(B+0x404)**2 > 0.6` at t 50..59 | **[obs f35001]** (`gdash` 185 → 0, `gfan` 150, player aligned dx −1.28 dz −3.72); t 50 f35051: v (−0.11, −0.65), hit taken 183 → 139; t 85 → state 0 f35091 |
+| fan | `s32(B+0xa54) == 3` | **[obs ≈f32583]** (rings' age 118 at f32701; state entry frame not read); eruption hits f32703, ≈f35700 |
+| fan beats dash | both charges over threshold → state 3 | not isolated (no frame read with both charges due) |
+| phase 1 (30F: HP < 30 %) | `s32(B+0xae4) == 1` | **[obs]** HP 340 → 317 at f36491 (< 336 = 0.3·1120); `gph` 1 by f36821 |
+| phase 2 (50F only) | `s32(B+0xae4) == 2 and s32(B+0xb54) == 1` | not reached (floor 49) |
+| swarm, side 1 / side 2 | `s32(B+0xa54) == 5`, `s32(B+0xa84)` 1 and 2; alpha 0 in sub 0 | side 2 **[obs f36820]** (`gpc` 240; player z −34.15 ≥ −40): alpha 0, spring to (−40.26, −49.47), sub 1 + yaw 0 at t 60 (f36880), alpha 255, 48 bats, state 0 f36955. Side 1 not reached |
+| the 0-flag bats | bats with `s32(+0x9fc) == 0` (2 per swarm; 5 in phase 2) | not read (slot 1 had 1) |
+| detonate with / without bats alive | `s32(B+0xa54) == 4` | **[obs f37613]** (`gpc` 660 → 0), 30 ticks, `gunt` 0 throughout; **1** bat alive → one record 151 at (−32, 1, −23.97), no damage. "Without bats": not isolated |
+| fresh hit | `s32(B+0xa64)` resets to 0, `s32(B+0x440) == 0` right after | **[obs f32321]** first hit of the fight (`ghc` was 280: the clock ran through the intro) → `ghc` 0, `gunt` 1, 1120 → 1097. `+0x440` not read on that tick |
+| counter | `s32(B+0xa60) > 0`, then `s32(B+0xa6c) == 60` | **[obs f32627]** (`ghc` 32: `gstag` 40, `gctr` 1) → counter t 1 f32672 (`gguard` 60), `gctr` 0 f32692, `gunt` 0 f32757. Again f35149 (`ghc` 44) → record 14 at t 4 f35196, hit taken f35198 |
+| attack cancelled by a hit | state 1 / 3 → 0 with `s32(B+0x440) == 40` | not isolated (hits landed in state 0; the searches did not log the state at each hit) |
+| death d3 (walks to the party, shrinks at stage 7) / d5 (fades from tick 60) | `s32(B+0x428) == 2`, `s32(B+0xaf0)` | d3 **[obs f37798]** (HP 0, `est` 4, bank+0x2bce5 = 1) … freed by f38801 (`gdie` 379). d5 not reached |
+| already-beaten floor | bank+0x2bce5 / 0x2bce7 = 1 → `s32(0x438b8a0) == 8`, no type 28 | not run (the end save has 0x2bce5 = 1: a new run from `save:b7eae73ba6be` → guild row "26~30" reaches it) |
+
+## 10. Retail facts (run `griff-30f`)
+
+- Hit clock: `+0xa64` counts through the d3 intro (280 at state-0 `gt` 8, f32238) → the first hit of the fight is fresh. The
+  §5 remark "the first hit inside Griff's first 60 AI ticks counts as second" does not apply on d3 30F.
+- Louie's damage on Griff: sword `ftol(56/2 − 30/4)` = 20 (+0..4): 23, 25, 27 seen; spin 40.
+- Damage taken by Louie (L40, HP 197): slash 45, dash 44, counter burst 43 (knock-down 70), fan eruption 66 / 61, bat contact 16.
+- Swarm bats (type 6, HP 84 at L23; table HP 15, AT 20, DF 4, MA 15, MD 10): `+0xb08 = 1` (cannot be hit), `+0xb2c = 1`,
+  `+0xae4 = 3`; each carries record 153; **freed at age 100** (slot 1: use 1 → 0 at f36999, at (−33.2, −15.1), flying out). So 47
+  of 48 were gone before the detonation (420 state-0 ticks later): §8.5 "kill bats before the detonation" is moot — they cannot be hit and
+  expire first.
+- d3 timeline: `lock` 4 (scripted walk) at `etk` 60..99, party −48 → −40.28; no dialogue at tick 120 (0x2bce4 = 1). Death → `est` 4 the
+  same tick, slow-mo 45 at f37818, `p_inv` 1195; stage 5 at ≈f38140 (party (−40, −45), Griff (−43, −46.5)); **event 7/12 at stage 5
+  tick 30 (f38171..38741)**: "Impossible!... / Enough! Stop this at once! / I'm so sorry! We didn't hurt you, I hope... / How can a
+  human and her friends drive me to such desperation... / Hm... / Very well then. Try to reach the top, if you can! / I will meet
+  you there - if you survive!"; `est` 7 f38771, `lock` −1 f38786, `gate` 0 by f38801.
+- Return door: "Return to town now?" (`portal` 22) at (−44.29, −39.48) (f39132).
+
+## 11. Unresolved
 
 - Records 21 / 22 / 23 / 151 / 152 / 14: reach, lifetime, multipliers (only the spawn geometry above was read).
 - `+0x9fc` on the bats; `FUN_00497745(n)` (voice / face cut-in?) calls at slash, dash, phase 2.
-- Whether the drift bats (type 6, `+0xae4 = 3`) can be killed before the blast in practice (48 at once).
+- ~~Whether the drift bats can be killed before the blast~~: no — `+0xb08 = 1`, and they expire at age 100 (§10).
 - Stage type 20 after the 50F clear (`ROSTER.md` §4).
