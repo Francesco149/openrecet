@@ -110,6 +110,18 @@ state differed at f749, device memory and RNG equal.
   heap arena and DEV (ours to allocate), which leaves retail's `.data` / `.bss` (inside rhost's
   image) on faults unless the image mapping moves to private memory.
 
+**Fixed 2026-11-11: decommitted pages under tracking** (live `rd` sessions died with `exception c0000005 at
+eip=7aef924a` — wine's msvcrt memcmp — after a dungeon results page closed to town: `ob-10f` f13783,
+`golem-20f` ~f14244; the replay rebuilds never crashed: no anchor). Retail's CRT small-block heap gives VREG
+regions back (`VirtualFree` → rh_heap decommits) in that teardown; the pages stayed in D / CLEAN, and the next
+`snap` (every `rd` command's undo savestate) read one: `read 5001b000`. Repro: `rd new crash-a --from
+ob-10f@13700; rd ck crash-a save x; rd play crash-a ".*67 B .*300"; rd play crash-a ".*10"` → crash at f14068.
+- Now `rh_snap_decommitted()` (called by rh_heap after each VREG VirtualFree): every tracked page left
+  uncommitted joins D marked **gone**; a savestate records `H_GONE` for it (no bytes read); a restore first
+  re-commits / decommits each D page to the savestate's commit state, then copies. A re-commit clears gone.
+- After: same repro and `golem-20f@14150` (B at f14184) survive, restore across the teardown
+  (48 / 32 decommits, 24 / 16 re-commits) replays to the same RNG, `rd verify` MATCH on both.
+
 ## 4. Live sessions (`rh_live.c`, `--live PORT`)
 
 Text protocol on 127.0.0.1 (header comment = the command list). Postfix programs over memory

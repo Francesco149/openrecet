@@ -154,6 +154,7 @@ uint32_t rh_dev_committed(void);
 void rh_snap_install(void);
 void rh_snap_register(const char *name, void *p, size_t n);   /* a plain host-state block saved with every savestate */
 void rh_snap_committed(uint32_t lo, uint32_t hi);   /* a deterministic region committed fresh pages */
+void rh_snap_decommitted(uint32_t lo, uint32_t hi); /* after a VirtualFree there: tracked pages left uncommitted → gone */
 int  rh_snap_fault(EXCEPTION_POINTERS *e);          /* 1 = a write-track fault, handled: continue */
 void rh_snap_touch(const void *p, size_t n);        /* before the system writes [p, p+n) of retail memory */
 int  rh_snap_anchor(void);                          /* base copy + write tracking; drops every savestate */

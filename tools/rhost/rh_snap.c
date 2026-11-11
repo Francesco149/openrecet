@@ -17,6 +17,10 @@
  *   restore  for each page of D: copy from the savestate's slab, or from the base.
  * So both cost O(|D|), not O(state); re-anchor when D has grown (a new scene).
  * Pages committed after the anchor (heap / DEV growth) are dirty from birth, base = zeros.
+ * Pages DEcommitted after the anchor (retail's VirtualFree of a VREG region: the CRT's
+ * small-block heap gives regions back, e.g. after the dungeon results → town teardown) are
+ * "gone": in D, never read (a savestate records GONE instead of bytes), and a restore
+ * re-commits / decommits each page to the savestate's commit state before copying.
  *
  * Kernel-mode writes do not fault into the handler — a ReadFile into a protected heap page
  * just fails (wine: STATUS_ACCESS_VIOLATION from the syscall). Every retail import that
@@ -31,11 +35,13 @@
 enum { PG_NONE = 0, PG_CLEAN = 1, PG_DIRTY = 2 };
 
 static uint8_t *g_pst;                   /* [NPG] page state */
+static uint8_t *g_gone;                  /* [NPG] 1 = in D and decommitted now (no bytes to read or write) */
+#define H_GONE 0xffffffffu               /* savestate page handle: decommitted when taken */
 static uint8_t **g_base;                 /* [NPG] page → its bytes in the base copy (NULL: zeros / untracked) */
 static uint8_t *g_basebuf; static size_t g_basesz;
 static uint32_t *g_D; static uint32_t g_nD, g_capD;
 static int g_anchored;
-static uint64_t g_faults, g_touches, g_takes, g_restores, g_anchors;
+static uint64_t g_faults, g_touches, g_takes, g_restores, g_anchors, g_decommits, g_recommits;
 static uint8_t g_zero[PGSZ];
 
 /* ---- slab pool: 4 KB page copies, refcounted, addressed by index ---- */
@@ -113,9 +119,39 @@ void rh_snap_committed(uint32_t lo, uint32_t hi)
 {
     if (!g_anchored) return;
     for (uint32_t pg = lo >> 12; pg < (hi + PGSZ - 1) >> 12; pg++) {
+        g_gone[pg] = 0;
         if (g_pst[pg] == PG_NONE) { g_base[pg] = NULL; page_dirty(pg, 0); }
         else if (g_pst[pg] == PG_CLEAN) page_dirty(pg, 0);      /* the commit call reset its protection */
     }
+}
+
+/* after a VirtualFree in a deterministic region: every tracked page of [lo, hi) that is no
+ * longer committed joins D (a CLEAN one's bytes = the base) and is marked gone */
+void rh_snap_decommitted(uint32_t lo, uint32_t hi)
+{
+    if (!g_anchored) return;
+    for (uint32_t a = lo & ~(PGSZ - 1); a < hi; ) {
+        MEMORY_BASIC_INFORMATION mi;
+        if (!VirtualQuery((void *)(uintptr_t)a, &mi, sizeof mi)) break;
+        uint32_t e = (uint32_t)(uintptr_t)mi.BaseAddress + (uint32_t)mi.RegionSize;
+        if (e > hi || e <= a) e = (hi + PGSZ - 1) & ~(PGSZ - 1);
+        if (mi.State != MEM_COMMIT)
+            for (uint32_t pg = a >> 12; pg < e >> 12; pg++) {
+                if (g_pst[pg] == PG_NONE || g_gone[pg]) continue;
+                if (g_pst[pg] == PG_CLEAN) page_dirty(pg, 0);
+                g_gone[pg] = 1; g_decommits++;
+            }
+        a = e;
+    }
+}
+/* bring page PG to the commit state a savestate wants (before writing its bytes) */
+static void page_commit_state(uint32_t pg, int gone)
+{
+    void *p = (void *)(uintptr_t)(pg << 12);
+    if (gone == g_gone[pg]) return;
+    if (gone) { if (!VirtualFree(p, PGSZ, MEM_DECOMMIT)) rh_fatal("rh_snap: decommit %08x failed (err %lu)", pg << 12, GetLastError()); }
+    else if (!VirtualAlloc(p, PGSZ, MEM_COMMIT, PAGE_READWRITE)) rh_fatal("rh_snap: re-commit %08x failed (err %lu)", pg << 12, GetLastError());
+    g_gone[pg] = (uint8_t)gone;
 }
 
 #define MAXR 4096
@@ -129,7 +165,7 @@ static int tracked_ranges(uint32_t (*r)[2])
 
 static void snap_free_one(snap_t *s)
 {
-    for (uint32_t i = 0; i < s->count; i++) if (s->pp[i]) slab_unref(s->pp[i]);
+    for (uint32_t i = 0; i < s->count; i++) if (s->pp[i] && s->pp[i] != H_GONE) slab_unref(s->pp[i]);
     free(s->pp); free(s->host); free(s->stack); free(s->handles); free(s->trace); free(s->text); rh_files_snap_free(s->files);
     rh_heap_meta_free(s->heap_meta);
     g_snap[s->id] = NULL; g_live_snaps--;
@@ -145,13 +181,14 @@ int rh_snap_anchor(void)
     if (!O.headless) { rh_log("snap: savestates need --headless (device state must live in the DEV region)\n"); return -1; }
     if (!g_pst) {
         g_pst = VirtualAlloc(NULL, NPG, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+        g_gone = VirtualAlloc(NULL, NPG, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
         g_base = VirtualAlloc(NULL, NPG * sizeof *g_base, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
         g_snap = calloc(MAX_SNAP, sizeof *g_snap);
-        if (!g_pst || !g_base || !g_snap) rh_fatal("rh_snap: tables");
+        if (!g_pst || !g_gone || !g_base || !g_snap) rh_fatal("rh_snap: tables");
     }
     for (int i = 1; i < MAX_SNAP; i++) if (g_snap[i]) snap_free_one(g_snap[i]);
     /* writable again while we re-read everything (and for the pages that left the set) */
-    for (uint32_t i = 0; i < g_nD; i++) g_pst[g_D[i]] = PG_NONE;
+    for (uint32_t i = 0; i < g_nD; i++) { g_pst[g_D[i]] = PG_NONE; g_gone[g_D[i]] = 0; }   /* gone pages: uncommitted, out of the new set */
     for (uint32_t pg = 0; pg < NPG; pg++)
         if (g_pst[pg] == PG_CLEAN) { DWORD old; VirtualProtect((void *)(uintptr_t)(pg << 12), PGSZ, PAGE_READWRITE, &old); g_pst[pg] = PG_NONE; }
     g_nD = 0; g_anchored = 0;
@@ -191,11 +228,13 @@ int rh_snap_take(void)
         uint32_t pg = g_D[i];
         const uint8_t *cur = (const uint8_t *)(uintptr_t)(pg << 12);
         uint32_t ph = par && i < par->count ? par->pp[i] : 0;
+        if (g_gone[pg]) { s->pp[i] = H_GONE; continue; }
+        if (ph == H_GONE) ph = 0;                    /* parent had it decommitted: compare with the base */
         if (ph && !memcmp(cur, slab_ptr(ph - 1), PGSZ)) { slab_ref(ph); s->pp[i] = ph; continue; }
         if (!ph && !memcmp(cur, g_base[pg] ? g_base[pg] : g_zero, PGSZ)) { s->pp[i] = 0; continue; }
         uint32_t h = slab_new();
         if (!h) {                                    /* pool exhausted: undo */
-            for (uint32_t k = 0; k < i; k++) if (s->pp[k]) slab_unref(s->pp[k]);
+            for (uint32_t k = 0; k < i; k++) if (s->pp[k] && s->pp[k] != H_GONE) slab_unref(s->pp[k]);
             free(s->pp); free(s);
             return 0;
         }
@@ -225,6 +264,8 @@ int rh_snap_restore(int id)
     snap_t *s = g_snap[id];
     for (uint32_t i = 0; i < g_nD; i++) {
         uint32_t pg = g_D[i], h = i < s->count ? s->pp[i] : 0;
+        if (h == H_GONE || g_gone[pg]) { if (g_gone[pg] && h != H_GONE) g_recommits++; page_commit_state(pg, h == H_GONE); }
+        if (h == H_GONE) continue;
         memcpy((void *)(uintptr_t)(pg << 12), h ? slab_ptr(h - 1) : g_base[pg] ? g_base[pg] : g_zero, PGSZ);
     }
     size_t o = 0;
@@ -252,6 +293,10 @@ long rh_snap_diff(int id, uint32_t lo, uint32_t hi, void (*cb)(uint32_t va, uint
     for (uint32_t i = 0; i < g_nD; i++) {
         uint32_t pg = g_D[i], base = pg << 12, h = i < s->count ? s->pp[i] : 0;
         if (base + PGSZ <= lo || base >= hi) continue;
+        if (h == H_GONE || g_gone[pg]) {                /* decommitted then or now: count it as one change if not both */
+            if ((h == H_GONE) != g_gone[pg]) { n++; if (cb) cb(base, h == H_GONE ? 0xdeadc0deu : 0, g_gone[pg] ? 0xdeadc0deu : 0, u); }
+            continue;
+        }
         const uint32_t *was = (const uint32_t *)(h ? slab_ptr(h - 1) : g_base[pg] ? g_base[pg] : g_zero), *now = (const uint32_t *)(uintptr_t)base;
         if (!memcmp(was, now, PGSZ)) continue;
         for (uint32_t k = 0; k < PGSZ / 4; k++)
@@ -265,9 +310,10 @@ uint32_t rh_snap_dirty(void) { return g_nD; }
 
 void rh_snap_stats(char *b, size_t n)
 {
-    snprintf(b, n, "snap: anchors=%llu dirty=%u pages takes=%llu restores=%llu live=%d slabs=%u (%u MB) faults=%llu touches=%llu base=%u MB",
+    snprintf(b, n, "snap: anchors=%llu dirty=%u pages takes=%llu restores=%llu live=%d slabs=%u (%u MB) faults=%llu touches=%llu decommits=%llu recommits=%llu base=%u MB",
              (unsigned long long)g_anchors, g_nD, (unsigned long long)g_takes, (unsigned long long)g_restores, g_live_snaps, g_live_slabs,
-             g_live_slabs >> 8, (unsigned long long)g_faults, (unsigned long long)g_touches, (unsigned)(g_basesz >> 20));
+             g_live_slabs >> 8, (unsigned long long)g_faults, (unsigned long long)g_touches,
+             (unsigned long long)g_decommits, (unsigned long long)g_recommits, (unsigned)(g_basesz >> 20));
 }
 
 /* ---- imports through which the SYSTEM writes into retail memory: touch first ----

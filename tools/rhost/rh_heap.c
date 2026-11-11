@@ -56,7 +56,7 @@ static uint32_t g_nheaps;
 static int g_active;
 static uint64_t g_nalloc, g_nfree, g_inuse, g_inuse_max;
 static uint32_t g_host_lo, g_host_hi;
-static long g_decommits;   /* VREG decommits while write-tracked: a savestate cannot bring those pages back (never seen) */
+static long g_decommits;   /* VREG decommits while write-tracked (rh_snap_decommitted: the pages are "gone" in D) */
 
 static void lock(void)   { EnterCriticalSection(&g_lk); }
 static void unlock(void) { LeaveCriticalSection(&g_lk); }
@@ -281,6 +281,7 @@ static BOOL WINAPI my_VirtualFree(LPVOID a, SIZE_T n, DWORD type)
         if (s) {
             if (rh_snap_anchored()) g_decommits++;
             VirtualFree(a, s->sz, MEM_DECOMMIT);
+            rh_snap_decommitted(addr, addr + s->sz);
             span_free(&R_VREG, s->lo, s->sz);
             *s = g_vlive[--g_nvlive];
             ok = TRUE;
@@ -289,7 +290,9 @@ static BOOL WINAPI my_VirtualFree(LPVOID a, SIZE_T n, DWORD type)
         return ok;
     }
     if (rh_snap_anchored()) g_decommits++;
-    return VirtualFree(a, n, MEM_DECOMMIT);
+    BOOL ok = VirtualFree(a, n, MEM_DECOMMIT);
+    if (ok) rh_snap_decommitted(addr, n ? addr + (uint32_t)n : R_VREG.hi);   /* n = 0: the region it starts; the query finds it */
+    return ok;
 }
 
 static int reserve(region_t *r)
