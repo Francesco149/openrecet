@@ -94,10 +94,22 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     and as search actions), `rd ram R actors`, per-actor names (`aNst aNpow aNrel …`), **machine-wide admission**
     (`rhost.py admit_local`: ≤ 10 local rhost processes, ≥ 8 GB available — after an OOM on maximus; campaign rule ≤ 3
     drivers, `-j 2`). Gates: headless-check 135/135, snap-check 139/139.
+  - ✅ 2026-11-11 (later): **53 agent scenarios.** Six hires (`hire-caillou / -tielle / -elan / -nagi / -griff / -arma`)
+    and `obsidian-1f` (Obsidian Tower 1F–3F) split → the other adventurers' swings + skills, records 97 / 100 / 102 /
+    106 / 131 / 157, homing FUN_0043ab6e, the ghost AI (types 52 / 53), the stage-init stat interpolation on the work
+    record ported (7d6454c4, 7027a542, 0ecd927d, a07407a3): all seven identical. Boss arms movies cut from played boss
+    floors, each exercising its card's checklist on purpose: `crown-slime-arms` + `crown-slime-wipe` (Jade Way 5F),
+    `mushroom-king-arms`, `charme-arms`, `dungeon2-25f-crown-kill` — all identical. `guild-roster-8`,
+    `pause-equip-dungeon` identical. **`gates`: 116/116 ok at 1008c26d, Windows, `-j 8`, 559 s** (+21 rows).
+    API credit used up (17 probes, ≈ $19.5 by the harness tallies); drivers are subscription subagents from here.
+    - ☐ `item-status-pause`: **split f213** `- ⇄ sim_step_a (-1)` — Y over the item-status window (cc08 50): retail's
+      tail draw stops for the 2 ticks before the pause scene opens. `portrng item-status-pause --window 211:214 --seq`.
+    - ☐ `skip-check 414ee2` DIFF state_sem on `hire-griff` only (frame + RNG equal): the render skip is not pure with
+      Griff on the floor; `skip-check --dump-at` does not reach the runs — fix that, diff, extend the mask or drop the
+      skip for his records.
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
-       scenario (crown slime `dungeon1-run2@33570`, mushroom king `dungeon1-deep@56444`, Charme `dungeon1-clear@60417`,
-       boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`); Tielle on 30F
+       scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`); Tielle on 30F
        from the crown-kill run's end (26F–30F). One subscription subagent at a time.
     1. the two open splits (port work by the porting loop; each fix moves the split later in a 57k-frame trace):
        the pause-scene money roll first, then the ending chain; New Game +.

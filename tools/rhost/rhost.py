@@ -1729,7 +1729,15 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
                                       "pub-evening-week3", "shop-session-week3", "order-customer-week3", "calendar-week3",
                                       "calendar-week4", "dungeon2-21f-25f", "vending-level16", "vender-sales-l16",
                                       "vender-revert-sell", "change-tables-l16", "item-storage-l17", "endless-first-days",
-                                      "week5-gameover", "order-deadline-missed", "guild-talk-topics", "title-extras")])
+                                      "week5-gameover", "order-deadline-missed", "guild-talk-topics", "title-extras")]
+         # 2026-11-11: probes on crafted saves (the day-8 visitor, the stand's item status, moved tables, three vender
+         # kinds, six hires, Obsidian Tower 1F–3F, the 8-row roster, the dungeon pause) and boss "arms" movies cut from
+         # played boss floors (crown slime 5F / its wipe / 25F, mushroom king, Charme)
+         + [("portsave", s) for s in ("day8-visitor", "move-tables-persist", "venders-limit")]
+         + [("portrng", s) for s in ("day8-visitor", "stand-item-status", "move-tables-persist", "venders-limit",
+                                      "hire-caillou", "hire-tielle", "hire-elan", "hire-nagi", "hire-griff", "hire-arma",
+                                      "obsidian-1f", "guild-roster-8", "pause-equip-dungeon", "dungeon2-25f-crown-kill",
+                                      "crown-slime-arms", "crown-slime-wipe", "mushroom-king-arms", "charme-arms")])
 
 
 GATE_KEYS = ("save:", "anchors:", "first ", "window", "IDENTICAL", "frames with", "error", "scp failed")
