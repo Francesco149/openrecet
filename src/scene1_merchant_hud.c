@@ -44,6 +44,8 @@ int scene1_merchant_hud_level(void) { return g_level; }
 #include "scene1_shop_display.h" /* cbfc / cc00 / bf68 + grid stride          */
 #include "scene1_player_ctrl.h"  /* player_ctrl_cc08 (DAT_0438cc08)          */
 #include "scene1_counter_menu.h" /* counter_menu_render (cc08 0/10 block)    */
+#include "scene1_display_menu.h" /* FUN_00469b3a, DAT_0734b998 / b96c (cc08 50) */
+#include "encyclopedia.h"        /* FUN_0046a336 (cc08 50)                   */
 #include "save_work.h"           /* working-bank dwords (the live item grid) */
 #include "save_bank.h"           /* SAVE_BANK_FIELD_DISPLAY_GRID (DAT_044f7030) */
 #include "scene1_maplight.h"     /* scene1_current_stage_record (*068dd2f0)  */
@@ -340,6 +342,13 @@ void scene1_merchant_hud_render(struct IDirect3DDevice8 *dev_in)
 
     /* FUN_00409925's cc08 0/10 block (after the level badge + the pop): the
      * counter-menu entry buttons + labels. */
+    /* cc08 50, the faced stand's item status (all_ida 6728): the stats card
+     * (DAT_0734b998 / DAT_0734b96c = 3) under the description panel at x 0 */
+    if (player_ctrl_cc08() == 50) {
+        item_detail_card_render(dev_in, display_menu_highlight_item(),
+                                display_menu_detail());                 /* FUN_0046a336 */
+        display_menu_description_draw(dev_in, 0.0f);                    /* FUN_00469b3a(0, 0) */
+    }
     tear_menu_render(dev_in, player_ctrl_cc08());      /* the cc08 15 / 16 / 30 block */
     counter_menu_render(dev_in, player_ctrl_cc08());
 

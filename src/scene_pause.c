@@ -421,8 +421,8 @@ void pause_dispatch(int action)
             if (g_pause_snap_cursor_vis)
                 title_save_dialog_cursor_snap(g_pause_snap_cursor_x,
                                               g_pause_snap_cursor_y);  /* FUN_00435693 */
-            /* (cc08 == 50 → 1: the house display-cell detail popup, all_ida
-             * 97436 — the port never enters cc08 50.) */
+            /* cc08 == 50 → 1: the house display-cell item status (all_ida 54485) */
+            player_ctrl_cc08_item_status_pause_close();
             /* The item window, if one was up at pause (DAT_06a499b8): rebuilt
              * with its first-open reset (cursor / scroll / tab zeroed), slid
              * fully in; modes 6 / 11 put the cursor back below. */

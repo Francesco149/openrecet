@@ -14,8 +14,8 @@
   "pct_referenced_or_better": 32.4,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
-  "orphan_refs_not_in_function_table": 13,
-  "port_debt": 71,
+  "orphan_refs_not_in_function_table": 14,
+  "port_debt": 70,
   "verified": 81,
   "stubbed": 10,
   "ported": 734,
@@ -28,6 +28,7 @@
   "0x004681",
   "0x40f640",
   "0x431b10",
+  "0x44a8e0",
   "0x452e75",
   "0x452eb1",
   "0x45a63c",
@@ -11472,6 +11473,7 @@
     "src/dungeon_results.c",
     "src/encyclopedia.c",
     "src/scene1_display_menu.h",
+    "src/scene1_player_ctrl.c",
     "src/scene1_shop_display.c",
     "src/scene_adv_guild.c",
     "src/scene_guild.c",
@@ -12487,6 +12489,8 @@
     "src/customer_service_render.c",
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
+    "src/scene1_merchant_hud.c",
+    "src/scene1_player_ctrl.c",
     "src/scene_guild.c",
     "src/scene_pause.c"
    ],
@@ -12514,7 +12518,9 @@
     "src/customer_service_render.c",
     "src/encyclopedia.c",
     "src/encyclopedia.h",
-    "src/scene1_display_menu.c"
+    "src/scene1_display_menu.c",
+    "src/scene1_merchant_hud.c",
+    "src/scene1_player_ctrl.c"
    ],
    "status": "ported"
   },

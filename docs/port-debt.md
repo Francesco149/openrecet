@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **60**
-- distinct retiring engine functions: **47**
+- total open debts: **59**
+- distinct retiring engine functions: **46**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 37 | wired call boundary, body incomplete |
+| stub | 36 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 8 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -65,7 +65,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00473c03 | 1 |
 | FUN_00485c74 | 1 |
 | FUN_00485f8c | 1 |
-| FUN_0048670f cc08 50 | 1 |
 | FUN_0048a383 | 1 |
 | FUN_0048b850 da1bc | 1 |
 | FUN_0048d5d6 | 1 |
@@ -78,7 +77,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (37)
+## stub (36)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -108,7 +107,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00473c15 | src/scene1_preload.c:375 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
 | FUN_00485c74 | src/dungeon_flow.c:187 | the party damage (HP bar + |
-| FUN_0048670f cc08 50 | src/scene1_player_ctrl.c:980 | the faced stand's item |
 | FUN_0048a383 | src/record_hit.c:261 | the level-up of s_easydisp |
 | FUN_0048b850 da1bc | src/dungeon_party.c:1881 | the attack lunge (da1bc 1..ccb8) |
 | FUN_0048cdcc | src/dungeon_party.c:1562 | the other chars' swings (FUN_00497e3a, |
@@ -159,13 +157,13 @@ _none_
 | continue-arm | FUN_0049a59e | src/scene.c:94 | the rest of the arm (the |
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:132 | box_pos_mode/off (DAT_005c7984/80) are |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
-| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:818 | the engine frees the shop |
+| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:819 | the engine frees the shop |
 | oob | 0x43e... | src/scene1_records_b_tick.c:3191 | types >= 64 read past DAT_005c23f0 into |
-| render-coupled | FUN_00409925 | src/scene1_player_ctrl.c:1695 | the menu, note, lecture and |
+| render-coupled | FUN_00409925 | src/scene1_player_ctrl.c:1729 | the menu, note, lecture and |
 | render-coupled | FUN_00457714 | src/scene1_walker_pass_init.c:520 | the movers (DAT_0438c150, |
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |
-| render-coupled | FUN_00485f8c | src/scene1_player_ctrl.c:1371 | the carried table's items (drawn |
-| render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:2275 | the eye / lookat writes); the |
+| render-coupled | FUN_00485f8c | src/scene1_player_ctrl.c:1405 | the carried table's items (drawn |
+| render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:2309 | the eye / lookat writes); the |
 | render-coupled | FUN_0048f87c | src/scene_pause.c:1613 | the results screen's assets |
 | semantic-collision | FUN_00432e50 | src/collision_query.c:15 | the customer-service arm's ground |
 | structure | FUN_0048670f | src/scene1_sim.c:186 | one retail-shaped master tick. |

@@ -97,6 +97,7 @@ int  player_ctrl_cc04(void);                /* read cc04 (free-roam interaction 
 /* cc08==4: the master tick (FUN_00462403) runs FUN_0048a833 at 0x4624a1, after
  * its b1cc / ESC-skip gates and before the b534 dispatch. */
 void player_ctrl_companion_tick_from_cs(void);
+void player_ctrl_cc08_item_status_pause_close(void);   /* the pause close's cc08 50 -> 1 (all_ida 54485) */
 void player_ctrl_debug_set_cc08(int state); /* test hook: force cc08 (stands in for the
                                              * unported state-transition writers) */
 int  player_ctrl_cc08_f406_pending(void);   /* pure: f406 first-customer entry armed (RE §21.18) */

@@ -31,6 +31,7 @@
 #include "scene1_overlay.h"      /* scene1_overlay_spawn (FUN_00414345) — sparkle */
 #include "scene1_shop_display.h" /* furniture-layout grid + cell highlight (FUN_0048960d/619f) */
 #include "scene1_display_menu.h" /* cc04==1 remove-item menu update/removal (A2) */
+#include "party_roster.h"        /* FUN_0047f1ce (the item status open) */
 #include "scene1_counter_menu.h" /* cc08 0/10 counter menu (Open Store / Cancel) */
 #include "save_work.h"           /* working-arena display grid (dword 0x4e26) */
 #include "news_daily.h"          /* g_news_ticker_timer (DAT_0438b92c) pump  */
@@ -977,9 +978,14 @@ static int player_ctrl_cc08_dpad_interact(int at_door, int at_counter)
             bb[PC_SHOP_DISPLAY_SUPPRESS_BYTE_OFF] == 0 && cbfc != -1 &&
             (int32_t)bank[SAVE_BANK_FIELD_DISPLAY_GRID +
                           (uint32_t)(cbfc + cc00 * SHOP_DISPLAY_GRID_STRIDE)] != -1) {
-            /* PORT-DEBT(stub, FUN_0048670f cc08 50): the faced stand's item
-             * status — FUN_0047f1ce, cc08 = 50, FUN_00468286(item),
-             * FUN_004681db(2), SE 710 */
+            /* the faced stand's item status (all_ida 97434-97439): cc08 50 on
+             * the press frame; the frame still ends at LABEL_675 */
+            party_roster_rebuild();                        /* FUN_0047f1ce */
+            s_cc08 = 50;
+            display_menu_set_highlight((int32_t)bank[SAVE_BANK_FIELD_DISPLAY_GRID +
+                (uint32_t)(cbfc + cc00 * SHOP_DISPLAY_GRID_STRIDE)]);   /* FUN_00468286 */
+            display_menu_detail_open(2);                   /* FUN_004681db(2) */
+            audio_play_se_by_id(710);                      /* FUN_00499519 */
         }
         return 1;
     }
@@ -1287,6 +1293,34 @@ static void player_ctrl_cc04_menu_body(void)
 #define DECOR_SEL_DWORD  0xb379u
 #define DECOR_PLUS_DWORD 0xb7aeu
 static uint32_t s_decor_saved[8];   /* DAT_0438b7b4..b7d0 */
+
+/* ── cc08 50: the faced stand's item status (FUN_0048670f case 50, all_ida
+ * 97069-97085).  Recette drops to anim 0, FUN_004897c6 (status + the three
+ * anim ticks) and FUN_0048a833 (Tear) run every frame; no walk (FUN_0048b850),
+ * no proximity detect.  Any of 0x10 / 0x20 / 0x40 pressed closes it on the
+ * press frame (FUN_004681d3, cc08 1, SE 710).  The pause menu's close also
+ * drops cc08 50 → 1 (scene_pause.c, all_ida 54485).
+ * The panels (FUN_0046a336 + FUN_00469b3a(0, 0)) are drawn by the house
+ * overlay (scene1_merchant_hud.c, all_ida 6728). */
+static void player_ctrl_cc08_item_status_arm(void)
+{
+    party_anim_set(s_actor_record[0], 0);
+    party_status_tick();                     /* FUN_004897c6 */
+    party_follow_tick();                     /* FUN_0048a833 */
+    if ((g_sim_buttons[0].pressed & 0x70u) == 0)
+        return;
+    display_menu_detail_close();             /* FUN_004681d3 */
+    s_cc08 = 1;
+    audio_play_se_by_id(710);                /* LABEL_375: FUN_00499519 */
+}
+
+/* The pause menu closing over the item status (FUN_0044a8e0's close, all_ida
+ * 54485): cc08 50 → 1. */
+void player_ctrl_cc08_item_status_pause_close(void)
+{
+    if (s_cc08 == 50)
+        s_cc08 = 1;
+}
 
 /* ── cc08 0 / 10: the counter menu (FUN_0048670f case 0 asm 0x487880-0x487929,
  * case 10 asm 0x4870b9-0x487347) ──────────────────────────────────────────────
@@ -2471,6 +2505,8 @@ void scene1_player_ctrl_tick(void)
         player_ctrl_cc08_decor_arm();
     else if (s_cc08 == 2)
         player_ctrl_cc08_move_tables_arm();
+    else if (s_cc08 == 50)
+        player_ctrl_cc08_item_status_arm();
     else
         player_ctrl_cc08_unported_arm();
 
