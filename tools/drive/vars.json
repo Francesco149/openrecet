@@ -891,5 +891,533 @@
  "a5rel": {
   "expr": "abs(atan2(sin(atan2(a5x - rx, a5z - rz) - a5yaw + pi), cos(atan2(a5x - rx, a5z - rz) - a5yaw + pi)))",
   "note": "hit-label angle on actor 5: < pi/4 front (no label), pi/4..3pi/4 Side Attack x1.2, > 3pi/4 back x1.5 (docs/findings/bosses/combat-core.md)"
+ },
+ "a0ae4": {
+  "addr": "0x76c454",
+  "type": "s32",
+  "note": "actor 0: +0xae4 (variant / phase / perched, per type)"
+ },
+ "a1ae4": {
+  "addr": "0x76cff8",
+  "type": "s32",
+  "note": "actor 1: +0xae4 (variant / phase / perched, per type)"
+ },
+ "a2ae4": {
+  "addr": "0x76db9c",
+  "type": "s32",
+  "note": "actor 2: +0xae4 (variant / phase / perched, per type)"
+ },
+ "a3ae4": {
+  "addr": "0x76e740",
+  "type": "s32",
+  "note": "actor 3: +0xae4 (variant / phase / perched, per type)"
+ },
+ "a4ae4": {
+  "addr": "0x76f2e4",
+  "type": "s32",
+  "note": "actor 4: +0xae4 (variant / phase / perched, per type)"
+ },
+ "a5ae4": {
+  "addr": "0x76fe88",
+  "type": "s32",
+  "note": "actor 5: +0xae4 (variant / phase / perched, per type)"
+ },
+ "a6x": {
+  "addr": "0x770338",
+  "type": "f32",
+  "note": "actor 6: x"
+ },
+ "a6y": {
+  "addr": "0x77033c",
+  "type": "f32",
+  "note": "actor 6: y (height)"
+ },
+ "a6z": {
+  "addr": "0x770340",
+  "type": "f32",
+  "note": "actor 6: z"
+ },
+ "a6yaw": {
+  "addr": "0x770368",
+  "type": "f32",
+  "note": "actor 6: yaw"
+ },
+ "a6type": {
+  "addr": "0x77036c",
+  "type": "s32",
+  "note": "actor 6: type id"
+ },
+ "a6use": {
+  "addr": "0x770370",
+  "type": "s32",
+  "note": "actor 6: in use (2 = dying)"
+ },
+ "a6hp": {
+  "addr": "0x770374",
+  "type": "f32",
+  "note": "actor 6: HP"
+ },
+ "a6st": {
+  "addr": "0x77099c",
+  "type": "s32",
+  "note": "actor 6: AI state"
+ },
+ "a6t": {
+  "addr": "0x7709a0",
+  "type": "s32",
+  "note": "actor 6: AI state tick"
+ },
+ "a6sub": {
+  "addr": "0x7709a4",
+  "type": "s32",
+  "note": "actor 6: AI sub-state"
+ },
+ "a6pow": {
+  "addr": "0x770a00",
+  "type": "f32",
+  "note": "actor 6: DF scale"
+ },
+ "a6unhit": {
+  "addr": "0x770a50",
+  "type": "s32",
+  "note": "actor 6: != 0 = cannot be hit"
+ },
+ "a6stag": {
+  "addr": "0x770388",
+  "type": "s32",
+  "note": "actor 6: stagger ticks"
+ },
+ "a6age": {
+  "addr": "0x7702e0",
+  "type": "s32",
+  "note": "actor 6: ticks alive"
+ },
+ "a6ae4": {
+  "addr": "0x770a2c",
+  "type": "s32",
+  "note": "actor 6: +0xae4 (variant / phase / perched, per type)"
+ },
+ "a6d": {
+  "expr": "(hypot(a6x - px, a6z - pz))",
+  "note": "distance player - actor 6"
+ },
+ "a6rel": {
+  "expr": "(abs(atan2(sin(atan2(a6x - rx, a6z - rz) - a6yaw + pi), cos(atan2(a6x - rx, a6z - rz) - a6yaw + pi))))",
+  "note": "hit-label angle on actor 6: < pi/4 front, pi/4..3pi/4 side x1.2, > 3pi/4 back x1.5"
+ },
+ "a7x": {
+  "addr": "0x770edc",
+  "type": "f32",
+  "note": "actor 7: x"
+ },
+ "a7y": {
+  "addr": "0x770ee0",
+  "type": "f32",
+  "note": "actor 7: y (height)"
+ },
+ "a7z": {
+  "addr": "0x770ee4",
+  "type": "f32",
+  "note": "actor 7: z"
+ },
+ "a7yaw": {
+  "addr": "0x770f0c",
+  "type": "f32",
+  "note": "actor 7: yaw"
+ },
+ "a7type": {
+  "addr": "0x770f10",
+  "type": "s32",
+  "note": "actor 7: type id"
+ },
+ "a7use": {
+  "addr": "0x770f14",
+  "type": "s32",
+  "note": "actor 7: in use (2 = dying)"
+ },
+ "a7hp": {
+  "addr": "0x770f18",
+  "type": "f32",
+  "note": "actor 7: HP"
+ },
+ "a7st": {
+  "addr": "0x771540",
+  "type": "s32",
+  "note": "actor 7: AI state"
+ },
+ "a7t": {
+  "addr": "0x771544",
+  "type": "s32",
+  "note": "actor 7: AI state tick"
+ },
+ "a7sub": {
+  "addr": "0x771548",
+  "type": "s32",
+  "note": "actor 7: AI sub-state"
+ },
+ "a7pow": {
+  "addr": "0x7715a4",
+  "type": "f32",
+  "note": "actor 7: DF scale"
+ },
+ "a7unhit": {
+  "addr": "0x7715f4",
+  "type": "s32",
+  "note": "actor 7: != 0 = cannot be hit"
+ },
+ "a7stag": {
+  "addr": "0x770f2c",
+  "type": "s32",
+  "note": "actor 7: stagger ticks"
+ },
+ "a7age": {
+  "addr": "0x770e84",
+  "type": "s32",
+  "note": "actor 7: ticks alive"
+ },
+ "a7ae4": {
+  "addr": "0x7715d0",
+  "type": "s32",
+  "note": "actor 7: +0xae4 (variant / phase / perched, per type)"
+ },
+ "a7d": {
+  "expr": "(hypot(a7x - px, a7z - pz))",
+  "note": "distance player - actor 7"
+ },
+ "a7rel": {
+  "expr": "(abs(atan2(sin(atan2(a7x - rx, a7z - rz) - a7yaw + pi), cos(atan2(a7x - rx, a7z - rz) - a7yaw + pi))))",
+  "note": "hit-label angle on actor 7: < pi/4 front, pi/4..3pi/4 side x1.2, > 3pi/4 back x1.5"
+ },
+ "a8x": {
+  "addr": "0x771a80",
+  "type": "f32",
+  "note": "actor 8: x"
+ },
+ "a8y": {
+  "addr": "0x771a84",
+  "type": "f32",
+  "note": "actor 8: y (height)"
+ },
+ "a8z": {
+  "addr": "0x771a88",
+  "type": "f32",
+  "note": "actor 8: z"
+ },
+ "a8yaw": {
+  "addr": "0x771ab0",
+  "type": "f32",
+  "note": "actor 8: yaw"
+ },
+ "a8type": {
+  "addr": "0x771ab4",
+  "type": "s32",
+  "note": "actor 8: type id"
+ },
+ "a8use": {
+  "addr": "0x771ab8",
+  "type": "s32",
+  "note": "actor 8: in use (2 = dying)"
+ },
+ "a8hp": {
+  "addr": "0x771abc",
+  "type": "f32",
+  "note": "actor 8: HP"
+ },
+ "a8st": {
+  "addr": "0x7720e4",
+  "type": "s32",
+  "note": "actor 8: AI state"
+ },
+ "a8t": {
+  "addr": "0x7720e8",
+  "type": "s32",
+  "note": "actor 8: AI state tick"
+ },
+ "a8sub": {
+  "addr": "0x7720ec",
+  "type": "s32",
+  "note": "actor 8: AI sub-state"
+ },
+ "a8pow": {
+  "addr": "0x772148",
+  "type": "f32",
+  "note": "actor 8: DF scale"
+ },
+ "a8unhit": {
+  "addr": "0x772198",
+  "type": "s32",
+  "note": "actor 8: != 0 = cannot be hit"
+ },
+ "a8stag": {
+  "addr": "0x771ad0",
+  "type": "s32",
+  "note": "actor 8: stagger ticks"
+ },
+ "a8age": {
+  "addr": "0x771a28",
+  "type": "s32",
+  "note": "actor 8: ticks alive"
+ },
+ "a8ae4": {
+  "addr": "0x772174",
+  "type": "s32",
+  "note": "actor 8: +0xae4 (variant / phase / perched, per type)"
+ },
+ "a8d": {
+  "expr": "(hypot(a8x - px, a8z - pz))",
+  "note": "distance player - actor 8"
+ },
+ "a8rel": {
+  "expr": "(abs(atan2(sin(atan2(a8x - rx, a8z - rz) - a8yaw + pi), cos(atan2(a8x - rx, a8z - rz) - a8yaw + pi))))",
+  "note": "hit-label angle on actor 8: < pi/4 front, pi/4..3pi/4 side x1.2, > 3pi/4 back x1.5"
+ },
+ "a9x": {
+  "addr": "0x772624",
+  "type": "f32",
+  "note": "actor 9: x"
+ },
+ "a9y": {
+  "addr": "0x772628",
+  "type": "f32",
+  "note": "actor 9: y (height)"
+ },
+ "a9z": {
+  "addr": "0x77262c",
+  "type": "f32",
+  "note": "actor 9: z"
+ },
+ "a9yaw": {
+  "addr": "0x772654",
+  "type": "f32",
+  "note": "actor 9: yaw"
+ },
+ "a9type": {
+  "addr": "0x772658",
+  "type": "s32",
+  "note": "actor 9: type id"
+ },
+ "a9use": {
+  "addr": "0x77265c",
+  "type": "s32",
+  "note": "actor 9: in use (2 = dying)"
+ },
+ "a9hp": {
+  "addr": "0x772660",
+  "type": "f32",
+  "note": "actor 9: HP"
+ },
+ "a9st": {
+  "addr": "0x772c88",
+  "type": "s32",
+  "note": "actor 9: AI state"
+ },
+ "a9t": {
+  "addr": "0x772c8c",
+  "type": "s32",
+  "note": "actor 9: AI state tick"
+ },
+ "a9sub": {
+  "addr": "0x772c90",
+  "type": "s32",
+  "note": "actor 9: AI sub-state"
+ },
+ "a9pow": {
+  "addr": "0x772cec",
+  "type": "f32",
+  "note": "actor 9: DF scale"
+ },
+ "a9unhit": {
+  "addr": "0x772d3c",
+  "type": "s32",
+  "note": "actor 9: != 0 = cannot be hit"
+ },
+ "a9stag": {
+  "addr": "0x772674",
+  "type": "s32",
+  "note": "actor 9: stagger ticks"
+ },
+ "a9age": {
+  "addr": "0x7725cc",
+  "type": "s32",
+  "note": "actor 9: ticks alive"
+ },
+ "a9ae4": {
+  "addr": "0x772d18",
+  "type": "s32",
+  "note": "actor 9: +0xae4 (variant / phase / perched, per type)"
+ },
+ "a9d": {
+  "expr": "(hypot(a9x - px, a9z - pz))",
+  "note": "distance player - actor 9"
+ },
+ "a9rel": {
+  "expr": "(abs(atan2(sin(atan2(a9x - rx, a9z - rz) - a9yaw + pi), cos(atan2(a9x - rx, a9z - rz) - a9yaw + pi))))",
+  "note": "hit-label angle on actor 9: < pi/4 front, pi/4..3pi/4 side x1.2, > 3pi/4 back x1.5"
+ },
+ "a10x": {
+  "addr": "0x7731c8",
+  "type": "f32",
+  "note": "actor 10: x"
+ },
+ "a10y": {
+  "addr": "0x7731cc",
+  "type": "f32",
+  "note": "actor 10: y (height)"
+ },
+ "a10z": {
+  "addr": "0x7731d0",
+  "type": "f32",
+  "note": "actor 10: z"
+ },
+ "a10yaw": {
+  "addr": "0x7731f8",
+  "type": "f32",
+  "note": "actor 10: yaw"
+ },
+ "a10type": {
+  "addr": "0x7731fc",
+  "type": "s32",
+  "note": "actor 10: type id"
+ },
+ "a10use": {
+  "addr": "0x773200",
+  "type": "s32",
+  "note": "actor 10: in use (2 = dying)"
+ },
+ "a10hp": {
+  "addr": "0x773204",
+  "type": "f32",
+  "note": "actor 10: HP"
+ },
+ "a10st": {
+  "addr": "0x77382c",
+  "type": "s32",
+  "note": "actor 10: AI state"
+ },
+ "a10t": {
+  "addr": "0x773830",
+  "type": "s32",
+  "note": "actor 10: AI state tick"
+ },
+ "a10sub": {
+  "addr": "0x773834",
+  "type": "s32",
+  "note": "actor 10: AI sub-state"
+ },
+ "a10pow": {
+  "addr": "0x773890",
+  "type": "f32",
+  "note": "actor 10: DF scale"
+ },
+ "a10unhit": {
+  "addr": "0x7738e0",
+  "type": "s32",
+  "note": "actor 10: != 0 = cannot be hit"
+ },
+ "a10stag": {
+  "addr": "0x773218",
+  "type": "s32",
+  "note": "actor 10: stagger ticks"
+ },
+ "a10age": {
+  "addr": "0x773170",
+  "type": "s32",
+  "note": "actor 10: ticks alive"
+ },
+ "a10ae4": {
+  "addr": "0x7738bc",
+  "type": "s32",
+  "note": "actor 10: +0xae4 (variant / phase / perched, per type)"
+ },
+ "a10d": {
+  "expr": "(hypot(a10x - px, a10z - pz))",
+  "note": "distance player - actor 10"
+ },
+ "a10rel": {
+  "expr": "(abs(atan2(sin(atan2(a10x - rx, a10z - rz) - a10yaw + pi), cos(atan2(a10x - rx, a10z - rz) - a10yaw + pi))))",
+  "note": "hit-label angle on actor 10: < pi/4 front, pi/4..3pi/4 side x1.2, > 3pi/4 back x1.5"
+ },
+ "a11x": {
+  "addr": "0x773d6c",
+  "type": "f32",
+  "note": "actor 11: x"
+ },
+ "a11y": {
+  "addr": "0x773d70",
+  "type": "f32",
+  "note": "actor 11: y (height)"
+ },
+ "a11z": {
+  "addr": "0x773d74",
+  "type": "f32",
+  "note": "actor 11: z"
+ },
+ "a11yaw": {
+  "addr": "0x773d9c",
+  "type": "f32",
+  "note": "actor 11: yaw"
+ },
+ "a11type": {
+  "addr": "0x773da0",
+  "type": "s32",
+  "note": "actor 11: type id"
+ },
+ "a11use": {
+  "addr": "0x773da4",
+  "type": "s32",
+  "note": "actor 11: in use (2 = dying)"
+ },
+ "a11hp": {
+  "addr": "0x773da8",
+  "type": "f32",
+  "note": "actor 11: HP"
+ },
+ "a11st": {
+  "addr": "0x7743d0",
+  "type": "s32",
+  "note": "actor 11: AI state"
+ },
+ "a11t": {
+  "addr": "0x7743d4",
+  "type": "s32",
+  "note": "actor 11: AI state tick"
+ },
+ "a11sub": {
+  "addr": "0x7743d8",
+  "type": "s32",
+  "note": "actor 11: AI sub-state"
+ },
+ "a11pow": {
+  "addr": "0x774434",
+  "type": "f32",
+  "note": "actor 11: DF scale"
+ },
+ "a11unhit": {
+  "addr": "0x774484",
+  "type": "s32",
+  "note": "actor 11: != 0 = cannot be hit"
+ },
+ "a11stag": {
+  "addr": "0x773dbc",
+  "type": "s32",
+  "note": "actor 11: stagger ticks"
+ },
+ "a11age": {
+  "addr": "0x773d14",
+  "type": "s32",
+  "note": "actor 11: ticks alive"
+ },
+ "a11ae4": {
+  "addr": "0x774460",
+  "type": "s32",
+  "note": "actor 11: +0xae4 (variant / phase / perched, per type)"
+ },
+ "a11d": {
+  "expr": "(hypot(a11x - px, a11z - pz))",
+  "note": "distance player - actor 11"
+ },
+ "a11rel": {
+  "expr": "(abs(atan2(sin(atan2(a11x - rx, a11z - rz) - a11yaw + pi), cos(atan2(a11x - rx, a11z - rz) - a11yaw + pi))))",
+  "note": "hit-label angle on actor 11: < pi/4 front, pi/4..3pi/4 side x1.2, > 3pi/4 back x1.5"
  }
 }
