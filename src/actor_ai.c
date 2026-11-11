@@ -3392,6 +3392,134 @@ static void actor_ai_t25(actor_t *a)
 }
 
 /* FUN_0042f28c */
+/* FUN_004275a7: types 52 / 53 (ghosts), variant 0.  State 0: a random wait
+ * (+0xa60 = rand % 30); the ghost fades out (alpha +0x3dc −16 a tick, not
+ * hittable: +0xb08 / +0xb04) until wait + 90, then reappears near the player:
+ * up to 20 tries of a right angle (rand & 3) at 5..8 out with ±1 jitters
+ * (rand order: the angle, the distance, the x jitter, the z jitter), the
+ * first with a clear ray from the player at height 2 — it faces back at the
+ * player; more than 20 from its home (+0x414 / +0x41c) cancels the move and
+ * restarts the wait; it fades in (+16, hittable at 255) until wait + 120 →
+ * state 1.  State 1: anim 3, at 19 the shot (record 107; type 52: 108 + SE
+ * 681), back to 0 after 51 (52: 71) ticks. */
+static void actor_ai_ghost_shot(actor_t *a)
+{
+    if (++AI(a, 0xa58) == 19) {
+        if (AI(a, ACT_TYPE) == 52) {
+            scene1_record_b_spawn_npc(a, 108, 1);    /* FUN_00445a8c */
+            audio_play_se_by_id(681);
+        } else {
+            scene1_record_b_spawn_npc(a, 107, 1);
+        }
+    }
+    const int32_t t = AI(a, 0xa58);
+    if (t >= 1 && t - 1 == (AI(a, ACT_TYPE) != 52 ? 50 : 70)) {
+        AI(a, 0xa58) = 0;
+        AI(a, 0xa54) = 0;
+    }
+}
+static void actor_ai_ghost(actor_t *a)
+{
+    static const float k3 = 3.0f, k_pi = 3.1415927410125732f;
+    if (AI(a, 0xb8c) != 0) {
+        AI(a, 0xb8c) = 0;
+        AI(a, 0x3dc) = 0;
+        AI(a, 0xb08) = 1;
+        AI(a, 0xb04) = 1;
+    }
+    const int32_t st = AI(a, 0xa54);
+    if (st != 0) {
+        if (st == 1) {
+            /* (the retail counts first, then sets the anim; neither reads the other) */
+            actor_anim_set(a, 3);
+            actor_ai_ghost_shot(a);
+        }
+        return;
+    }
+    actor_anim_set(a, 0);
+    const float px = g_party.pos[0][0];
+    const int32_t t0 = ++AI(a, 0xa58);
+    const float pz = g_party.pos[0][2];
+    if (t0 == 1) AI(a, 0xa60) = (int32_t)((uint32_t)rng_next15() % 30u);
+    const int32_t appear = AI(a, 0xa60) + 90, end = AI(a, 0xa60) + 120;
+    if (AI(a, 0xa58) == appear) {
+        const float ox = AF(a, 0x3f0), oz = AF(a, 0x3f8);
+        for (int32_t n = 0; ; ) {
+            const int32_t r = (int32_t)(rng_next15() & 3u);
+            AF(a, 0x420) = spill32((long double)spill32((long double)r) * k_pi2);
+            const float d = spill32((long double)rng_next_unit() * k3 + k5);
+            float sx = spill32((long double)spill32(x87_crt_sin(AF(a, 0x420))) * d);
+            {
+                const long double j = (long double)rng_next_unit() - k0p5;
+                sx = spill32(j + j + sx);
+            }
+            float cz = spill32((long double)spill32(x87_crt_cos(AF(a, 0x420))) * d);
+            {
+                const long double j = (long double)rng_next_unit() - k0p5;
+                cz = spill32(j + j + cz);
+            }
+            float frac = 0.0f;
+            mapcol_hit_t h;
+            h.tri = 0; h.slot = 0;      /* the retail zeroes these two outputs first */
+            if (mapcol_ray(px, k2, pz, sx, 0.0f, cz, &frac, &h) == 0) {
+                AF(a, 0x3f0) = spill32((long double)sx + px);
+                AF(a, 0x3f8) = spill32((long double)cz + pz);
+                AF(a, 0x420) = spill32((long double)AF(a, 0x420) + k_pi);
+                break;
+            }
+            if (++n == 20) break;
+        }
+        const float dx = spill32((long double)AF(a, 0x414) - AF(a, 0x3f0));
+        const float dz = spill32((long double)AF(a, 0x41c) - AF(a, 0x3f8));
+        const float dist = spill32((long double)sqrt(spill64((long double)dz * dz + (long double)dx * dx)));
+        if (dist > k20) {
+            AI(a, 0xa58) = 0;
+            AF(a, 0x3f0) = ox;
+            AF(a, 0x3f8) = oz;
+        }
+    }
+    const int32_t t = AI(a, 0xa58);
+    if (t < end) {
+        if (t < appear) {
+            if (t >= 0) {
+                AI(a, 0x3dc) -= 16;
+                if (AI(a, 0x3dc) < 0) AI(a, 0x3dc) = 0;
+                AI(a, 0xb08) = 1;
+                AI(a, 0xb04) = 1;
+            }
+        } else {
+            AI(a, 0x3dc) += 16;
+            if (AI(a, 0x3dc) > 255) {
+                AI(a, 0xb08) = 0;
+                AI(a, 0xb04) = 0;
+                AI(a, 0x3dc) = 255;
+            }
+        }
+    } else {
+        AI(a, 0xa58) = 0;
+        AI(a, 0xa54) = 1;
+    }
+}
+
+/* FUN_004278de: types 52 / 53, the other variants — the line-up step
+ * (FUN_00423789: reach 10, wait 20, speed 0.025, 5, 30, 0) on the ground,
+ * then the same shot (no anim 3 during it). */
+static void actor_ai_ghost_walk(actor_t *a)
+{
+    static const float k10 = 10.0f, k0p025 = 0.02500000037252903f;
+    if (AI(a, 0xa54) != 0) {
+        if (AI(a, 0xa54) == 1) actor_ai_ghost_shot(a);
+        return;
+    }
+    actor_anim_set(a, 0);
+    if (actor_ai_line_up(a, k10, 20, k0p025, 5, 30, 0) && AF(a, 0x3f4) == AF(a, 0x3e0)) {
+        AI(a, 0xa5c) = 0;
+        AI(a, 0xa58) = 0;
+        AI(a, 0xa54) = 1;
+        actor_anim_set(a, 3);
+    }
+}
+
 /* FUN_00423686: type 16 in sub-state 3, a kobold Tielle summoned onto a
  * platform: while it stands 2+ up, rest (face the player 0.1 a tick) for
  * rand & 0x3f + 80 ticks, then shoot record 150 (SE 691) at 26 of a 91-tick
@@ -3687,6 +3815,9 @@ void actor_ai_alive(actor_t *a)
             actor_ai_t16(a);
         } else if ((type >= 17 && type <= 21) || (type >= 56 && type <= 58)) {
             actor_ai_flier(a);                   /* FUN_0042a74c */
+        } else if (type == 52 || type == 53) {
+            if (sub == 0) actor_ai_ghost(a);     /* FUN_004275a7 */
+            else actor_ai_ghost_walk(a);         /* FUN_004278de */
         } else {
             /* PORT-DEBT(stub, FUN_0042f28c): the other types' AI (FUN_0042ce17,
              * FUN_00428f0a, FUN_00428ae4, FUN_0042a33e, … FUN_00428213 for

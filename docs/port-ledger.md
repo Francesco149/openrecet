@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 736, discovered 1721 → 827 referenced-or-better (32.5%)
+- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 738, discovered 1719 → 829 referenced-or-better (32.5%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 14
 
@@ -116,7 +116,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (736) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (738) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -222,6 +222,8 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x425bff | FUN_00425bff | 64 | ✓ |  | record_hit.c |
 | 0x4262b7 | FUN_004262b7 | 1370 | ✓ |  | actor_ai.c |
 | 0x426811 | FUN_00426811 | 1690 | ✓ |  | actor_ai.c |
+| 0x4275a7 | FUN_004275a7 | 823 | ✓ |  | actor_ai.c |
+| 0x4278de | FUN_004278de | 241 | ✓ |  | actor_ai.c |
 | 0x427f59 | FUN_00427f59 | 698 | ✓ |  | actor_ai.c |
 | 0x428213 | FUN_00428213 | 679 | ✓ |  | actor_ai.c |
 | 0x4284e1 | FUN_004284e1 | 567 | ✓ |  | actor_ai.c |

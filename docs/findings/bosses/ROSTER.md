@@ -49,7 +49,7 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 44–48 knights | *ナイト | `FUN_00427f59` | ported |
 | **49 black knight** | ブラックナイト | **`FUN_004279cf`** | **stub** |
 | 50 / 51 skeletons | スケルトン* | default `FUN_00428213` (after `+0xb8c` → `+0xadc = 2`) | stub |
-| 52 / 53 ghosts | ゴーストＯ / Ｎ | `+0xae4 == 0` `FUN_004275a7`, else `FUN_004278de` | stub |
+| 52 / 53 ghosts | ゴーストＯ / Ｎ | `+0xae4 == 0` `FUN_004275a7`, else `FUN_004278de` | ported (53 variant 0 verified: `obsidian-1f`; 52 / the walk variant no recording) |
 | 54 boss ahriman | ボスアーリマン | `FUN_00426811` | ported, verified |
 | **55 pumpkin ghost** | かぼちゃゴースト | **`FUN_00426eab`** | **stub** |
 | **61 / 64 golem bodies** | ゴーレム / ダークゴーレム | **`FUN_00420f4d`** | **stub** (death arm ported unverified) |
