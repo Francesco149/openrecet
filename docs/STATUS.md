@@ -159,6 +159,12 @@ Phase 0: dungeon hybrid (§3 Phase 1).
       FUN_004219f2 (types 70 / 71), FUN_004218e1 (its 4 anim layers), FUN_0042f7ad's 70 / 71 arm ported from the
       disasm → identical + save, portblock equal at 5 fight frames; gate rows added. Not reached: type 71, the
       ≥ 8-actor add skip, arm states 1 / 2, the tick-60 sweep with an add alive.
+  - ✅ 2026-11-11 (night): `obsidian-11f-15f-ahrimans` (Obsidian 11F..14F, the 15F boss-ahriman pair; was split f2330) →
+    identical + save; gate rows added. Two bugs: (1) f1788 11F moai type 35 idled (FUN_0042f28c stub arm) → no record-31
+    bursts, the f2330 shot hit only in retail: FUN_0042cfd0 ported from the disasm (`actor_ai_turret`); (2) f~10973 a 15F
+    bat shot (record 0x1f) hit the arena wall: retail runs the LAB_00440dc1 tail after body 0x1f (AGE := 0x70, dead at
+    0x78), the port's switch skipped it → slot shift, split f13049. Left: PORT-DEBT(gap, FUN_0043ae20) — the other
+    sequential-head bodies not audited for the tail; type 36 / moai variant > 0 not reached.
     - ☐ `portblock obsidian-3f-5f-pumpkin`: `recb` differs (151 dwords, records #10 / #11) from 4F on; RNG and save equal.
     - ☐ one live-session crash (c0000005 at eip 7aef924a, the first tick after a dungeon results page, under
       `rd play --watch`); the replay passed the same frame. Not reproduced.

@@ -98,7 +98,8 @@ it was the last 54, every live actor starts dying; frees at 120.
 | death with a second 54 alive (×2 / ×3 floors) | `s32(0x56db0f4) == 60` at tick 1 | **[obs f13157]** 21 → 60; bats kept; freed tick 120 (f13320) |
 | player dies | `hp <= 0` | **not reached** (lowest 42) |
 
-Port: fully ported, no PORT-DEBT. Death arm matches IDA.
+Port: fully ported, no PORT-DEBT. Death arm matches IDA. The 15F pair (§7) verified 2026-11-11: `obsidian-11f-15f-ahrimans`
+identical + save (rhost triage ticks 1..15311): shared minion cap, beams, both death arms (`p_inv` 60 / 1199), the door.
 
 ## 7. 15F pair — retail (`ob-15f`, probe `docs/findings/probes/obsidian-11f-15f.md`)
 

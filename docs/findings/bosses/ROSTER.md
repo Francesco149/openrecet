@@ -42,7 +42,7 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 30 Alouette | アルエット | `FUN_0042d676`; floor 99: `FUN_0044f009` (prop) | ported unverified; floor-99 arm stub |
 | 31 | (placeholder) | `FUN_0042d392` | ported, unverified |
 | 34 wisp | ウィスプ | `FUN_0042ac16` | stub |
-| 35 / 36 moai | モアイ金 / 銀 | `FUN_0042cfd0` | stub |
+| 35 / 36 moai | モアイ金 / 銀 | `FUN_0042cfd0` | ported (`actor_ai_turret`), 35 variant 0 verified `obsidian-11f-15f-ahrimans` (identical + save); 36 / variant > 0 (octant trio) no recording |
 | 37–40 bombs | ボム* | `FUN_004293f0` | ported |
 | **41 Arma** | アルマ | **`FUN_00425c3f`**; floor 99: `FUN_0044eff5` (prop) | **stub** |
 | 42 / 43 | ヒドラ / 親父 | `FUN_004284ba` (prop: `+0xb08 = +0xb04 = 1`) | stub |
@@ -50,7 +50,7 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | **49 black knight** | ブラックナイト | **`FUN_004279cf`** | **stub** |
 | 50 / 51 skeletons | スケルトン* | default `FUN_00428213` (after `+0xb8c` → `+0xadc = 2`) | stub |
 | 52 / 53 ghosts | ゴーストＯ / Ｎ | `+0xae4 == 0` `FUN_004275a7`, else `FUN_004278de` | ported (53 variant 0 verified: `obsidian-1f`; 52 + 53 walk variant verified: `obsidian-3f-5f-pumpkin`; 52 variant 0 no recording) |
-| 54 boss ahriman | ボスアーリマン | `FUN_00426811` | ported, verified |
+| 54 boss ahriman | ボスアーリマン | `FUN_00426811` | ported, verified (the 15F pair: `obsidian-11f-15f-ahrimans` identical + save) |
 | **55 pumpkin ghost** | かぼちゃゴースト | **`FUN_00426eab`** | ported (`actor_ai_t55`), verified `obsidian-3f-5f-pumpkin` (identical + save) |
 | **61 / 64 golem bodies** | ゴーレム / ダークゴーレム | **`FUN_00420f4d`** | **stub** (death arm ported unverified) |
 | 62 / 63, 65 / 66 golem arms | ゴーレム右 / 左, ダーク… | none (`FUN_00430c6d` part branch) | stub |
