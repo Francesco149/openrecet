@@ -49,9 +49,30 @@ A session exits after 30 min without a command; the next command replays the mov
 ## Where sessions run (`RD_HOST`, 2026-11-11)
 
 `RD_HOST=auto` (default): **natively on the Windows box** (`ssh $RHOST_WIN`; `export RHOST_WIN=win-wifi` when the
-box is on wifi) when it answers within 3 s and admits the session within 60 s, else under wine here. `RD_HOST=win` /
-`wine` force one. A session keeps its host (`rd ls` shows it); a rebuilt one takes the current choice; `-j N` workers
-start on the main session's host.
+box is on wifi) when it answers within 3 s and admits the session within `RD_WIN_ADMIT_WAIT` (60 s), else on
+**bunker** (the temporary NixOS box, `tools/bunker/README.md`) when it answers within 3 s and admits within
+`RD_BUNKER_ADMIT_WAIT` (30 s), else under wine here. `RD_HOST=win` / `bunker` / `wine` force one. A session keeps its
+host (`rd ls` shows it); a rebuilt one takes the current choice. `-j N` workers start on the main session's host; under
+`auto` a worker that host does not admit goes to the next host of the order (win → bunker → wine; each worker replays
+the movie, its savestates are its own anyway). The search prints which host each worker ran on, why a host took no more,
+and the searching rate per host.
+
+| host | what | admission | per session |
+|---|---|---|---|
+| `win` | Ryzen 9 5900X, Windows native (retail-faithful floats) | `PS_ADMIT` (shared with gates) + ≤ `RD_WIN_MAX_SESSIONS` (8) | 650–780 MB working set |
+| `bunker` | i5-10600K, NixOS, wine 11.19 wow64 in one bwrap per session, all in the 6 G / 8-CPU pool | ≤ `RD_BUNKER_MAX_SESSIONS` (6) + `RD_BUNKER_MEM_FLOOR_MB` (1024) free in the bound (+ 700 MB per session still replaying) + host MemAvailable ≥ 1 GB | ~0.3 GB idle, 0.6–0.8 GB after a dungeon search |
+| `wine` | maximus i9-10900K, wine 11.20 | `admit_local`: ≤ `RHOST_MAX_PROCS` (10) rhost processes, ≥ 8 GB available | ~650 MB RSS |
+
+How a bunker session works (`drive.py` `spawn_live` → `bunker.py spawn_session` → `pool.py spawn` on the box): the
+session dir travels as a tar on the ssh command's stdin to `/var/lib/orc-bunker/root/runs/drive/<name>` (=
+`C:\orc-rhost\runs\drive\<name>`); `pool.py` admits it under a lock shared with batches, then starts `sh → bwrap →
+wine rhost.exe … --live 0 --live-idle N` (+ the render skip) detached, joined to the pool's cgroup; it prints the host
+PID (the `sh`: killing it takes bwrap's pid namespace — wine, wineserver — down) and the live port. rd reaches the port
+through a local forward added to the ONE multiplexed ssh connection (`ssh -O forward`; ControlPersist 2 h; bunker's sshd
+refuses past `MaxStartups 10:30:100`, so nothing opens a connection per command). `rd stop` / a rebuild cancel the
+forward, then `pool.py kill PID NAME` (kills only when the PID's argv names that session's run dir) and remove the dir.
+Liveness = the forward listening + `pool.py alive` (one round trip on the master, ~0.14 s). A command round trip over
+the forward: 0.7 ms (LAN).
 
 How a Windows session works (`drive.py` `win_spawn` / `win_forward`): the session dir is copied to
 `C:\orc-rhost\runs\drive\<tag>-<pid>-<ms>`; rhost starts in sshd's session 0 (no desktop: fine for `--headless`)
@@ -75,6 +96,26 @@ agent's gates):
 | spawn (stage, copy, admit, start, forward) | ~2 s | ~1 s |
 | memory per session (dungeon, after a search) | 650–780 MB working set (private 700–840 MB) | ~650 MB RSS |
 
+Bunker, measured 2026-11-11 (rhost bin `d418228b2e88`, the box otherwise idle; same movies):
+
+| | bunker (i5-10600K, wine 11.19 in the pool) |
+|---|---|
+| `rd new --from griff-30f` (replay 39,676 frames) | 16.3 s (16.5 s for 39,767) |
+| `rd new --from shop-session-week3` (8,990 frames) | 5.3 s |
+| `rd search … -j 1`, 30 s, griff-30f + 91 ticks (town map) | 1,775 ticks/s |
+| `rd search … -j 4`, 30 s, same state | 6,203 ticks/s total (1,551 each); 1.6 s to start 3 workers + ~17 s replay |
+| spawn (stage check, tar → admit → start → forward) | ~0.5 s + the replay |
+| memory per session (dungeon, after a `-j 4` search) | 762 MB RSS (rhost.exe) |
+| command round trip over the forward | 0.7 ms |
+
+`auto` search spread (bk-auto, shop-session-week3 head, `RD_WIN_MAX_SESSIONS=4` with another agent's 2–3 sessions on
+the box, `RHOST_MAX_PROCS=3`, `-j 12`, 30 s): run 1 — win main w1 w5, bunker w3 w4 w8 w9 w11, wine w2 w6 w7 w10
+(before the `admit_local` fix below); run 2 — win main (the box's cap reached), bunker 5 (the 6th slot held by another
+session of mine), wine 3, 3 not admitted; searching rates win 2,208/s (one session), bunker 9,152/s (1,830 each),
+wine 2,327/s (776 each; maximus loaded). Pool `memory.peak` over the whole test: 4.75 GB of 6 G.
+`admit_local` fix (2026-11-11): a wine loader still starting rhost (comm `wine*`, argv `…rhost.exe`) now counts — 11
+parallel worker admissions all saw 0 rhost processes and 4 started under `RHOST_MAX_PROCS=3`.
+
 Equality (same movie, both hosts; each `rd verify` MATCH on its own host):
 
 | movie | frames | frame / RNG win = wine | `state_sem` win = wine |
@@ -88,7 +129,15 @@ all floats 1–2 ulp apart (actor positions `0x76e0ac..`, matrices `0x438ce38`, 
 `0x027F` on both. The Windows headless replay has the Windows real-device replay's values in every one of them
 (their remaining differences are device pointers / vertex data): **Windows-native is the retail-faithful host**;
 wine rounds differently somewhere — not root-caused; lead: retail imports `IsProcessorFeaturePresent`
-(D3DX8's CPU dispatch) and the two boxes are different CPUs. Hence `rd verify` replays on the session's host
+(D3DX8's CPU dispatch) and the two boxes are different CPUs. **Bunker = maximus wine in game state, not in `state_sem`:** hire-griff / shop-session-week3 / obsidian-21f-30f-griff
+headless to the end — frame + RNG equal on all three hosts; `state_sem` bunker `9d91e7ee…` / `0f243bd8…` / `4905a78d…`,
+maximus wine `93589096…` / `0a4f1dd2…` / `dddaf52f…`, Windows `28c92241…` / `507bfc35…` / `c64fa605…` (all deterministic:
+bunker repeated ×3 at -j1 / -j3). State dumps bunker vs maximus wine (hire-griff f4500, shop-session-week3 f9000,
+obsidian f9000 + f39900): 1 differing dword each, `0x964c448` = an `ext-ptr(both)` (a wine DLL address: 11.19 vs 11.20
+builds), plus once a `volatile-addr` — no float differences. So bunker rounds like maximus wine (same CPU family,
+Comet Lake), and its hash differs only by a DLL-pointer slot not in `volatile.txt` (adding `0964c448` would make bunker
+and maximus-wine hashes equal; not done while other agents' sessions hash with the current list).
+Hence `rd verify` replays on the session's host
 (hashes compare like for like) and prints it; `--real` still compares frame / RNG / scene with the real device.
 Gates on Windows: `rhost.py snap-check --target win -j 6` **159/159 PASS** (one row re-run after a lost
 `rhost.log` fetch — now retried; 1 with write-tracking residue, restore exact: `decor-variants`, as under wine);

@@ -23,6 +23,9 @@ Dense on purpose; auto-loads every session. **The repo is the source of truth**;
   `cutestation.soy:2222`): every rhost / rd command takes the host from it.
   sshd runs in session 0 (no desktop ⇒ no D3D), so GUI/D3D jobs go through the rhost
   queue runner (`tools/rhost/README.md`). IDA Pro 9.4 lives here (`C:\orc-ida\`).
+- **bunker** — temporary NixOS box, `root@10.0.10.58` (`RHOST_BUNKER`; access is lost on reboot): rhost headless
+  under wine in ONE bounded pool (6 G / 8 CPUs), only `/var/lib/orc-bunker/` + `orc-bunker-*` units
+  (`tools/bunker/README.md`). Teardown: `python3 tools/bunker/bunker.py teardown`.
 - **`ssh wslop`** — WSL NixOS on the same box. Optional now. Port 22 there is a portproxy
   to WSL. WSL only stays up while the owner has a WSL terminal open: "connection reset"
   means it is down. Ask the owner; don't start keepalives.
@@ -117,12 +120,14 @@ replayed from captured D3D8 streams. rhost records retail's stream with
   skip without `vendor/`.
 - **Python tool tests:** `python3 tools/run_python_tests.py`.
 - **rhost:** `python3 tools/rhost/rhost.py run|det|corpus|record|flatten|diff` (auto
-  build + stage). Results go to `/mnt/ephemeral/openrecet/rhost-runs/`.
+  build + stage). Results go to `/mnt/ephemeral/openrecet/rhost-runs/`. `--target bunker`: headless retail
+  batches (`run --headless`, `headless-check`, `snap-check`, `skip-check`) on bunker; not port / gates.
 - **rd:** `./rd new|play|tap|status|text|eval|ram|ck|undo|search|look|strip|verify|check|file|port`
   (`tools/drive/drive.py`). Runs in `/mnt/ephemeral/openrecet/drive/runs/`; live sessions run natively on
-  the Windows box when it answers (`RD_HOST=auto|win|wine`; `RHOST_WIN`), else under wine on maximus
-  (~0.7 GB each, exit after 30 min idle; `./rd stop R`, `./rd ls`). Windows-native ≈ 3× wine and is the
-  float-faithful host (`tools/drive/README.md` "Where sessions run").
+  the Windows box when it answers and admits, else on bunker, else under wine on maximus
+  (`RD_HOST=auto|win|bunker|wine`; `RHOST_WIN`; ~0.7 GB each, exit after 30 min idle; `./rd stop R`, `./rd ls`);
+  `search -j N` workers spill to the next host. Windows-native ≈ 3× wine and is the float-faithful host;
+  `rd verify` replays on the session's host (`tools/drive/README.md` "Where sessions run").
 - **Game data:** maximus `/mnt/ephemeral/openrecet/staged_retail/` (unpacked exe + data);
   Windows `C:\orc-rhost\game\` (pristine; rhost writes go to the run dir). Use
   `recettear.unpacked.exe` (Steamless); `vendor/original` is SteamStub-encrypted.

@@ -43,6 +43,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "tools", "rhost"))
 import rhost as RH  # noqa: E402
+sys.path.insert(0, os.path.join(ROOT, "tools", "bunker"))
+import bunker as BK  # noqa: E402
 
 RUNS = os.environ.get("RD_RUNS", "/mnt/ephemeral/openrecet/drive/runs")
 SESS = os.path.join(RH.WINE_ROOT, "runs", "drive")          # live sessions' rhost run dirs (C:\orc-rhost\runs\drive\..)
@@ -446,7 +448,9 @@ def wine_env():
 
 
 def staged_exe(host="wine"):
-    """build if stale, stage the build content-addressed (wine root, or bin\\<sha> on the Windows box) → its Windows path"""
+    """build if stale, stage the build content-addressed (wine root, or bin\\<sha> on the Windows box / bunker) → its Windows path"""
+    if host == "bunker":
+        return f"{RH.WROOT}\\bin\\{BK.stage()}\\rhost.exe"
     if host == "win":
         RH.ensure_staged()
         return RH.bin_dir() + "\\rhost.exe"
@@ -461,21 +465,34 @@ def staged_exe(host="wine"):
 # job's processes on disconnect; a Win32_Process.Create child is not in that job), admitted by the same machine-wide gate
 # as the queue runner's batches (rhost.py PS_ADMIT: process cap + RAM floor, one Global mutex) plus RD_WIN_MAX_SESSIONS
 # live rd sessions; reached through an ssh local forward whose remote command waits on the rhost PID (the forward ends with
-# the process). RD_HOST=auto: win when the box answers within 3 s, else wine. A session keeps the host it started on
-# (session.json "host"); a rebuilt session takes the current choice.
+# the process). RD_HOST=bunker: under wine on the temporary NixOS box (tools/bunker: one bounded pool, sessions reached
+# through forwards on ONE multiplexed ssh connection; admission = pool.py spawn: <= RD_BUNKER_MAX_SESSIONS rd sessions and
+# RD_BUNKER_MEM_FLOOR_MB free inside the 6 G bound). RD_HOST=auto: win → bunker → wine, each tried when the previous does
+# not answer within 3 s or does not admit within its wait (RD_WIN_ADMIT_WAIT 60 s, RD_BUNKER_ADMIT_WAIT 30 s). A session
+# keeps the host it started on (session.json "host"); a rebuilt session takes the current choice.
 RD_HOST = os.environ.get("RD_HOST", "auto")
+HOSTS = ("win", "bunker", "wine")                      # the auto order
 WIN_MAX_SESSIONS = int(os.environ.get("RD_WIN_MAX_SESSIONS", "8"))
+BUNKER_MAX_SESSIONS = int(os.environ.get("RD_BUNKER_MAX_SESSIONS", "6"))
+BUNKER_FLOOR_MB = int(os.environ.get("RD_BUNKER_MEM_FLOOR_MB", "1024"))
+ADMIT_WAIT = {"win": float(os.environ.get("RD_WIN_ADMIT_WAIT", "60")), "bunker": float(os.environ.get("RD_BUNKER_ADMIT_WAIT", "30"))}
 WIN_SESS = "C:\\orc-rhost\\runs\\drive"
-_host = None
+_up, _up_lock = {"wine": True}, threading.Lock()
+
+
+def host_up(h):
+    """does host H answer (once per process)"""
+    with _up_lock:
+        if h not in _up:
+            _up[h] = win_up(timeout=3) if h == "win" else BK.up(timeout=3)
+        return _up[h]
 
 
 def pick_host():
-    global _host
-    if _host is None:
-        if RD_HOST not in ("auto", "win", "wine"):
-            raise SystemExit(f"RD_HOST={RD_HOST!r}: auto | win | wine")
-        _host = RD_HOST if RD_HOST != "auto" else ("win" if win_up(timeout=3) else "wine")
-    return _host
+    """the first host of the order that answers (RD_HOST=win|bunker|wine: that one)"""
+    if RD_HOST not in ("auto",) + HOSTS:
+        raise SystemExit(f"RD_HOST={RD_HOST!r}: auto | win | bunker | wine")
+    return RD_HOST if RD_HOST != "auto" else next(h for h in HOSTS if host_up(h))
 
 
 def local_listening(port):
@@ -585,16 +602,21 @@ def spawn_live(tag, movie, upto=None, idle=1800, wait=300, host=None, src_trace=
     """a live rhost (headless) on HOST (pick_host()): replays MOVIE to frame UPTO first — or SRC_TRACE (any dialect) up to
     LIMIT — → the session dict {host, pid, port, rundir[, fwd, wport]}: `port` is always a local port (wine: the session's
     own; win: the ssh forward's). Admitted by the host's machine-wide gate: WAIT seconds for a slot, else SystemExit"""
-    if host is None and pick_host() == "win" and RD_HOST == "auto":
-        # auto: the Windows box when it has a slot within a minute (gates fill it for an hour at a time), else wine here
-        try:
-            return spawn_live(tag, movie, upto, idle, min(wait, 60), "win", src_trace, limit)
-        except NotAdmitted as e:
-            print(f"[{e} — this session runs under wine here]")
-            host, wait = "wine", max(0, wait - 60)
+    if host is None and RD_HOST == "auto":
+        # auto: the Windows box when it has a slot within a minute (gates fill it for an hour at a time), else the bunker
+        # when it admits within its wait, else wine here
+        for h in ("win", "bunker"):
+            if not host_up(h):
+                continue
+            try:
+                return spawn_live(tag, movie, upto, idle, min(wait, ADMIT_WAIT[h]), h, src_trace, limit)
+            except NotAdmitted as e:
+                print(f"[{e} — trying the next host]")
+                wait = max(0, wait - ADMIT_WAIT[h])
+        host = "wine"
     host = host or pick_host()
     name = f"{tag}-{os.getpid()}-{int(time.time() * 1000) % 10 ** 9}"
-    if host == "win":
+    if host in ("win", "bunker"):
         ld = os.path.join(RUNS, ".winstage", name)
         os.makedirs(ld)
         win = f"{WIN_SESS}\\{name}"
@@ -634,6 +656,31 @@ def spawn_live(tag, movie, upto=None, idle=1800, wait=300, host=None, src_trace=
             kill_session(s)
             raise
         return s
+    if host == "bunker":
+        try:
+            files = {f: open(os.path.join(ld, f), "rb").read() for f in os.listdir(ld)}
+        finally:
+            shutil.rmtree(ld, ignore_errors=True)
+        exe = staged_exe("bunker")
+        r = BK.spawn_session(name, files, exe, args, wait, BUNKER_MAX_SESSIONS, BUNKER_FLOOR_MB)
+        if r[0] == "NOADMIT":
+            raise NotAdmitted(f"live session {tag} on bunker: not admitted — {r[1]}. Stop idle sessions (`./rd ls`, `./rd stop R`) or wait.")
+        if r[0] != "LIVE":
+            raise SystemExit(f"the live session did not start on bunker ({win})\n{r[1]}")
+        s = {"host": "bunker", "ssh": BK.HOST, "pid": r[1], "wport": r[2], "rundir": win, "name": name}
+        try:
+            for attempt in range(4):                   # a local forward on the one multiplexed connection
+                lp = free_local_port()
+                if BK.forward(lp, r[2]):
+                    s["port"] = lp
+                    break
+                time.sleep(0.5 + attempt)
+            else:
+                raise SystemExit(f"no forward to the live session on bunker (pid {r[1]}, port {r[2]})")
+        except BaseException:
+            kill_session(s)
+            raise
+        return s
     try:
         with RH.admit_local(wait=wait, what=f"live session {tag}"):
             p = subprocess.Popen(["wine", exe] + args, stdout=open(os.path.join(ld, "stdout.txt"), "w"), stderr=subprocess.DEVNULL,
@@ -655,6 +702,12 @@ def kill_session(s):
     """end OUR session (never by name): wine — its process group; win — the ssh forward, then the Windows process by PID
     after checking its command line is this session's; drop its run dir"""
     if not s:
+        return
+    if s.get("host") == "bunker":
+        if s.get("port") and s.get("wport"):
+            BK.forward(s["port"], s["wport"], cancel=True)
+        if s.get("pid") and s.get("name") and s.get("rundir") == f"{WIN_SESS}\\{s['name']}":
+            BK.kill_session(s["pid"], s["name"])       # pool.py: by PID after checking its argv is this session's
         return
     if s.get("host", "wine") == "win":
         if s.get("fwd"):
@@ -688,12 +741,21 @@ def pid_alive(pid):
 
 
 def sess_alive(s):
-    """win: the forward lives exactly as long as the Windows process (its remote command waits on it)"""
+    """win: the forward lives exactly as long as the Windows process (its remote command waits on it); bunker: the
+    forward on the master is listening and the session's process is alive there (one round trip on the master)"""
+    if s and s.get("host") == "bunker":
+        return bool(s.get("port")) and local_listening(s["port"]) and BK.session_alive(s["pid"], s["name"])
     return bool(s) and pid_alive(s["fwd"] if s.get("host", "wine") == "win" else s["pid"])
 
 
 def sess_file(s, f, dst):
     """copy file F of the session's run dir to DST → True when it exists"""
+    if s.get("host") == "bunker":
+        data = BK.session_file(s.get("name", ""), f)
+        if data is None:
+            return False
+        open(dst, "wb").write(data)
+        return True
     if s.get("host", "wine") == "win":
         return subprocess.run(["scp", "-q", f"{s.get('ssh', RH.WIN)}:{s['rundir'].replace(chr(92), '/')}/{f}", dst], capture_output=True).returncode == 0 \
             and os.path.exists(dst)
@@ -1378,13 +1440,26 @@ def cmd_search(a):
     else:
         # extra live sessions at the same frame (each replays the movie), one exploration per session with its own seed
         workers, errs = [], []
+        main = r.sess.get("host", "wine")
+        # the main session's host first; under RD_HOST=auto a worker it does not admit goes to the next host of the order
+        # (each worker replays the movie: its savestates are its own anyway)
+        order = [main] + ([h for h in HOSTS if h != main] if RD_HOST == "auto" else [])
+
+        passed = {}                         # host → why it did not take a worker (the first reason)
 
         def boot(i):
-            try:
-                h = spawn_live(f"{r.name}-w{i}", r.movie, idle=600, wait=0, host=r.sess.get("host", "wine"))   # optional: no slot → fewer workers
-                workers.append((i, h))
-            except BaseException as e:      # noqa: B902 — SystemExit from spawn_live
-                errs.append(str(e))
+            last = None
+            for h in order:
+                if h != main and not host_up(h):
+                    continue
+                try:
+                    hs = spawn_live(f"{r.name}-w{i}", r.movie, idle=600, wait=0, host=h)   # optional: no slot → fewer workers
+                    workers.append((i, hs))
+                    return
+                except BaseException as e:      # noqa: B902 — SystemExit / NotAdmitted from spawn_live
+                    last = e
+                    passed.setdefault(h, str(e).split(" — ", 1)[-1][:160])
+            errs.append(str(last))
         ts = [threading.Thread(target=boot, args=(i,)) for i in range(1, a.jobs)]
         [t.start() for t in ts]
 
@@ -1395,12 +1470,19 @@ def cmd_search(a):
             [t.join() for t in ts]
             if errs:
                 print(f"[{len(errs)} worker(s) did not start: {errs[0][:120]}]")
-            print(f"[{len(workers) + 1} sessions at frame {r.movie.frame}, {time.time() - t0:.1f}s to start the extra ones]")
-            ths = [threading.Thread(target=one, args=(lv, a.seed, False, "main"))]
+            workers.sort()
+            by = {}
+            for tag, h in [("main", main)] + [(f"w{i}", hs["host"]) for i, hs in workers]:
+                by.setdefault(h, []).append(tag)
+            print(f"[{len(workers) + 1} sessions at frame {r.movie.frame}, {time.time() - t0:.1f}s to start the extra ones; "
+                  + ", ".join(f"{h}: {' '.join(t)}" for h, t in by.items()) + "]")
+            for h, why in passed.items():
+                print(f"  [{h} took no more: {why}]")
+            ths = [threading.Thread(target=one, args=(lv, a.seed, False, f"main@{main}"))]
             lvs = []
             for i, h in workers:
                 lx = Live(h["port"]); lvs.append(lx)
-                ths.append(threading.Thread(target=one, args=(lx, a.seed + i * 7919, False, f"w{i}")))
+                ths.append(threading.Thread(target=one, args=(lx, a.seed + i * 7919, False, f"w{i}@{h['host']}")))
             [t.start() for t in ths]
             [t.join() for t in ths]
             [lx.close() for lx in lvs]
@@ -1412,6 +1494,16 @@ def cmd_search(a):
         r.sess["epoch"] = int(Live.kv(lv.cmd("ping"))["epoch"])
     found = [(int(k["frames"]), k, tag) for k, tag in results if k.get("found") == "1"]
     ticks = sum(int(k.get("ticks", 0)) for k, _ in results)
+    if len(results) > 1:
+        per = {}
+        for k, tag in results:
+            h = tag.split("@")[-1]
+            per.setdefault(h, [0, 0])
+            per[h][0] += 1
+            per[h][1] += int(k.get("ticks", 0))
+        # explore's clock starts after a worker's replay: ticks / --time-limit = the searching rate
+        print("  per host: " + ", ".join(f"{h} {n} session(s) {t} ticks = {t / a.time_limit:.0f}/s ({t / a.time_limit / n:.0f} each)"
+                                         for h, (n, t) in per.items()))
     cells = max(int(k.get("cells", 0)) for k, _ in results)
     wall = time.time() - t0
     if not found:
@@ -1816,7 +1908,7 @@ def cmd_ls(a):
         sp = os.path.join(RUNS, n, "session.json")
         s = json.load(open(sp)) if os.path.exists(sp) else None
         live = sess_alive(s)
-        print(f"{n:28s} frame {m.get('frame', 0):>7d}  from {m.get('start', '?'):28s} {(s.get('host', 'wine') if live else '-'):5s} "
+        print(f"{n:28s} frame {m.get('frame', 0):>7d}  from {m.get('start', '?'):28s} {(s.get('host', 'wine') if live else '-'):6s} "
               f"{' '.join(sorted(m.get('checkpoints', {})))}")
 
 
@@ -1889,7 +1981,7 @@ def main():
                 tail = open(log, errors="replace").read()[-1500:]
                 os.remove(log)
                 why = " | ".join(l[:160] for l in tail.splitlines() if l.startswith(("game:", "exception", "FATAL", "RESULT")))
-            log = f"{s.get('rundir')}\\rhost.log ({s.get('host', 'wine')})" if s.get("host") == "win" else os.path.join(s.get("rundir", ""), "rhost.log")
+            log = f"{s.get('rundir')}\\rhost.log ({s.get('host', 'wine')})" if s.get("host") in ("win", "bunker") else os.path.join(s.get("rundir", ""), "rhost.log")
         print(f"the live session ended during this command: the game exited (EXIT on the title, a quit) or crashed.\n  {why or log}\n"
               "  The run is unchanged (its movie ends before this command); the next rd command replays it.", file=sys.stderr)
         sys.exit(3)
