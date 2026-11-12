@@ -282,3 +282,68 @@ then 180 HP at 13–14 per back hit (estimate, not run).
 | floor cleared | `estage == 1` (not `gate`) |
 | wipe (cs-die) | `hp <= 0 and fell == 1` |
 
+
+## Lapis 25F trio (dungeon 4, floor 24) — run `lapis-30f`
+
+2026-11-12, `./rd new lapis-30f --from save:303f7bcf95ea`, 25F at f18385..24039 of a 32,205-frame movie, `rd verify lapis-30f` MATCH
+(f32205, rng 36779b64, sem d6a342bf78a344bd; probe `docs/findings/probes/lapis-21f-30f.md`). Louie L42, ATK 61 / DEF 68 / MATK 22 /
+MDEF 42, HP 206 / 206, SP 46. **HP 206 the whole fight: no landing or contact hit taken.** Frames below are this run's **[obs fNNNN]**.
+
+| | value |
+|---|---|
+| bosses | 3 (actors 0 / 1 / 2) at (−50, 15, −38), (−40, 15, −34), (−30, 15, −38), state 8; power 1.0 before the first tick; player (−40, −45) |
+| level / max HP | **29** (`floor/5 + 25`) / **680** each (100 · 6.8) |
+| blue slime | L29, **102 HP** (15 · 6.8), DF 4; spawned at y ≈ 10 (6.91 at age 11) |
+| blue-slime cap | **5** (dungeon 4), shared by the three |
+| landing vs DEF 68 | not taken (estimate `ftol(30·3.9/2 − 17)` = 41, +0..8) |
+
+Timeline (frame: event):
+
+| frame | event |
+|---|---|
+| 18385 | on 25F, all three state 8 in lockstep; `lock` 0 |
+| 18625 / 18626 | state 8 → 0 (t 240) / `lock` −1; first AI tick: power 5 ×3 |
+| 18635 | cycle 10 ×3: **three blue slimes at once** (slots 3, 4, 5), one per boss |
+| 18925 | shed 5 → 3.66, all three on the same tick |
+| 19283 | shed → 2.32, all three (358 frames: hit-stops from the first spins) |
+| **19293** | cycles 10 / 10 / 9: bosses 0 and 1 spawn (slots 6, 7) → count 5 = **cap**; boss 2's cycle **held at 9** |
+| **19295** | slot 4 (age 602) **absorbed by boss 2** (2.32 → 5); count 4 |
+| **19296** | boss 2's cycle 9 → 10: spawn into the freed slot 4 (count 5 again) — 1 tick after the drop, not 10 |
+| **19297** | slot 3 (age 604, 15 HP left) **absorbed by boss 1** (2.32 → 5) |
+| **19314** | slot 5 (age 621, 68 HP left, pulled from farther) **absorbed by boss 0** (2.32 → 5): one absorb per boss within 19 ticks |
+| 19606 / 19608 / 19629 | shed → 3.66 (bosses 2 / 1 / 0: their absorb order) |
+| 19934 / 19936 / 19953 | → 2.32 |
+| 20246 / 20248 / 20269 | → 1 |
+| **20549** | bosses 0 / 1 spawn at cycle 10 (count 3 → 5 = cap); boss 2's cycle **held at 6** |
+| **20563** | slot 3 absorbed by boss 2 **at power 1** (1 → 5); 20567: boss 2's cycle 6 → 10, spawn (4 ticks after the drop) |
+| 20610 | slot 8 (age 658) absorbed by boss 0 at power 1 (1 → 5) |
+| 21177 / 21200 | absorbs at power **3.66** (boss 0 → 5) and **2.32** (boss 2 → 5): +4 capped at 5 both times |
+| **21568** | **boss 1 HP 0, both others alive** (power 1 since f20248, never absorbed again); t 1 f21573: **`p_inv` 60**, slow-mo 60 |
+| 21602..21877 | pause menu (Taiyaki): world frozen — death timer 9 throughout |
+| 21961 | boss 1 death t 60: blue slimes 3 → 3 (**no sweep**: another of its kind alive) |
+| 22025 | boss 1's slot freed (t 120); floor goes on, `gate` 3 |
+| **23629** | **boss 0 HP 0, boss 2 alive**; t 1 f23634: **`p_inv` 60**, slow-mo 60 |
+| **23707** | **boss 2 HP 0 (last)** while boss 0 is still dying (death timer 34); t 1 f23712: **`p_inv` 1200**, slow-mo 60 (a dying one does not count as "another live one") |
+| 23837 | boss 0's slot freed (t 120) |
+| **23871** | boss 2 t 120: slot freed, **`estage` 0 → 1**, `gate` 3 → 0 at the same frame |
+| 24001 | next-floor portal (−35, −40): "Go to the next floor?" → 26F f24039 |
+
+No blue slime was alive at the last two deaths, so the t-60 sweep of slimes (`FUN_0042f746`) was **not reached** here (it was on Jade 5F).
+
+Corrections / additions to the sections above:
+
+- **Cap hold value:** at the cap a boss's cycle freezes wherever it stands below 10 — 9 (f19293) and 6 (f20549) here, 0 on Jade 5F where it had
+  wrapped first. The spawn then comes `10 − held` ticks after the count drops (1 and 4 ticks here), not always 10.
+- **Cap 5 (dungeon 4)** observed: arm 26 now has 1 (Jade 5F) and 5 (Lapis 25F); 4 (dungeon 3) still not reached.
+- Spawns at cycle 10 happen per boss in slot order within one tick; with 3 alive and cap 5 the first two bosses spawn and the third waits
+  (f19293, f20549).
+- Absorb at power 3.66 and 2.32 → 5 (arm 16) both seen (f21177 / f21200).
+- Arm 23 (first death, others alive: `p_inv` 60, no sweep at t 60) seen twice (f21573, f23634); arm 24 (last death) f23712..23871.
+
+What worked (all searches `--hold 30`, avoid `hp < H` plus `aNpow > current` per live boss so an absorb cannot satisfy a goal):
+1. Old blue slimes first: goal `(aNuse != 1 or aNage < 50)` for every slime older than 300, score minus their HP, actions 8 walks `*6`, 8
+   swings `DIR A .*6`, aimed swings, `B .*6` (spin) while SP ≥ 10.
+2. Damage while some boss is at power ≤ 2.32: goal `a0hp + a1hp + a2hp <= S − 60`, avoid also "a slime older than 560", same actions;
+   spins (×2, often hitting two bosses) did most of it.
+3. Otherwise survive 120 ticks (the shed).
+From the first control to the last kill: f18626 → f23707 = 5,081 frames (≈1,000 of them lost to the four early absorbs and the pause).
