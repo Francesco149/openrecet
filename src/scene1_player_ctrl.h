@@ -37,6 +37,7 @@ void player_ctrl_pose_house_standing(int player_char);
 
 /* Read accessors for the draw side (i out of range → -1 / 0 / NULL). */
 int            player_ctrl_actor_char(int i);
+int            player_ctrl_town_scene_active(void);   /* work +0x2bcfd */
 float          player_ctrl_actor_scale_xz(int i);
 float          player_ctrl_actor_scale_y(int i);
 const int32_t *player_ctrl_actor_record(int i);

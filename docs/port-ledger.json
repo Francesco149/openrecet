@@ -15,7 +15,7 @@
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 14,
-  "port_debt": 66,
+  "port_debt": 68,
   "verified": 81,
   "stubbed": 10,
   "ported": 754,
@@ -8033,7 +8033,8 @@
    },
    "quality_flags": [],
    "src": [
-    "src/dungeon_flow.c"
+    "src/dungeon_flow.c",
+    "src/scene1_player_ctrl.c"
    ],
    "status": "ported"
   },
@@ -9828,6 +9829,7 @@
    "quality_flags": [],
    "src": [
     "src/dungeon_flow.c",
+    "src/scene1_player_ctrl.c",
     "src/scene1_sim.c",
     "src/scene_adv_guild.c",
     "src/scene_adv_guild.h",
@@ -18143,6 +18145,7 @@
    "src": [
     "src/collision_house.c",
     "src/customer_service.h",
+    "src/dungeon_flow.c",
     "src/dungeon_party.h",
     "src/guild_stock.h",
     "src/party_roster.h",

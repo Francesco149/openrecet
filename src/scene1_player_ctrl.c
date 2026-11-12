@@ -44,6 +44,7 @@
 #include "scene.h"               /* g_scene_state (DAT_0438b1c0) — mode 8 = world map (T1) */
 #include "scene_worldmap.h"      /* scene_worldmap_set_sel_dest (FUN_0049de0e) — initial dest */
 #include "worker_load.h"         /* worker_load_spawn (FUN_00452cde) — the scene-load worker */
+#include "scene_adv_guild.h"     /* adv_guild_set_stage (FUN_0045bcea) */
 #include "customer_service.h"    /* cc08==4 customer-service session_init / master_tick */
 #include "x87.h"                 /* spill32 / spill64 (the door-zone distance) */
 #include "scene1_shop_walker.h"  /* scene1_customer_npc_pump (FUN_0047019f) — chibi crowd */
@@ -259,6 +260,15 @@ void player_ctrl_pose_house_standing(int player_char)
 int player_ctrl_actor_char(int i)
 {
     return (i >= 0 && i < PC_NUM_ACTORS) ? s_actor_char[i] : -1;
+}
+
+/* work +0x2bcfd: the Lapis 30F town scene runs on the shop stage with no
+ * actors (DAT_056da1cc..d4 = -1); the port's "no live player" guards (not in
+ * retail) let it through */
+int player_ctrl_town_scene_active(void)
+{
+    const uint8_t *tb = (const uint8_t *)save_work_dwords_at(save_work_active_slot());
+    return tb != NULL && tb[0x2bcfd] != 0;
 }
 
 float player_ctrl_actor_scale_xz(int i)
@@ -2275,7 +2285,9 @@ void scene1_player_ctrl_tick(void)
     if (title_save_dialog_gate_tick() == -1)
         return;
 
-    if (s_actor_char[0] == -1)        /* no live player actor (pre-HOUSE) */
+    /* not in retail: no live player actor (pre-HOUSE) — except the 30F town
+     * scene (+0x2bcfd), whose arm clears the actors every tick */
+    if (s_actor_char[0] == -1 && !player_ctrl_town_scene_active())
         return;
 
     /* prologue (all.c:86580, BEFORE the transition arms): drop the periodic
@@ -2320,6 +2332,41 @@ void scene1_player_ctrl_tick(void)
             if (scene1_beat_counter() >= 302 && fade_is_done()) {
                 fade_phase_out_start(0, 0x11);    /* FUN_0045281c(0, 17) */
                 sb[0x2bced] = 0;
+            }
+            return;
+        }
+    }
+
+    /* the Lapis 30F town scene (work +0x2bcfd, set by FUN_00450877's floor-29
+     * arm; all_ida FUN_0048670f's `v0[179453] != 0` tail): b924++, cc68 = 1,
+     * the bg NPCs, no party (db1cc..d4 = -1, no FUN_004897c6 / FUN_0048a833),
+     * b4e8 1 and the camera eases over the shop as the day-15 scene's
+     * (PORT-DEBT(render-coupled, FUN_0048670f) there); b924 301 iv10_6, 302 the
+     * fade (80); once done the fade-in 17, FUN_00474d92, the floor's stage
+     * (FUN_0045bcea), the load worker, +0x2bcfd → 0, +0x2bcfe → 1, b4e8 0. */
+    {
+        uint8_t *sb = (uint8_t *)save_work_dwords_at(save_work_active_slot());
+        if (sb != NULL && sb[0x2bcfd] != 0) {
+            scene1_beat_set_counter(scene1_beat_counter() + 1);
+            scene1_camera_snap_next();            /* DAT_0438cc68 = 1 */
+            scene1_bg_npc_tick();                 /* FUN_0046f621 */
+            s_actor_char[0] = -1;                 /* DAT_056da1cc..d4 */
+            s_actor_char[1] = -1;
+            s_actor_char[2] = -1;
+            g_scene1_camera_stage_class = 1;      /* DAT_0438b4e8 */
+            if (scene1_beat_counter() == 301)
+                scene1_intro_dialogue_start(10, 6, 0);   /* FUN_0044ba2c(10, 6, 0) */
+            if (scene1_beat_counter() == 302)
+                fade_phase1_start(0, 80);         /* FUN_004526f5(0, 80) */
+            if (scene1_beat_counter() > 302 && fade_is_done()) {
+                fade_phase_out_start(0, 0x11);    /* FUN_0045281c(0, 17) */
+                /* FUN_00474d92: PORT-DEBT(render-coupled, FUN_00474d92) — the
+                 * stage's D3D teardown; the worker's loader resets its meshes */
+                adv_guild_set_stage(sb);          /* FUN_0045bcea */
+                worker_load_spawn();              /* FUN_00452cde */
+                sb[0x2bcfd] = 0;
+                sb[0x2bcfe] = 1;
+                g_scene1_camera_stage_class = 0;
             }
             return;
         }

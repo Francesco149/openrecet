@@ -310,7 +310,7 @@ void scene1_event_actor_tail_tick(void)
 {
     const int ticked = s_anims_ticked;
     s_anims_ticked = 0;
-    if (player_ctrl_actor_char(0) == -1)
+    if (player_ctrl_actor_char(0) == -1 && !player_ctrl_town_scene_active())
         return;
 
     scene1_bg_npc_tick();                        /* FUN_0046f621 */

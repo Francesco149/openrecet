@@ -12,18 +12,18 @@ the answer to *"what's still faked in code that looks done?"*
 ## Summary
 
 - total open debts: **55**
-- distinct retiring engine functions: **48**
+- distinct retiring engine functions: **47**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 33 | wired call boundary, body incomplete |
+| stub | 32 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 7 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
-> ⚠️  **14 tag(s) use an unknown kind**: actor-table-split (1), continue-arm (1), deferred (1), focused (1), house-teardown (1), oob (1), render-coupled (6), semantic-collision (1), structure (1).
+> ⚠️  **15 tag(s) use an unknown kind**: actor-table-split (1), continue-arm (1), deferred (1), focused (1), house-teardown (1), oob (1), render-coupled (7), semantic-collision (1), structure (1).
 > Valid kinds: stub, synthetic-data, simplified, hardcode, scaffold, force-flag.
 
 ## By retiring engine function
@@ -31,9 +31,9 @@ the answer to *"what's still faked in code that looks done?"*
 | engine fn | open debts |
 |-----------|-----------:|
 | FUN_00473c15 | 3 |
+| FUN_00474d92 | 3 |
 | FUN_00434ceb | 2 |
 | FUN_0044bd0d | 2 |
-| FUN_00474d92 | 2 |
 | FUN_0048670f | 2 |
 | 0x43e... | 1 |
 | FUN_00405b1a | 1 |
@@ -58,7 +58,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0044ecc4 | 1 |
 | FUN_0044f078 | 1 |
 | FUN_0044f13d | 1 |
-| FUN_00450877 | 1 |
 | FUN_00452809 | 1 |
 | FUN_004536cb | 1 |
 | FUN_00457714 | 1 |
@@ -79,7 +78,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (33)
+## stub (32)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -96,22 +95,21 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00434ceb | src/scene_guild.c:472 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
 | FUN_00436f97 | src/scene1_postload.c:323 | dungeon 5's return portal 6 beside |
-| FUN_004427f1 | src/dungeon_flow.c:1420 | the +0x2bce2 story beat (the curtain |
+| FUN_004427f1 | src/dungeon_flow.c:1421 | the +0x2bce2 story beat (the curtain |
 | FUN_00442cef | src/scene1_sim.c:373 | the run's end (FUN_00442c86, |
 | FUN_0044b219 | src/scene1_postload.c:360 | the camera shake reset, DAT_073de3a0 = 45 |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:398 | its b924 == 0x276 consumer, scene0/sub8), |
-| FUN_0044e08f | src/dungeon_flow.c:1146 | the +0x2bce2 story beat's setup (the |
-| FUN_0044ecc4 | src/dungeon_flow.c:1740 | Lapis 100F's setup — no recording reaches it |
+| FUN_0044e08f | src/dungeon_flow.c:1147 | the +0x2bce2 story beat's setup (the |
+| FUN_0044ecc4 | src/dungeon_flow.c:1741 | Lapis 100F's setup — no recording reaches it |
 | FUN_0044f078 | src/dungeon_party.c:653 | dungeon 4 floor 99's event helper |
-| FUN_0044f13d | src/dungeon_flow.c:1991 | Lapis 100F's events — no recording reaches it |
-| FUN_00450877 | src/dungeon_flow.c:2027 | the 30F town scene's |
+| FUN_0044f13d | src/dungeon_flow.c:1992 | Lapis 100F's events — no recording reaches it |
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
 | FUN_00468ddc | src/customer_service.c:1263 | an index < -1 or >= 32 with its mod-32 bit |
 | FUN_004708f7 | src/dungeon_party.c:658 | the event-window pair (chars 0x2f / 0x30) |
 | FUN_00473c15 | src/scene1_preload.c:329 | the floor's render assets (see |
 | FUN_00473c15 | src/scene1_preload.c:375 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
-| FUN_00485c74 | src/dungeon_flow.c:190 | the party damage (HP bar + |
+| FUN_00485c74 | src/dungeon_flow.c:191 | the party damage (HP bar + |
 | FUN_0048a383 | src/record_hit.c:261 | the level-up of s_easydisp |
 | FUN_0048b850 da1bc | src/dungeon_party.c:3179 | the attack lunge (da1bc 1..ccb8) |
 | FUN_0048e49c | src/scene_day_end.c:169 | the |
@@ -155,13 +153,14 @@ _none_
 | continue-arm | FUN_0049a59e | src/scene.c:121 | the rest of the arm (the |
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:132 | box_pos_mode/off (DAT_005c7984/80) are |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
-| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:819 | the engine frees the shop |
+| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:829 | the engine frees the shop |
 | oob | 0x43e... | src/scene1_records_b_tick.c:3240 | types >= 64 read past DAT_005c23f0 into |
-| render-coupled | FUN_00409925 | src/scene1_player_ctrl.c:1729 | the menu, note, lecture and |
+| render-coupled | FUN_00409925 | src/scene1_player_ctrl.c:1739 | the menu, note, lecture and |
 | render-coupled | FUN_00457714 | src/scene1_walker_pass_init.c:520 | the movers (DAT_0438c150, |
+| render-coupled | FUN_00474d92 | src/dungeon_flow.c:2029 | the |
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |
-| render-coupled | FUN_00485f8c | src/scene1_player_ctrl.c:1405 | the carried table's items (drawn |
-| render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:2309 | the eye / lookat writes); the |
+| render-coupled | FUN_00485f8c | src/scene1_player_ctrl.c:1415 | the carried table's items (drawn |
+| render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:2321 | the eye / lookat writes); the |
 | render-coupled | FUN_0048f87c | src/scene_pause.c:1613 | the results screen's assets |
 | semantic-collision | FUN_00432e50 | src/collision_query.c:15 | the customer-service arm's ground |
 | structure | FUN_0048670f | src/scene1_sim.c:186 | one retail-shaped master tick. |

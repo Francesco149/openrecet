@@ -35,6 +35,7 @@
 #include "stage_post_load.h"     /* DAT_0438b4d0, HP DAT_056db0bc */
 #include "scene1_spawn.h"
 #include "sim.h"
+#include "scene.h"               /* g_scene_state (DAT_0438b1c0) */
 #include "scene_adv_guild.h"     /* FUN_0045bcea */
 #include "x87.h"
 #include "worker_load.h"           /* FUN_00452cde */
@@ -2024,11 +2025,13 @@ static void dungeon4_event_tick(void)
                             if (floor == 9) {
                                 scene1_intro_dialogue_start(10, 4, 1);        /* FUN_0044ba2c(10, 4, 1) */
                             } else {
-                                /* PORT-DEBT(stub, FUN_00450877): the 30F town scene's
-                                 * FUN_00474d92 teardown and DAT_0438b1c0 = 1 — no
-                                 * recording reaches it */
+                                /* the 30F town scene (FUN_0048670f's +0x2bcfd arm):
+                                 * PORT-DEBT(render-coupled, FUN_00474d92): the
+                                 * stage's D3D teardown; the worker's loader resets
+                                 * its meshes */
                                 rec[0x2bcfd] = 1;
                                 memcpy(&g_stage_b4dc, rec + 0x2cde0, 4);
+                                g_scene_state = SCENE_STATE_INGAME;           /* DAT_0438b1c0 = 1 */
                                 worker_load_spawn();                          /* FUN_00452cde */
                                 fade_phase_out_start(0, 17);                  /* FUN_0045281c */
                             }

@@ -170,6 +170,12 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     split f24040) → identical + save (32,505 ticks) in 1 unit: `FUN_00436f97` clears `DAT_0438c148` (the 3x3 boss floor's single-room
     collision flag, set on 25F by group 15) — the port kept it, so 26F's ground/ray queries read room (1, 1) and enemy placement spun
     (12,084 draws vs 659). Gate rows added. Whole `gates` 0 failed (139 rows, -j8, 690 s, Windows).
+  - ✅ `lapis-30f-story` (crafted save +0x2bcf5 = 0: Lapis 26F..29F, the 30F story exit, Alouette / Arma's shop scene iv10_6,
+    back on 30F, the door, town map, Save; 18,386 frames; was split f14784) → identical + save (18,686 ticks) in 1 unit: `FUN_0048670f`'s
+    +0x2bcfd arm (b924++, no party: db1cc..d4 = -1, iv10_6 at 301, fade 80 at 302, then FUN_0045bcea + the load worker, +0x2bcfd → 0,
+    +0x2bcfe → 1) — the port ran the house tick (Tear's sparkle every 4th tick); the port's non-retail "no live player" guards
+    (house tick, the event tail FUN_0048407f) let the scene through. `bank+0x2d5fe` = script-viewed byte of iv10_6
+    (+0x2d3a0[60·10 + 6], FUN_0046c320). Gate rows added. Left: FUN_00474d92 (PORT-DEBT render-coupled).
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`

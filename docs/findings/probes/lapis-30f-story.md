@@ -102,7 +102,8 @@ Pictures: `view/f015240.png` (Alouette alone at the shop counter, name box "Alou
 ## Bank bytes (mark f14554 → f17390, the whole slot)
 
 - `+0x2bcf5` 0 → 1 (f14783) — "Lapis 30F story exit done".
-- `+0x2d5fe` 0 → 1 (f16910, the dialogue's end) — not named yet (the scene's event-seen flag?).
+- `+0x2d5fe` 0 → 1 (f16910, the dialogue's end) — the script-viewed byte of iv10_6: `byte_4510B38` = bank `+0x2d3a0[60·scene + sub]`
+  (`SAVE_WORK_SCRIPT_VIEWED_BYTE_OFF`), written by `FUN_0046c320` at the script's end and read by it (the skip gate).
 - `+0x8` play counter. Transient: `+0x2bcfd` 0 → 1 (f14783) → 0 (f16990); `+0x2bcfe` 0 → 1 (f16990) → 0 (f17051).
 
 ## Port notes (`dungeon4_event_tick`, `PORT-DEBT(stub, FUN_00450877)`)
@@ -119,3 +120,10 @@ f14783..15083, the f14783 tick itself): the DAT_0438b1c0 = 1 write changes nothi
 3. Pause-menu entries are not in a fixed order on the town map (sel 0 = status page, 4 = Save); `pm_type` exposes it, but the type of
    sel 0 reads 0.
 4. No named fade state (`FUN_004528b3`'s flag) for "fade started / done".
+
+## Port (2026-11-12): identical + save
+
+The town scene is `FUN_0048670f`'s `+0x2bcfd` arm (after the +0x2bcd8 / +0x2bced arms): b924++, cc68 = 1, `FUN_0046f621`,
+`DAT_056da1cc..d4` = −1 (no party tick, so no Tear sparkle), b4e8 1 + the camera ease, b924 301 `FUN_0044ba2c(10, 6, 0)`, 302
+`FUN_004526f5(0, 80)`, once done `FUN_0045281c(0, 17)`, `FUN_00474d92`, `FUN_0045bcea`, `FUN_00452cde`, `+0x2bcfd` 0, `+0x2bcfe` 1.
+During the dialogue `FUN_0048407f` (via `FUN_004427d3`) still runs the wing sparkle (Tear's scale > 0 with no actor).

@@ -4,7 +4,7 @@
  "counts": {
   "total": 55,
   "by_kind": {
-   "stub": 33,
+   "stub": 32,
    "synthetic-data": 0,
    "simplified": 7,
    "hardcode": 1,
@@ -18,16 +18,16 @@
    "focused": 1,
    "house-teardown": 1,
    "oob": 1,
-   "render-coupled": 6,
+   "render-coupled": 7,
    "semantic-collision": 1,
    "structure": 1
   },
-  "retiring_engine_fns": 48,
+  "retiring_engine_fns": 47,
   "by_engine_fn": {
    "FUN_00473c15": 3,
+   "FUN_00474d92": 3,
    "FUN_00434ceb": 2,
    "FUN_0044bd0d": 2,
-   "FUN_00474d92": 2,
    "FUN_0048670f": 2,
    "0x43e...": 1,
    "FUN_00405b1a": 1,
@@ -52,7 +52,6 @@
    "FUN_0044ecc4": 1,
    "FUN_0044f078": 1,
    "FUN_0044f13d": 1,
-   "FUN_00450877": 1,
    "FUN_00452809": 1,
    "FUN_004536cb": 1,
    "FUN_00457714": 1,
@@ -120,7 +119,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
-   "line": 819,
+   "line": 829,
    "kind_known": false
   },
   {
@@ -136,7 +135,7 @@
    "engine_fn": "FUN_00409925",
    "desc": "the menu, note, lecture and",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1729,
+   "line": 1739,
    "kind_known": false
   },
   {
@@ -145,6 +144,14 @@
    "desc": "the movers (DAT_0438c150,",
    "file": "src/scene1_walker_pass_init.c",
    "line": 520,
+   "kind_known": false
+  },
+  {
+   "kind": "render-coupled",
+   "engine_fn": "FUN_00474d92",
+   "desc": "the",
+   "file": "src/dungeon_flow.c",
+   "line": 2029,
    "kind_known": false
   },
   {
@@ -160,7 +167,7 @@
    "engine_fn": "FUN_00485f8c",
    "desc": "the carried table's items (drawn",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1405,
+   "line": 1415,
    "kind_known": false
   },
   {
@@ -168,7 +175,7 @@
    "engine_fn": "FUN_0048670f",
    "desc": "the eye / lookat writes); the",
    "file": "src/scene1_player_ctrl.c",
-   "line": 2309,
+   "line": 2321,
    "kind_known": false
   },
   {
@@ -360,7 +367,7 @@
    "engine_fn": "FUN_004427f1",
    "desc": "the +0x2bce2 story beat (the curtain",
    "file": "src/dungeon_flow.c",
-   "line": 1420,
+   "line": 1421,
    "kind_known": true
   },
   {
@@ -392,7 +399,7 @@
    "engine_fn": "FUN_0044e08f",
    "desc": "the +0x2bce2 story beat's setup (the",
    "file": "src/dungeon_flow.c",
-   "line": 1146,
+   "line": 1147,
    "kind_known": true
   },
   {
@@ -400,7 +407,7 @@
    "engine_fn": "FUN_0044ecc4",
    "desc": "Lapis 100F's setup \u2014 no recording reaches it",
    "file": "src/dungeon_flow.c",
-   "line": 1740,
+   "line": 1741,
    "kind_known": true
   },
   {
@@ -416,15 +423,7 @@
    "engine_fn": "FUN_0044f13d",
    "desc": "Lapis 100F's events \u2014 no recording reaches it",
    "file": "src/dungeon_flow.c",
-   "line": 1991,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_00450877",
-   "desc": "the 30F town scene's",
-   "file": "src/dungeon_flow.c",
-   "line": 2027,
+   "line": 1992,
    "kind_known": true
   },
   {
@@ -480,7 +479,7 @@
    "engine_fn": "FUN_00485c74",
    "desc": "the party damage (HP bar +",
    "file": "src/dungeon_flow.c",
-   "line": 190,
+   "line": 191,
    "kind_known": true
   },
   {

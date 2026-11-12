@@ -365,7 +365,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x44f078 | FUN_0044f078 | 197 | ✓ |  | dungeon_party.c, scene1_conversation_pose.c |
 | 0x44f13d | FUN_0044f13d | 4870 | ✓ |  | dungeon_flow.c, scene1_postload.h, scene1_preload.c |
 | 0x450443 | FUN_00450443 | 1076 | ✓ |  | dungeon_flow.c, dungeon_flow.h, scene1_postload.c |
-| 0x450877 | FUN_00450877 | 1641 |  |  | dungeon_flow.c |
+| 0x450877 | FUN_00450877 | 1641 |  |  | dungeon_flow.c, scene1_player_ctrl.c |
 | 0x450ee0 | FUN_00450ee0 | 1638 | ✓ |  | dungeon_flow.c, dungeon_flow.h, map_collision.h (+1) |
 | 0x451546 | FUN_00451546 | 555 |  |  | dungeon_flow.c |
 | 0x451790 | FUN_00451790 | 211 | ✓ |  | main.c, prewindow.h, rng.h (+2) |
@@ -409,7 +409,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4597ad | FUN_004597ad | 48 | ✓ |  | scene1_render.c, scene1_render.h |
 | 0x4597dd | FUN_004597dd | 106 | ✓ |  | scene1_render.c, scene1_render.h |
 | 0x459847 | FUN_00459847 | 1444 | ✓ |  | scene1_alpha_walker.c, scene1_alpha_walker.h, scene1_chr_shadow.h (+6) |
-| 0x45bcea | FUN_0045bcea | 56 | ✓ |  | dungeon_flow.c, scene1_sim.c, scene_adv_guild.c (+2) |
+| 0x45bcea | FUN_0045bcea | 56 | ✓ |  | dungeon_flow.c, scene1_player_ctrl.c, scene1_sim.c (+3) |
 | 0x45bd22 | FUN_0045bd22 | 15 | ✓ |  | floor_layout.c, floor_layout.h |
 | 0x45bd36 | FUN_0045bd36 | 140 | ✓ |  | scene_adv_guild.c, scene_adv_guild.h, scene_pause.c |
 | 0x45bdc2 | FUN_0045bdc2 | 546 | ✓ |  | party_roster.h, scene_adv_guild.c, scene_adv_guild.h (+1) |
@@ -684,7 +684,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x486435 | FUN_00486435 | 200 | ✓ |  | scene1_player_ctrl.c, scene1_player_ctrl.h |
 | 0x4864fd | FUN_004864fd | 216 | ✓ |  | scene1_postload.c, scene1_postload.h, scene1_shop_display.c (+2) |
 | 0x4865d5 | FUN_004865d5 | 314 | ✓ |  | scene1_shop_display.c, scene1_shop_display.h |
-| 0x48670f | FUN_0048670f | 11519 | ✓ |  | collision_house.c, customer_service.h, dungeon_party.h (+20) |
+| 0x48670f | FUN_0048670f | 11519 | ✓ |  | collision_house.c, customer_service.h, dungeon_flow.c (+21) |
 | 0x48940e | FUN_0048940e | 511 | ✓ |  | scene1_player_ctrl.c, scene1_shop_display.c, scene1_shop_display.h |
 | 0x48960d | FUN_0048960d | 441 | ✓ |  | scene1_player_ctrl.c, scene1_shop_display.c, scene1_shop_display.h |
 | 0x4897c6 | FUN_004897c6 | 870 | ✓ |  | dungeon_party.c, dungeon_party.h, party.h (+2) |
