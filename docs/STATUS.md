@@ -198,9 +198,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     yaw ±π/2 at 2.5 and hit Louie). Types 16 / 20 / 21 / 48 / 51 and the death arms 49 / 72 needed no change; gate rows
     added. Left: the +0x2bce2 beat and its setup (PORT-DEBT), the Arm's d5 release unverified.
   - ◐ `lapis-1f-10f` filed 2026-11-12 (Lapis Ruins 1F..10F, the 5F pumpkin-ghost pair, the 10F king type 59, the 2F
-    scallion-lady event; end save `40a0058f2b53`; headless verify MATCH on bunker). ☐ verify --real + golden + triage:
-    cutestation unreachable at filing time. Lapis's setup / events are `PORT-DEBT(stub, FUN_00450443 / FUN_00450877)`:
-    expect an early split. Bunker: one live session died under `rd search -j 4` (f34713; `-j 2/3` fine) — not reproduced.
+    scallion-lady event; end save `40a0058f2b53`; verify --real MATCH, golden). Port identical f1..f17879 (Lapis 1F..4F
+    despite the stubbed setup / events `FUN_00450443 / FUN_00450877`); **split f17880** on 5F during the pumpkin-ghost
+    pair (`portrng lapis-1f-10f --window 17870:17885 --seq`). Bunker: one live session died under `rd search -j 4` (f34713; `-j 2/3` fine) — not reproduced.
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`
