@@ -289,6 +289,9 @@ then 180 HP at 13–14 per back hit (estimate, not run).
 (f32205, rng 36779b64, sem d6a342bf78a344bd; probe `docs/findings/probes/lapis-21f-30f.md`). Louie L42, ATK 61 / DEF 68 / MATK 22 /
 MDEF 42, HP 206 / 206, SP 46. **HP 206 the whole fight: no landing or contact hit taken.** Frames below are this run's **[obs fNNNN]**.
 
+**Port:** `lapis-21f-30f` identical + save (2026-11-12): the trio needed no AI change; the one bug was after it (26F: the 3x3
+boss floor's `DAT_0438c148` not cleared by the stage-entry init — `FUN_00436f97`).
+
 | | value |
 |---|---|
 | bosses | 3 (actors 0 / 1 / 2) at (−50, 15, −38), (−40, 15, −34), (−30, 15, −38), state 8; power 1.0 before the first tick; player (−40, −45) |

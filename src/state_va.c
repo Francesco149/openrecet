@@ -470,6 +470,7 @@ static const struct { uint32_t va; const int32_t *p; } k_flow[] = {
     { 0x438be94u, &g_floor_end_timer }, { 0x438be98u, &g_floor_end_kind },
     { 0x438be9cu, &g_portal_prompt },   { 0x438bea8u, &g_portal_return },
     { 0x438c14cu, &g_portal_cooldown }, { 0x438bea0u, &g_equip_prompt },
+    { 0x438c148u, &g_floor_c148 },
     { 0x438b8b0u, &g_ctrl_lock },       { 0x438b770u, &g_fall_timer },
     { 0x438b8a4u, &g_event_tick },      { 0x438b8a0u, &g_event_stage },
     { 0x438cbe0u, &g_ghost_timer },     { 0x438cbe4u, &g_ghost_count },

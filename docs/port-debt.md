@@ -98,7 +98,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00436f97 | src/scene1_postload.c:323 | dungeon 5's return portal 6 beside |
 | FUN_004427f1 | src/dungeon_flow.c:1420 | the +0x2bce2 story beat (the curtain |
 | FUN_00442cef | src/scene1_sim.c:373 | the run's end (FUN_00442c86, |
-| FUN_0044b219 | src/scene1_postload.c:356 | the camera shake reset, DAT_073de3a0 = 45 |
+| FUN_0044b219 | src/scene1_postload.c:360 | the camera shake reset, DAT_073de3a0 = 45 |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:398 | its b924 == 0x276 consumer, scene0/sub8), |
 | FUN_0044e08f | src/dungeon_flow.c:1146 | the +0x2bce2 story beat's setup (the |
 | FUN_0044ecc4 | src/dungeon_flow.c:1740 | Lapis 100F's setup — no recording reaches it |

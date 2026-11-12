@@ -376,7 +376,7 @@
    "engine_fn": "FUN_0044b219",
    "desc": "the camera shake reset, DAT_073de3a0 = 45",
    "file": "src/scene1_postload.c",
-   "line": 356,
+   "line": 360,
    "kind_known": true
   },
   {

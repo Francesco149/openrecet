@@ -132,8 +132,8 @@ Extra d3 state: first trip to row 0 runs a stage-type-20 cutscene (event 7/6); f
 | 9 | 10 | 59 rat (150·6.2 = 930) | 13 / 14 | generic; after: event 10/4 once (+0x2bcf4) | other author (24) |
 | 14 | 15 | 54 ×3 | bats | generic | other author |
 | 19 | 20 | 67 ×3 | 10 | generic | other author |
-| 24 | 25 | 23 ×3 | slimes | generic | other author |
-| 29 | 30 | none: 20 bombs `37 + (j&3)` at (−40 ± 10, −40 ± 10) | — | own: `FUN_00450443` case 29; after: story exit once (+0x2bcf5) | — |
+| 24 | 25 | 23 ×3 (100·6.8 = 680 each) | 2, cap 5 | generic | `crown-slime.md` § Lapis 25F trio (port identical + save: `lapis-21f-30f`) |
+| 29 | 30 | none: 20 bombs `37 + (j&3)` at (−40 ± 10, −40 ± 10) | — | own: `FUN_00450443` case 29; after: story exit once (+0x2bcf5) | — (port identical + save with +0x2bcf5 = 1: `lapis-21f-30f`; the story-exit arm unrecorded) |
 | 34 | 35 | 55 ×3 (15·7.2 = 108) | cap 5 | generic | `pumpkin-ghost.md` |
 | 39 | 40 | 71 red jellyfish (150·7.4 = 1110) | 17 | generic | `jellyfish.md` |
 | 44 | 45 | none (red mob list) | — | generic | — |

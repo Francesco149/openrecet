@@ -352,6 +352,10 @@ void scene1_postload_stage_entry_init(void)
      * and DAT_0438c150 (the mover count) = 0 */
     dungeon_flow_stage_reset();
     g_mapcol_movers.on[0] = 0;
+    /* DAT_0438c148 = 0 (all_ida 37017): a 3x3 boss floor's single-room
+     * collision flag (floor_layout_generate sets it) must not outlive it —
+     * Lapis 25F (group 15) → 26F, lapis-21f-30f f24040 */
+    g_floor_c148 = 0;
     /* the camera yaw DAT_073de39c = 0 (the house arm sets π below);
      * PORT-DEBT(stub, FUN_0044b219): the camera shake reset, DAT_073de3a0 = 45 */
     g_scene1_camera_yaw = 0.0f;

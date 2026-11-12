@@ -1765,7 +1765,7 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
                                        "obsidian-3f-5f-pumpkin", "obsidian-6f-10f-jellyfish",
                                        "obsidian-11f-15f-ahrimans", "obsidian-16f-20f-golem",
                                        "obsidian-21f-30f-griff", "obsidian-31f-40f-ohms",
-                                       "obsidian-41f-50f-finale", "lapis-1f-10f", "lapis-11f-20f")]
+                                       "obsidian-41f-50f-finale", "lapis-1f-10f", "lapis-11f-20f", "lapis-21f-30f")]
          + [("portrng", s) for s in ("day8-visitor", "stand-item-status", "move-tables-persist", "venders-limit",
                                       "hire-caillou", "hire-tielle", "hire-elan", "hire-nagi", "hire-griff", "hire-arma",
                                       "obsidian-1f", "guild-roster-8", "pause-equip-dungeon", "dungeon2-25f-crown-kill",
@@ -1773,7 +1773,8 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
                                       "item-status-pause", "amber-26f-30f-tielle", "obsidian-3f-5f-pumpkin",
                                       "obsidian-6f-10f-jellyfish", "obsidian-11f-15f-ahrimans",
                                       "obsidian-16f-20f-golem", "obsidian-21f-30f-griff",
-                                      "obsidian-31f-40f-ohms", "obsidian-41f-50f-finale", "lapis-1f-10f", "lapis-11f-20f")])
+                                      "obsidian-31f-40f-ohms", "obsidian-41f-50f-finale", "lapis-1f-10f", "lapis-11f-20f",
+                                      "lapis-21f-30f")])
 
 
 GATE_KEYS = ("save:", "anchors:", "first ", "window", "IDENTICAL", "frames with", "error", "scp failed")
