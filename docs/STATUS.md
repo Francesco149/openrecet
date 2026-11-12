@@ -203,6 +203,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     without the arena (party start, the portal pair). Types 55 ×2 / 59 needed no change; gate rows added. Left (PORT-DEBT): 100F's
     `FUN_0044ecc4` / `FUN_0044f13d`, the 30F town scene's teardown; floors 29 / 49 / 69 / 79 ported unverified (no recording).
     Whole `gates` 0 failed (135 rows, -j8, 701 s, Windows).
+  - ✅ `lapis-11f-20f` (Lapis 11F..19F, the 15F ahriman trio, the 20F Ohm trio; end save `303f7bcf95ea`): **identical +
+    save on the first triage** (31,164 ticks) — no port change; gate rows added.
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`
