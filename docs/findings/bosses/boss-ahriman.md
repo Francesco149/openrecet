@@ -131,3 +131,30 @@ Predicates (run-local, `ob-15f/vars.json`): `qst qt qc qhold qn qhp quse qdt qoc
 `qal = (px-qx)*sin(qoct*pi/4) + (pz-qz)*cos(qoct*pi/4) - 2`, `qlat = (px-qx)*cos(qoct*pi/4) - (pz-qz)*sin(qoct*pi/4)`;
 `r…` the same at `0x76c514`. Beam live: `qst == 1 and 100 <= qt < 180`; in the strip: `-4.5 < qal < 24.5 and abs(qlat) < 4.5`
 (approximate, from the measured points above).
+
+## 8. Lapis 15F trio — retail (`lapis-20f`, probe `docs/findings/probes/lapis-11f-20f.md`)
+
+Dungeon 4 15F (`floor` 14), three type 54 at L27 (**HP 640** each = 100 · 6.4), Louie L42 (ATK 61, MDEF 42). Actors 0 / 1 / 2 = h0 / h1 / h2
+at (−50, 15, −38) / (−40, 15, −34) / (−30, 15, −38) (placement rule §1 of `boss-floor-common.md`: outer two at z −38). **[obs]** unless noted.
+
+| arm (trio) | predicate | result |
+|---|---|---|
+| descent, all three | `aNst == 8`, y 16 − t/16 | **[obs f10549..10789]** lockstep (y 12.8 at t 40 … 0.3 at t 240); state 0 + `lock` −1 f10790 |
+| shared clock | `h0c == h1c == h2c` | **[obs]** equal all fight; holds per boss (36 / 47 / 5 on the first cycle) → three beams within 63 ticks of each other every cycle |
+| minion spawn | new type 6..9, one per boss per 30 ticks | **[obs f10819]** 3 bats on one tick (one per boss), all four kinds 6 / 7 / 8 / 9 (dungeon 4: 4 kinds) |
+| **minion cap: shared, 8** | live 6..9 ≤ 8 | **[obs f10879..]** 8 live with three bosses (not 24); per-boss `+0xa68` 3 / 3 / 2 at the cap, 7 / 6 / 7 at the end (gaps not reached: > 16) |
+| h2's beam hits | `hp` −54..64 with `a2st == 1`, `a2t` 99.. | **[obs f11194]** `a2t` 99, `h2al` 5.86 / `h2lat` 1.29: 206 → 145 (**61**); h0 / h1 not live (t 68 / 57) |
+| h1's beam hits | same, h1 | **[obs f13391]** `a1t` 99, `h1lat` −3.05 (h2 live on the same tick at `h2lat` −4.81: no hit from it): 145 → 87 (**58**) |
+| h0's beam hits | same, h0 | **[obs f14266]** `a0t` 132, h0 the only live 54 (`h0dist` 1.0): 155 → 95 (**60**) |
+| beam damage | magic `ftol(35·3.7/2 − 42/4)` = 54, + 0..10 | **[obs]** 61, 58, 60 (+ 60 on an undone branch); knock-down 30 (`p_hurt` 30) |
+| beam ambiguity | — | **[obs, undone f13829]** a hit at `h0dist` 3.9 with h2 live at `h2dist` 4.26 (`h2al` −0.70, `h2lat` −4.20): not attributable — the strip reaches ≈ 4.5 from the anchor end too, not only ±4.5 beside it |
+| one spin hits all three | — | **[obs f≈11400]** 640 → 576 / 577 / 558 (counter, state 1) |
+| **first death (h1), two alive** | `a1use == 2` | **[obs f14031 / tick 1 f14036]** `p_inv` **60**, slow-mo 60; tick 60 ≈f14139 bats kept (8); freed tick 120 f14243 |
+| **second death (h2), h0 alive** | `a2use == 2` | **[obs f14161 / f14166]** `p_inv` **60**; tick 60 f14265 bats kept; freed f14329 |
+| last death (h0) + sweep | `a0use == 2`; at tick 60 every live actor dying | **[obs f14361 / f14366]** `p_inv` **1200**; tick 60 f14465 → f14466 bats 7 → 0; freed f14525 = `estage` 1, `gate` 0 |
+| "another live 54" excludes a dying one | death tick 1 with the other 54 at `+0x428` 2 | **[obs, undone branch f14195]** h2's tick 1 while h1 was at death tick 92: `p_inv` **1200**, slow-mo 60 — only `+0x428 == 1` counts as "another live one" (and at h2's tick 60, f14294/14295, bats 8 → 0 with h1 still dying) |
+| floor end | `estage == 1` | **[obs f14525]**; "Go to the next floor?" at (−35.9, −40.4) f14718 → 16F f14756 |
+| player dies | `hp <= 0` | **not reached** (lowest 87) |
+
+Bat shots never hit (0 of the fight's HP changes were bats). Kill recipe used: damage searches (`--hold 30`) whose best cells were mostly
+spins; with three bodies around the player one spin meets all three (and the bats). Order chosen so the last beam test had one live boss.

@@ -134,3 +134,32 @@ Kill: Ohm 1 900 → 0 over f41443..42875, Ohm 0 900 → 0 by f43338 (the last 15
 (goal `oNhp <= H − 60`, `--avoid "hp < H"`, actions approach / directed swing / spin / retreat / strafe, `-j 4`, 90–120 s). 4 searches ended
 on a frame where a charge was already unavoidable (one cell for the whole search): the hits at f41703, f41965, f42286 and the bee at
 f42227 came from those. Spins (5 SP) did most of the damage; SP 46 → 6 → 46 (Baked Yam) → 26.
+
+## 8. Lapis 20F trio — retail (`lapis-20f`, probe `docs/findings/probes/lapis-11f-20f.md`)
+
+Dungeon 4 20F (`floor` 19), three type 67 at L28: **HP 990** each (150 · 6.6), charge `ftol(30·3.8/2 − 68/4)` = 40 + 0..8. Louie L42
+(ATK 61, DEF 68). Ohm 0 / 1 / 2 at (−50, −38) / (−40, −34) / (−30, −38). Names: `oNdisc` = hypot(player − (x + 2 sin yaw, z + 2 cos yaw)),
+`oNbt oNbn oNdt` (+0xa64 / a68 / af0). **[obs]** unless noted.
+
+| arm (trio) | predicate | result |
+|---|---|---|
+| intro, all three | `aNst == 8` | **[obs f24115..24355]** 240 ticks, `lock` 0; state 0 f24355 |
+| Ohm 1's charge hits | `hp` drops, `a1st == 2 and 70 <= a1t < 130` | **[obs f24470]** t 70 (record age 0), `o1disc` 5.40: 190 → 146 (**44**); Ohm 0 walking, Ohm 2 in its wind-up (t 17) |
+| Ohm 2's charge hits | same, Ohm 2 | **[obs f24578]** t 121, `o2disc` 5.49 (Ohm 1 t 174 = recovery): 146 → 99 (**47**) |
+| Ohm 0's charge hits | same, Ohm 0 | **[obs f24749]** t 70, `o0disc` 5.14 (Ohm 1 at t 97 with `o1disc` 7.04 = out of reach): 99 → 53 (**46**) |
+| disc radius | hit iff `oNdisc < 5.5` | **[obs]** 5.14 / 5.40 / 5.49 hit; 7.04 no hit (consistent with §7) |
+| walk / burst | `aNst == 1` / `== 3` | **[obs]** entries over the fight (scan f24356..29658): walk 7 / 6 / 5, charge 6 / 8 / 6, **burst 3 / 6 / 3** (Ohm 0 f26962, 28002, 28092; Ohm 1 f25416 … 28798; Ohm 2 f24366, 26006, 27190); **no burst shot hit** |
+| bee spawn | type 10, one per Ohm | **[obs f24578]** first bees: 3 on one tick (each Ohm's `bt` reaches 120 together) |
+| **bee cap: shared, 8** | live type 10 ≤ 8 | **[obs f24723]** 8 live with three Ohms (cap 8 for dungeon ≥ 4, global count) — not 24 |
+| bee counts | per-Ohm `bn` | **[obs]** 3 / 3 / 2 at the cap; **15 / 17 / 14 at the end** (46 spawned; exhaustion 40 per Ohm not reached); no sting taken |
+| **first death (Ohm 2), two alive** | `a2use == 2` | **[obs f28163 / tick 1 f28168]** **`p_inv` 1200** (as on 40F: Ohm's arm gives 1200 regardless), slow-mo 60; tick 60 f28267 **no sweep** (bees 4); freed f28338 |
+| **second death (Ohm 0), Ohm 1 alive** | `a0use == 2` | **[obs f28601 / f28606]** `p_inv` 1200; tick 60 f28709 no sweep (bees 5 → 4 was a kill); freed f28784 |
+| last death (Ohm 1) + sweep | `a1use == 2` | **[obs f29483 / f29488]** `p_inv` 1200; **tick 61 f29588: bees 1 → 0**; `estage` 1, `gate` 0 f29658 |
+| floor end | — | **[obs f30153]** door "Return to town now?" answers at (−44.27, −40.44) facing +z (`p_oct` 0; from (−46.4, −39.7) and (−43.7, −40.5) nothing) |
+| player dies | `hp <= 0` | **not reached** (lowest 53) |
+
+How three interact: bodies crowd the player (radius 5.85 each); **f25457 (undone) the player was wedged** — `U*60` moved 0.7 units — with
+Ohm 0's charge committed at `o0disc` 0.56: every dodge search (64–65 cells, with / without `--hold`) failed → 103 → 56 on idling. What
+worked: a survive-and-damage goal "≥ 200 ticks later and no charge record live (`aNst == 2 and aNt < 131`), sum ≤ cur − 110..120",
+`--hold 30`, actions = retreat from each Ohm / strafe / 8 walks / spin / directed swings (`-j 3`, 150 s): 16 found (210–304 frames each),
+1 not found (f29120, SP 3: no spin left), 0 damage taken f25630..29658. Spins hit 2–3 Ohms at a time (first spin: 990 → 924 / 922 / 933).
