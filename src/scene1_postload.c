@@ -285,7 +285,7 @@ static void postload_dungeon_arm(void)
     } else if (g_scene1_combat_stage_id == 3) {
         dungeon3_stage_setup();                  /* FUN_0044e08f */
     } else if (g_scene1_combat_stage_id == 4) {
-        /* PORT-DEBT(stub, FUN_00436f97): dungeon 4's setup FUN_00450443 */
+        dungeon4_stage_setup();                  /* FUN_00450443 */
     } else {
         dungeon5_stage_setup();                  /* FUN_00450ee0 */
     }

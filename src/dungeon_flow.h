@@ -54,6 +54,7 @@ void dobj_rise_tick(void);            /* FUN_0044b38c */
 void dungeon1_stage_setup(void);      /* FUN_0044d1e4 (FUN_00436f97's dungeon-1 arm) */
 void dungeon2_stage_setup(void);      /* FUN_0044d9d3 (FUN_00436f97's dungeon-2 arm) */
 void dungeon3_stage_setup(void);      /* FUN_0044e08f (FUN_00436f97's dungeon-3 arm) */
+void dungeon4_stage_setup(void);      /* FUN_00450443 (FUN_00436f97's dungeon-4 arm) */
 void dungeon5_stage_setup(void);      /* FUN_00450ee0 (dungeon 5 + the boss runs) */
 extern int32_t g_dat_0438bebc;       /* > 0: FUN_0044b635 owns the tick */
 extern int32_t g_dat_0438becc;       /* > 0: the tick runs every third frame */

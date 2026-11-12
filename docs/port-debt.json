@@ -2,9 +2,9 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 54,
+  "total": 55,
   "by_kind": {
-   "stub": 32,
+   "stub": 33,
    "synthetic-data": 0,
    "simplified": 7,
    "hardcode": 1,
@@ -22,11 +22,10 @@
    "semantic-collision": 1,
    "structure": 1
   },
-  "retiring_engine_fns": 46,
+  "retiring_engine_fns": 48,
   "by_engine_fn": {
    "FUN_00473c15": 3,
    "FUN_00434ceb": 2,
-   "FUN_00436f97": 2,
    "FUN_0044bd0d": 2,
    "FUN_00474d92": 2,
    "FUN_0048670f": 2,
@@ -45,11 +44,14 @@
    "FUN_0042f7ad": 1,
    "FUN_00432e50": 1,
    "FUN_00435dcd": 1,
+   "FUN_00436f97": 1,
    "FUN_004427f1": 1,
    "FUN_00442cef": 1,
    "FUN_0044b219": 1,
    "FUN_0044e08f": 1,
+   "FUN_0044ecc4": 1,
    "FUN_0044f078": 1,
+   "FUN_0044f13d": 1,
    "FUN_00450877": 1,
    "FUN_00452809": 1,
    "FUN_004536cb": 1,
@@ -348,14 +350,6 @@
   {
    "kind": "stub",
    "engine_fn": "FUN_00436f97",
-   "desc": "dungeon 4's setup FUN_00450443",
-   "file": "src/scene1_postload.c",
-   "line": 288,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_00436f97",
    "desc": "dungeon 5's return portal 6 beside",
    "file": "src/scene1_postload.c",
    "line": 323,
@@ -366,7 +360,7 @@
    "engine_fn": "FUN_004427f1",
    "desc": "the +0x2bce2 story beat (the curtain",
    "file": "src/dungeon_flow.c",
-   "line": 1418,
+   "line": 1420,
    "kind_known": true
   },
   {
@@ -398,7 +392,15 @@
    "engine_fn": "FUN_0044e08f",
    "desc": "the +0x2bce2 story beat's setup (the",
    "file": "src/dungeon_flow.c",
-   "line": 1144,
+   "line": 1146,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_0044ecc4",
+   "desc": "Lapis 100F's setup \u2014 no recording reaches it",
+   "file": "src/dungeon_flow.c",
+   "line": 1740,
    "kind_known": true
   },
   {
@@ -411,10 +413,18 @@
   },
   {
    "kind": "stub",
-   "engine_fn": "FUN_00450877",
-   "desc": "dungeon 4's events",
+   "engine_fn": "FUN_0044f13d",
+   "desc": "Lapis 100F's events \u2014 no recording reaches it",
    "file": "src/dungeon_flow.c",
-   "line": 1689,
+   "line": 1991,
+   "kind_known": true
+  },
+  {
+   "kind": "stub",
+   "engine_fn": "FUN_00450877",
+   "desc": "the 30F town scene's",
+   "file": "src/dungeon_flow.c",
+   "line": 2027,
    "kind_known": true
   },
   {
@@ -470,7 +480,7 @@
    "engine_fn": "FUN_00485c74",
    "desc": "the party damage (HP bar +",
    "file": "src/dungeon_flow.c",
-   "line": 188,
+   "line": 190,
    "kind_known": true
   },
   {

@@ -8,15 +8,15 @@
 ## Port INVENTORY (source markers — NOT runtime proof)
 
 ```
-███████░░░░░░░░░░░░░  33.1% referenced-or-better   (91 instrumented)
+███████░░░░░░░░░░░░░  33.2% referenced-or-better   (91 instrumented)
 ```
 
 | inventory state    | count | evidence (a `src/` marker only — no runtime) |
 |--------------------|------:|----------------------------------------------|
 | instrumented       |    91 | `CALL_TRACE_ENTER(_STUB)` probe wired (81 full + 10 stub) |
 | implemented        |     0 | `PORT-OF(0xVA)` author attestation, no probe |
-| source-referenced  |   753 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
-| discovered         |  1704 | exists in the engine, no `src/` reference    |
+| source-referenced  |   754 | a `FUN_<va>` appears in `src/` (mention/provenance — **not** a port claim) |
+| discovered         |  1703 | exists in the engine, no `src/` reference    |
 | **total non-thunk**| **2548** | of 2620 incl. thunks |
 
 ## Port RUNTIME proof (cross-target)
@@ -36,7 +36,7 @@ re-verification.
 14 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 65 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 66 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code with a `src/` marker (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
@@ -197,10 +197,11 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     beat → f31044; (3) records 0x88 / 0x9a on the owner-motion body, not 0x2f's joint anchor (record 154 flew along the
     yaw ±π/2 at 2.5 and hit Louie). Types 16 / 20 / 21 / 48 / 51 and the death arms 49 / 72 needed no change; gate rows
     added. Left: the +0x2bce2 beat and its setup (PORT-DEBT), the Arm's d5 release unverified.
-  - ◐ `lapis-1f-10f` filed 2026-11-12 (Lapis Ruins 1F..10F, the 5F pumpkin-ghost pair, the 10F king type 59, the 2F
-    scallion-lady event; end save `40a0058f2b53`; verify --real MATCH, golden). Port identical f1..f17879 (Lapis 1F..4F
-    despite the stubbed setup / events `FUN_00450443 / FUN_00450877`); **split f17880** on 5F during the pumpkin-ghost
-    pair (`portrng lapis-1f-10f --window 17870:17885 --seq`). Bunker: one live session died under `rd search -j 4` (f34713; `-j 2/3` fine) — not reproduced.
+  - ✅ 2026-11-12: `lapis-1f-10f` (the guild, Lapis Ruins 1F..10F, the 2F scallion-lady event, the 5F pumpkin-ghost pair, the 10F
+    king type 59, the door, the night, Daily Profits, Save; 40,626 frames; was split f17880) → identical + save in 1 unit: dungeon 4's
+    floor setup `FUN_00450443` (`dungeon4_stage_setup`) and events `FUN_00450877` (`dungeon4_event_tick`) ported — the stub left 5F
+    without the arena (party start, the portal pair). Types 55 ×2 / 59 needed no change; gate rows added. Left (PORT-DEBT): 100F's
+    `FUN_0044ecc4` / `FUN_0044f13d`, the 30F town scene's teardown; floors 29 / 49 / 69 / 79 ported unverified (no recording).
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`

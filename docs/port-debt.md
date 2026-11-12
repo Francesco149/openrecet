@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **54**
-- distinct retiring engine functions: **46**
+- total open debts: **55**
+- distinct retiring engine functions: **48**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 32 | wired call boundary, body incomplete |
+| stub | 33 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 7 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -32,7 +32,6 @@ the answer to *"what's still faked in code that looks done?"*
 |-----------|-----------:|
 | FUN_00473c15 | 3 |
 | FUN_00434ceb | 2 |
-| FUN_00436f97 | 2 |
 | FUN_0044bd0d | 2 |
 | FUN_00474d92 | 2 |
 | FUN_0048670f | 2 |
@@ -51,11 +50,14 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0042f7ad | 1 |
 | FUN_00432e50 | 1 |
 | FUN_00435dcd | 1 |
+| FUN_00436f97 | 1 |
 | FUN_004427f1 | 1 |
 | FUN_00442cef | 1 |
 | FUN_0044b219 | 1 |
 | FUN_0044e08f | 1 |
+| FUN_0044ecc4 | 1 |
 | FUN_0044f078 | 1 |
+| FUN_0044f13d | 1 |
 | FUN_00450877 | 1 |
 | FUN_00452809 | 1 |
 | FUN_004536cb | 1 |
@@ -77,7 +79,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (32)
+## stub (33)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -93,22 +95,23 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00434ceb | src/scene_guild.c:21 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:472 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
-| FUN_00436f97 | src/scene1_postload.c:288 | dungeon 4's setup FUN_00450443 |
 | FUN_00436f97 | src/scene1_postload.c:323 | dungeon 5's return portal 6 beside |
-| FUN_004427f1 | src/dungeon_flow.c:1418 | the +0x2bce2 story beat (the curtain |
+| FUN_004427f1 | src/dungeon_flow.c:1420 | the +0x2bce2 story beat (the curtain |
 | FUN_00442cef | src/scene1_sim.c:373 | the run's end (FUN_00442c86, |
 | FUN_0044b219 | src/scene1_postload.c:356 | the camera shake reset, DAT_073de3a0 = 45 |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:398 | its b924 == 0x276 consumer, scene0/sub8), |
-| FUN_0044e08f | src/dungeon_flow.c:1144 | the +0x2bce2 story beat's setup (the |
+| FUN_0044e08f | src/dungeon_flow.c:1146 | the +0x2bce2 story beat's setup (the |
+| FUN_0044ecc4 | src/dungeon_flow.c:1740 | Lapis 100F's setup — no recording reaches it |
 | FUN_0044f078 | src/dungeon_party.c:653 | dungeon 4 floor 99's event helper |
-| FUN_00450877 | src/dungeon_flow.c:1689 | dungeon 4's events |
+| FUN_0044f13d | src/dungeon_flow.c:1991 | Lapis 100F's events — no recording reaches it |
+| FUN_00450877 | src/dungeon_flow.c:2027 | the 30F town scene's |
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
 | FUN_00468ddc | src/customer_service.c:1263 | an index < -1 or >= 32 with its mod-32 bit |
 | FUN_004708f7 | src/dungeon_party.c:658 | the event-window pair (chars 0x2f / 0x30) |
 | FUN_00473c15 | src/scene1_preload.c:329 | the floor's render assets (see |
 | FUN_00473c15 | src/scene1_preload.c:375 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
-| FUN_00485c74 | src/dungeon_flow.c:188 | the party damage (HP bar + |
+| FUN_00485c74 | src/dungeon_flow.c:190 | the party damage (HP bar + |
 | FUN_0048a383 | src/record_hit.c:261 | the level-up of s_easydisp |
 | FUN_0048b850 da1bc | src/dungeon_party.c:3179 | the attack lunge (da1bc 1..ccb8) |
 | FUN_0048e49c | src/scene_day_end.c:169 | the |
