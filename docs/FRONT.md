@@ -176,6 +176,7 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     +0x2bcfe → 1) — the port ran the house tick (Tear's sparkle every 4th tick); the port's non-retail "no live player" guards
     (house tick, the event tail FUN_0048407f) let the scene through. `bank+0x2d5fe` = script-viewed byte of iv10_6
     (+0x2d3a0[60·10 + 6], FUN_0046c320). Gate rows added. Left: FUN_00474d92 (PORT-DEBT render-coupled).
+    Whole `gates` 0 failed (141 rows, -j8, 721 s, Windows).
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`
