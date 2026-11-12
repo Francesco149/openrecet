@@ -3,7 +3,8 @@
 **code-read**: IDA `sub_426EAB` (AI, 0x426eab), `sub_42F7AD` case 23 / 49 / 55 / 54, table 0x52b96c. **Port (2026-11-11): AI ported
 (`actor_ai_t55`, src/actor_ai.c; the summoned pumpkin `FUN_00429e6f` = `actor_ai_pumpkin_bounce`; dungeon 3's setup
 `FUN_0044e08f` / event arm for checkpoint floors, src/dungeon_flow.c); the death arm lists 55. `obsidian-3f-5f-pumpkin`:
-rhost portrng identical f1..f18633, portsave IDENTICAL; portblock f13900 / f16900: actors, party, objects equal.**
+rhost portrng identical f1..f18633, portsave IDENTICAL; portblock f13900 / f16900: actors, party, objects equal. Port (2026-11-12): the Lapis 5F pair (§10) — `lapis-1f-10f` portrng identical f1..f40926, portsave IDENTICAL, after
+dungeon 4's setup / events `FUN_00450443` / `FUN_00450877` were ported (the pair's AI needed no change).**
 Code facts vs this card: the descent writes y = **15** − 0.0625·t (asm 0x426f89; the 14.3 below = that less the
 fall clamp 0.7 the same tick, read after the move); the pumpkin variant 2 bounces at speed 0.25 off walls and spawns its record 10 on its first tick. Shared rules:
 `boss-floor-common.md` (generic boss floor: placement, `FUN_0044cc80`, `FUN_0044d0a4`).
@@ -136,6 +137,8 @@ Flying at ground + 1..2: vertical test as for the boss ahriman (`boss-ahriman.md
 - EXP 234605 → 234899 on the floor (+294).
 
 ## 10. Lapis 5F pair **[obs]** (run `lapis-10f`, 2026-11-12; probe `docs/findings/probes/lapis-1f-10f.md`; `rd verify` MATCH f40626)
+
+Port: `lapis-1f-10f` identical + save (2026-11-12); the split f17880 was the stubbed `FUN_00450443` (no arena: party start, portals).
 
 Louie L42, ATK 61 / DEF 68 / MATK 22 / MDEF 42, HP 206. Frames = that movie.
 

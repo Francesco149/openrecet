@@ -209,6 +209,8 @@ recording).
 
 ## 8. Type 59 **[obs]** (Lapis Ruins 10F; run `lapis-10f`, 2026-11-12; probe `docs/findings/probes/lapis-1f-10f.md`; `rd verify` MATCH f40626)
 
+Port: `lapis-1f-10f` identical + save (2026-11-12); type 59 needed no AI change (d4 events `FUN_00450877` ported).
+
 Also at **dungeon 4 / floor 9** (Lapis 10F), not only d5 f47 (§1). Louie L42 ATK 61 / DEF 68 / MDEF 42.
 
 - **Stats (retail .data, `0x5c23f0 + 59*0x68`)**: flags 1, HP 150, EXP 25, **AT 26, DF 42, MA 10, MD 42**, rf 0.8 / 4 / 3 / 4.5. (Type 60

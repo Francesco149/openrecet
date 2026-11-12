@@ -34,7 +34,7 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 17–21, 56–58 ropers | ローパー* | `FUN_0042a74c` | ported |
 | 22 rabbit | 兎 | `FUN_00429962` | ported |
 | 23 crown slime | クラウンスライム | `FUN_0042aef7` | ported, verified |
-| 24 / 59 / 60 rats | ねずみバール / ハリセン / マグロ | `FUN_0042b6b7` | ported (24 verified; 59 / 60 no recording) |
+| 24 / 59 / 60 rats | ねずみバール / ハリセン / マグロ | `FUN_0042b6b7` | ported (24 verified; 59 verified: `lapis-1f-10f`; 60 no recording) |
 | 25 Charme | シャルム | `FUN_0041fa6e` | ported, verified |
 | 27 Tielle | ティエール | `FUN_00423b58` | ported, unverified |
 | 28 Griff | グリフ | `FUN_00424b42` | ported, verified `obsidian-21f-30f-griff` (identical + save; phase 0 / 1, all five states, the counter) and `obsidian-41f-50f-finale` (floor 49: phase 2, record 23, the kept bats) |
@@ -51,7 +51,7 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 50 / 51 skeletons | スケルトン* | default `FUN_00428213` (after `+0xb8c` → `+0xadc = 2`) | ported (`actor_ai_skeleton`), verified `obsidian-31f-40f-ohms` (drift, lunge record 12, two revives) |
 | 52 / 53 ghosts | ゴーストＯ / Ｎ | `+0xae4 == 0` `FUN_004275a7`, else `FUN_004278de` | ported (53 variant 0 verified: `obsidian-1f`; 52 + 53 walk variant verified: `obsidian-3f-5f-pumpkin`; 52 variant 0 no recording) |
 | 54 boss ahriman | ボスアーリマン | `FUN_00426811` | ported, verified (the 15F pair: `obsidian-11f-15f-ahrimans` identical + save) |
-| **55 pumpkin ghost** | かぼちゃゴースト | **`FUN_00426eab`** | ported (`actor_ai_t55`), verified `obsidian-3f-5f-pumpkin` (identical + save) |
+| **55 pumpkin ghost** | かぼちゃゴースト | **`FUN_00426eab`** | ported (`actor_ai_t55`), verified `obsidian-3f-5f-pumpkin`, the pair `lapis-1f-10f` (identical + save) |
 | **61 / 64 golem bodies** | ゴーレム / ダークゴーレム | **`FUN_00420f4d`** | ported; 61 verified `obsidian-16f-20f-golem` (identical + save; states 8 / 0 / 1 / 2 / 3, adds, death); 64 (dark) no recording |
 | 62 / 63, 65 / 66 golem arms | ゴーレム右 / 左, ダーク… | none (`FUN_00430c6d` part branch) | ported; attached branch verified `obsidian-16f-20f-golem`; detached (arm lost) unreached |
 | 67 Ohm | オーム | `FUN_00422ed6` | ported, verified (40F pair: `obsidian-31f-40f-ohms` identical + save) |
@@ -74,7 +74,7 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 61 / 64 (+ 67, 68 / 69) | same + arms 62 / 63 / 65 / 66 copy alpha and `+0x428`; anim 10 | ported unverified (61 / 64) |
 | 73 | y = 1; d5 only: from tick 60 alpha −4 → free, tick 60 `FUN_0042f746`; explosions 61..239; anim 12 ticks 2..301, then 13. d4: stays dying (the event reads `+0x428 == 2`) | **stub** |
 | 74 | y = 1, anim 12; d5: from tick 60 alpha −16 → free | **stub** |
-| 23, 49, 54, 55 | tick 1: slow-mo, explosion, alpha 0, player invulnerable 1200 (60 if another live one of the type); tick 60 `FUN_0042f746`; tick 120 free | 23 / 49 / 54 / 55 in the port's arm (55 verified: `obsidian-3f-5f-pumpkin`; 49: `obsidian-41f-50f-finale`) |
+| 23, 49, 54, 55 | tick 1: slow-mo, explosion, alpha 0, player invulnerable 1200 (60 if another live one of the type); tick 60 `FUN_0042f746`; tick 120 free | 23 / 49 / 54 / 55 in the port's arm (55 verified: `obsidian-3f-5f-pumpkin`, the pair `lapis-1f-10f`; 49: `obsidian-41f-50f-finale`) |
 | 24 / 59 / 60 | rat collapse (500 ticks) | ported |
 | 37–40 | bomb fuse | ported |
 | 72 and the rest | default: tick 2 free + puff (`+0xadc` revive count first) | default ported (72 verified: `obsidian-41f-50f-finale`) |
@@ -90,7 +90,7 @@ Floor counts = `DAT_005c64c0[d]`·5 = {1, 3, 6, 10, 20, 12}·5. Guild rows: d0..
 | 1 | Jade Way | 15 | 3 + Boss Rush | `FUN_0044d1e4` | `FUN_0044d47d` |
 | 2 | Amber Garden | 30 | 6 + Boss Rush | `FUN_0044d9d3` | inline; 29: `FUN_0044db3c` |
 | 3 | Obsidian Tower | 50 | 10 + Boss Rush | `FUN_0044e08f` | inline in `FUN_004427f1` |
-| 4 | Lapis Ruins | 100 | 20 + Boss Rush | `FUN_00450443`, 99: `FUN_0044ecc4` | `FUN_00450877`, 99: `FUN_0044f13d` |
+| 4 | Lapis Ruins | 100 | 20 + Boss Rush | `FUN_00450443` (ported: `dungeon4_stage_setup`), 99: `FUN_0044ecc4` (stub) | `FUN_00450877` (ported: `dungeon4_event_tick`; floors 4 / 9 verified `lapis-1f-10f`), 99: `FUN_0044f13d` (stub) |
 | 5 | Crystal Nightmare | 60 (30 + 30 boss floors) | 3 + Boss Rush | `FUN_00450ee0` | `FUN_00451546` (37: `FUN_0044db3c(1)`) |
 
 Boss Rush of d = 1..4: `0x438b4c8 = 5`, `0x438b4d0 = d`, start floor 30 / 33 / 38 / 46, 3 / 5 / 8 / 13 floors
@@ -128,7 +128,7 @@ Extra d3 state: first trip to row 0 runs a stage-type-20 cutscene (event 7/6); f
 
 | floor | list | boss | adds | setup / event | card |
 |---|---|---|---|---|---|
-| 4 | 5 | 55 ×2 (15·6.0 = 90) | 52 / 53 / 15, cap 6 | generic | `pumpkin-ghost.md` |
+| 4 | 5 | 55 ×2 (150·6.0 = 900 each, retail) | 52 / 53 / 15, cap 6 | generic | `pumpkin-ghost.md` |
 | 9 | 10 | 59 rat (150·6.2 = 930) | 13 / 14 | generic; after: event 10/4 once (+0x2bcf4) | other author (24) |
 | 14 | 15 | 54 ×3 | bats | generic | other author |
 | 19 | 20 | 67 ×3 | 10 | generic | other author |
