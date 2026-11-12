@@ -169,7 +169,7 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - ✅ `lapis-21f-30f` (Lapis 21F..29F, the 25F crown-slime trio, the 30F bomb floor with +0x2bcf5 = 1; end save `3c2a6b9c8b1d`; was
     split f24040) → identical + save (32,505 ticks) in 1 unit: `FUN_00436f97` clears `DAT_0438c148` (the 3x3 boss floor's single-room
     collision flag, set on 25F by group 15) — the port kept it, so 26F's ground/ray queries read room (1, 1) and enemy placement spun
-    (12,084 draws vs 659). Gate rows added.
+    (12,084 draws vs 659). Gate rows added. Whole `gates` 0 failed (139 rows, -j8, 690 s, Windows).
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`
