@@ -187,12 +187,16 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     rat type 60 (1,230 HP, first recording), return, Save; end save `78c391141547`; 30,892 frames, subscription driver):
     **identical + save on the first triage** (31,192 ticks) — no port change; gate rows added. Event 12/4 NOT played: the crafted
     lineage already has `+0x2bcf7` = 1 → crafted `b4766a99d74b` (byte cleared) + task `tools/drive/tasks/lapis-60f-event-12-4.md`, ☐ to drive.
+  - ✅ `lapis-61f-70f` (Lapis 61F..69F incl. the 65F mob floor (skeletons 50 / 51 ×20, three downs each; ghosts 52 / 53 ×19),
+    the 70F dark golem 64 / 65 / 66 (1,290 HP each) + 9 type-35 adds, return, Save; end save `535305f4273b`; 50,597 frames):
+    **identical + save on the first triage** (50,897 ticks) — case 69 and the dark golem verified with no port change; gate rows
+    added. Not reached: the arm-lost branches. The return door opens only after a sword hit (`DRIVER.md`).
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`
        port-identical + save (one bug: record 104's NULL-owner return, `findings/bosses/tielle.md` §7). One subscription subagent at a time.
     1. ✅ the two open splits (ending, New Game + / Survival) closed 2026-11-13; Arma verified (`lapis-41f-50f`). 51F..60F identical
-       2026-11-13. Next on the Lapis line: 61F..70F (65F skeleton / ghost list, 70F dark golem 64 / 65 / 66, case 69), then event 12/4.
+       2026-11-13. 61F..70F identical 2026-11-14. Next on the Lapis line: event 12/4 (driving), then 71F..80F (75F yellow mob list, 80F).
     2. keep the agent rows green: `gates` has 95 rows; **86/86 ok at 10e36b61, Windows, `-j 8`, 571 s**
        (2026-11-10; 36 of them agent-authored), + the 9 rows of five later probes **9/9 ok** in 24 s. Add a scenario's rows when its triage is
        identical.

@@ -1767,7 +1767,7 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
                                        "obsidian-21f-30f-griff", "obsidian-31f-40f-ohms",
                                        "obsidian-41f-50f-finale", "lapis-1f-10f", "lapis-11f-20f", "lapis-21f-30f",
                                        "lapis-30f-story", "lapis-31f-40f", "ending-week5-paid", "newgame-plus",
-                                       "survival-start", "survival-hell-start", "lapis-41f-50f", "lapis-51f-60f")]
+                                       "survival-start", "survival-hell-start", "lapis-41f-50f", "lapis-51f-60f", "lapis-61f-70f")]
          + [("portrng", s) for s in ("day8-visitor", "stand-item-status", "move-tables-persist", "venders-limit",
                                       "hire-caillou", "hire-tielle", "hire-elan", "hire-nagi", "hire-griff", "hire-arma",
                                       "obsidian-1f", "guild-roster-8", "pause-equip-dungeon", "dungeon2-25f-crown-kill",
@@ -1777,7 +1777,7 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
                                       "obsidian-16f-20f-golem", "obsidian-21f-30f-griff",
                                       "obsidian-31f-40f-ohms", "obsidian-41f-50f-finale", "lapis-1f-10f", "lapis-11f-20f",
                                       "lapis-21f-30f", "lapis-30f-story", "lapis-31f-40f", "ending-week5-paid",
-                                      "newgame-plus", "survival-start", "survival-hell-start", "lapis-41f-50f", "lapis-51f-60f")])
+                                      "newgame-plus", "survival-start", "survival-hell-start", "lapis-41f-50f", "lapis-51f-60f", "lapis-61f-70f")])
 
 
 GATE_KEYS = ("save:", "anchors:", "first ", "window", "IDENTICAL", "frames with", "error", "scp failed")
