@@ -186,7 +186,7 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - ✅ `lapis-51f-60f` (Lapis 51F..59F, the 55F black-knight pair (type 49 ×2, 800 HP each at L35: table HP 100, not 15), the 60F
     rat type 60 (1,230 HP, first recording), return, Save; end save `78c391141547`; 30,892 frames, subscription driver):
     **identical + save on the first triage** (31,192 ticks) — no port change; gate rows added. Event 12/4 NOT played: the crafted
-    lineage already has `+0x2bcf7` = 1 → ☐ a crafted save with it cleared (`craft_pix_save.py --set`) + a 59F→60F task.
+    lineage already has `+0x2bcf7` = 1 → crafted `b4766a99d74b` (byte cleared) + task `tools/drive/tasks/lapis-60f-event-12-4.md`, ☐ to drive.
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`

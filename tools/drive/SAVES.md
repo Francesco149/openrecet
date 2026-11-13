@@ -25,6 +25,7 @@ probe report says which it used. Played saves from the owner's free-play capture
 | `4c1259b71fd7` | `17264a73` | `--gold 500000` | payday-week2 |
 | `2afe7fb42617` | `64d43650865f` | `--set 0xb100=15` (HUD 16) | vending-level16, change-tables-l16, vender-sales-l16 (through the scenario) |
 | `352c146ab865` | `2afe7fb42617` | `--set 0xb100=16` (HUD 17) | item-storage-l17 |
+| `b4766a99d74b` | `78c391141547` | `--set 0xaf3d=0x00010101` (bank byte `+0x2bcf7` = 0: event 12/4 not yet seen) | lapis-60f-event-12-4 |
 | `67e22cc643bf` | `89190665bb8f` | `--gold 900000` | ending-week5-paid |
 
 ## Made by probes (replay the scenario to the frame after the in-game Save, `rd endsave`)
