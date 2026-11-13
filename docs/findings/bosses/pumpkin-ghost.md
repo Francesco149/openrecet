@@ -18,7 +18,7 @@ probe `docs/findings/probes/obsidian-3f-5f.md`). **[obs fNNNN]** = seen there. N
 |---|---|---|---|---|
 | Obsidian Tower 5F | 3 / 4 | 1 | lv 17 → **660** [obs f12410: `a0hp` 660, `+0xae0` 17] | 4 |
 | Lapis Ruins 5F | 4 / 4 | 2 | lv 25 → **90** | 6 |
-| Lapis Ruins 35F | 4 / 34 | 3 | lv 31 → **108** | 5 |
+| Lapis Ruins 35F | 4 / 34 | 3 | lv 31 → **1080** **[lapis-31f-40f f9810]** | 5 (obs: ≤ 5) |
 | dungeon 5 floors 38 / 46 / 51 | 5 / … | 1 / 2 / 3 | own: lv 63 / 77 / 85 → 204 / 246 / 270; rush (d3 f38) lv 27 → 96, (d4 f46 / f51) lv 42 / 47 → 141 / 156 | 4 |
 
 Placed by the generic boss placement (count 1: (−40, 0, −34); 2: x −45 / −35; 3: x −50 / −40 / −30), state 8.
@@ -160,3 +160,19 @@ Louie L42, ATK 61 / DEF 68 / MATK 22 / MDEF 42, HP 206. Frames = that movie.
 - Damage dealt (ATK 61): sword ≈25–31, spin 53 / 58 (no labels needed); 1,800 HP took 34 searches (~7,500 frames).
 - Arms checklist updates: count 2 placement **[obs f17431]**; cap 6 **[obs f18084]**; ghost variant 0 **[obs f18084]**; death with another
   alive **[obs f21402 / f21501]**.
+
+## 11. Lapis 35F trio **[obs]** (run `lapis-40f`, 2026-11-13; probe `docs/findings/probes/lapis-31f-40f.md`; `rd verify` MATCH f33528, `--real` MATCH)
+
+Scenario `lapis-31f-40f` (golden made, not triaged). Louie L43, HP 210 / 210, SP 47 (22 on arrival). Frames = that movie.
+
+- **Placement, count 3**: (−50, −38) / (−40, −34) / (−30, −38) (slots 0 / 1 / 2), all state 8, `+0xae0` 31, **1,080 HP each** (150·7.2) —
+  the §1 x-placement holds; z −38 for the outer two, −34 for the middle one (the §1 "(−40, 0, −34)" is the count-1 spot).
+- State 8 → 0 for all three at f10049, `lock` −1 at f10050 (240 ticks after arrival f9810).
+- **Add cap 5 (d4, floor ≥ 10)**: live actors peak at 8 (3 ghosts + 5 adds), first wave f10395 (3 → 6), 8 at f10431.
+- Kill order: ghost 2 HP 0 **f18543** (freed f18711); ghost 1 **f20411** (freed f20579); ghost 0 (last) **f21092** → adds gone f21196
+  (4 → 0 live; the tick-60 sweep), freed + **`estage` 0 → 1 f21256**. Next floor f21494.
+- Damage dealt: 5-SP `B` spins hit two ghosts at once (57 + 56, 56 + 51, …: f10092 / f10134); sword ≈25–35 (ATK 61 class); 3,240 HP took
+  11,446 frames with two pause-menu SP refills (f11299 Taiyaki +31, f19356 +42).
+- **No damage taken** (`hp` 210 flat, f9810..21494): record 90 shots and adds never connected on the kept movie.
+- Arms checklist updates: count 3 placement **[obs f9810]**; cap 5 **[obs f10431]**; deaths with others alive (×2) and the last death
+  **[obs f18543 / f20411 / f21092]**.

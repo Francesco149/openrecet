@@ -66,6 +66,7 @@ observed in the running game; anything read from code only is a lead. Named stat
 | [probes/vender-sales-l16.md](probes/vender-sales-l16.md) | A shop session with a stocked vending machine: stocking (one unit per slot, any category), the 6 slot dwords, two background sales at exactly base price, the counter customers of the session. |
 | [probes/vender-revert-sell.md](probes/vender-revert-sell.md) | "Revert To Table" with and without stock (no prompt; items + machine back to the bag; the bank diff), selling the machine at the Merchants' Guild (9,000 = 30% of base), the Venders category gone afterwards. |
 | [probes/dungeon2-21f-25f.md](probes/dungeon2-21f-25f.md) | Dungeon 2 floors 21F–25F by search: enemy mixes per floor, exit / ticker / lock state, the actor table, the double crown slime; search settings that worked and failed. |
+| [probes/lapis-31f-40f.md](probes/lapis-31f-40f.md) | Lapis Ruins 31F–40F in one trip (no damage): per-floor banners / enemy mixes / grids, new types 12 / 71 stats, the 35F pumpkin-ghost trio (1,080 HP each), the 40F red jellyfish (type 71: phase starts at 1, waves of 4 at phase 3), the return door, the day end, Save. |
 
 ## Boot / init
 

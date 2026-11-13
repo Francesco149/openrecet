@@ -8,14 +8,14 @@ verified on `obsidian-6f-10f-jellyfish`: portrng 46517 draws / f1..f15088, 0 div
 f9700 / f10200 / f11400 / f12750 / f13100 all blocks equal. Type 71, the ≥ 8-actor add skip, arm states 1 / 2 and the
 tick-60 sweep: ported, no recording reaches them.** Shared rules: `boss-floor-common.md`.
 **Live (2026-11-11):** run `ob-10f` (Obsidian Tower 10F, type 70, Louie L40 ATK 56 / DEF 58 / MATK 21 / MDEF 32), `rd verify` MATCH
-f14788; probe `docs/findings/probes/obsidian-6f-10f.md`. Tags **[obs fNNNN]** = that run. Type 71 not run.
+f14788; probe `docs/findings/probes/obsidian-6f-10f.md`. Tags **[obs fNNNN]** = that run. Type 71: run `lapis-40f` (Lapis 40F, scenario `lapis-31f-40f`, §10; not triaged yet).
 
 ## 1. Where
 
 | place | `dungeon` / `floor` | type | level → HP |
 |---|---|---|---|
 | Obsidian Tower 10F | 3 / 9 | 70 | 18 → 100·4.6 = **460** **[obs f9226]** (`+0xae0` 18, `+0x434` 460; HUD "LV19 HP 460") |
-| Lapis Ruins 40F | 4 / 39 | 71 | 32 → 100·7.4 = 740 (if 71's table HP is also 100: not read) |
+| Lapis Ruins 40F | 4 / 39 | 71 | 32 → 100·7.4 = **740** **[lapis-31f-40f f29293]** (table HP 100, read) |
 | dungeon 5 floor 39 (d3 Boss Rush 2nd) | 5 / 39 | 70 | own: 65 → 1400; rush: 28 → 660 (= the players' 1400 / 660) |
 | dungeon 5 floor 52 (d4 Boss Rush 7th) | 5 / 52 | 71 | own: 87 → 1840; rush: 48 → 1060 (= the players' 1840 / 1060) |
 
@@ -27,7 +27,8 @@ Generic boss floor: placed at (−40, 0, **−40**) in state 8 (`boss-floor-comm
 ## 2. Stats and parts
 
 - Table (type 70, `0x5c4060`) **[obs]**: HP **100**, EXP 25, AT **30**, DF 30, MA **20**, MD **30**, `+0x20` 1, `+0x24` 12; rf 1.0, 4.0, 3.0, 4.5,
-  0.45, 1.0, 0.6. (Was: 150 / 25 / 20 / 30 / 0 / 10.) Type 71's record not read. Roper (17, `0x5c2ad8`): 15 / 10 / 16 / 4 / 0 / 0.
+  0.45, 1.0, 0.6. (Was: 150 / 25 / 20 / 30 / 0 / 10.) Type 71 (`0x5c40c8`) **[lapis-31f-40f]**: HP 100, EXP 25, AT 30, **DF 35**, MA 20, **MD 35**, `+0x20` 1, `+0x24` 13; rf 0.8, 4.0, 3.0, 4.5,
+  0.45, 1.0, 0.6. Roper (17, `0x5c2ad8`): 15 / 10 / 16 / 4 / 0 / 0.
 - Damage seen at L18: sword 20 base (ftol(28 − 30/4)): 24..27 with Side, 33 with Back, spin 44 / 53; slam 30 (ftol(30·2.8/2 − 58/4) = 27, +0..5);
   rain 23 (ftol(20·2.8/2 − 32/4) = 20, +0..3); roper contact 7.
 - Every AI tick: velocity = 0, `+0xb54 = 1`; before the AI `+0x3dc = DAT_0438ccc4` (alpha from a global — the
@@ -104,14 +105,14 @@ Any time after state 8 (`+0xb08` never set), but only at the arm joints — in p
 |---|---|---|
 | intro descent | `s32(B+0xa54) == 8`, `f32(B+0x3f4)` 16 → 6 | **[obs f9226..9466]** t 0 → 240, y 14.95 at t 25 → 5.95; `lock` 0 → −1 at state 0; no line of dialogue |
 | spin up / down | `s32(B+0xa68)` 0 → 60 → 0 inside one 800-tick cycle | **[obs f9496..9716]** 1 at c 30, 60 at c 90, 59 at c 200, 0 by c 270; yaw +0.06 / tick at 60 |
-| add wave, phase 0 / 1 / 2 (71: up to 3) | new actors of type 17 with `s32(+0xb2c) == 1` at `c == 190`: `phase + 1` of them | **[obs f9656]** 1 (phase 0); **[obs f11350]** 2 (phase 1) at 12.0 / 11.8 from the centre; **[obs f12342]** 3 (phase 2). HP 69 (L18). `+0xb2c` not read |
+| add wave, phase 0 / 1 / 2 (71: up to 3) | new actors of type 17 with `s32(+0xb2c) == 1` at `c == 190`: `phase + 1` of them | **[obs f9656]** 1 (phase 0); **[obs f11350]** 2 (phase 1) at 12.0 / 11.8 from the centre; **[obs f12342]** 3 (phase 2). HP 69 (L18). `+0xb2c` not read. **Type 71 [lapis-31f-40f]**: 2 at f29990 (phase 1), **4** at f30860 / f31722 (phase 3) |
 | add wave skipped (≥ 8 live actors) | `c == 190` with no new actor | **not reached** (needs 7 ropers alive: ≥ 3 phase-2 cycles without killing one) |
 | arm 0 slam / arm 1 slam | `s32(B+0xa88) == 3` / `s32(B+0xa8c) == 3` | **[obs f9518]** both at once (player under the torso, spin < 30); **[obs f11041]** arm 1 alone while arm 0 is at tick 67; at tick 120 → 0 for one tick, 3 again the next (f10915 → f10975 when out of range for 60). Tell: the joint lifts to y ≈ 4.8 by tick 33. **Hit taken [obs f10185]**: arm tick 43, 3.5..4 from the joint, hp 174 → 144, `p_hurt` 70 |
 | slam not started while spinning | player within 8 of a joint and `s32(B+0xa68) >= 30` → state stays 0 | **[obs f11286..11305]** spin 60, d1 < 7.5, arm 0 stays 0; **[obs f11314..11339]** same for arm 1; it starts on the tick spin reaches 29 (f11390, c 230) |
 | rain count per phase | records of type 70 per cycle = `s32(B+0xae4) + 1` | **wrong for phase 2.** **[obs f10028]** phase 0: 1 (c 550); **[obs f11016]** phase 1: the second at c 690; **[obs f12718..12872]** phase 2: c 550 only, none through c 745. Hit taken **[obs f10067]** 197 → 174 |
 | phase steps | `s32(B+0xae4)` changes at HP ⅔ and ⅓ | **[obs f10791]** 0 → 1 (HP 325 → 298 at f10786; < 306.67); **[obs f11783]** 1 → 2 (155 → 130 at f11778; < 153.33) — on the boss's first tick after the 4-frame hit-stop |
 | hit on joint 1 vs joint 2 | HP drops with the record nearest `j1` / `j2`; a record at the body centre (y 6) does nothing | **[obs f10434]** joint 1, arm idle, mid-spin, 434 → 407; **[obs f11174]** joint 2 (gap −0.43, joint 1 at +7.8) 275 → 251; **[obs f9536, 9572, 9608, 9644]** four swings under the body (0.7..2.8 from its centre, both joints out of reach): HP 460 flat. Reach = `hypot(joint − record) − 2.0 < 2.25` holds (hits at gap −0.07; one at +0.19 on swing tick 12) |
-| red variant | type 71: phase starts at 1 | **not reached** (Lapis 40F) |
+| red variant | type 71: phase starts at 1 | **[lapis-31f-40f f29293]** `+0xae4` 1 from placement; 2 at f30141, 3 at f30770 (§10) |
 | death | `s32(B+0x428) == 2`, `s32(B+0x3dc)` fading from death tick 100 | **[obs f13005]** `+0x428` 2 (spin hit 53 → 0), slow-mo 60, `p_inv` 1200; the body drops y 5.95 → 0 in ≈ 17 death ticks; alpha 127 until tick 100, 71 at tick 106 (−8 / tick); **[obs f13164]** tick 115: `+0x428` 0, `estage` 1, `gate` 0 on the same frame. No add was alive (tick-60 sweep not seen) |
 | arm states 1 / 2 | `s32(B+0xa88 + 4i) in (1, 2)` — report if ever seen | **never seen** (f9466..13005, every tick of the watched segments: only 0 / 3) |
 | safe spot under the torso (players) | — | **[obs f9525..10066]** following the body (≤ 1.1 from its centre): both arms slam 4× (the joints stay 6.5..9 away), HP flat; then the rain hits there (f10067). Safe from slams and the spin, not from the rain |
@@ -126,3 +127,21 @@ Any time after state 8 (`+0xb08` never set), but only at the arm joints — in p
 - ~~The arm joints' height when idle~~ y 0.61..0.74: reachable **[obs]**.
 - `DAT_0438ccc4` (alpha source).
 - Anim layer ids (0, 2, 3, 6, 10) named from use only.
+
+## 10. Lapis 40F (type 71) **[obs]** (run `lapis-40f`, 2026-11-13; probe `docs/findings/probes/lapis-31f-40f.md`; `rd verify` MATCH f33528, `--real` MATCH)
+
+Scenario `lapis-31f-40f` (golden made, not triaged). Louie L43, HP 210 / 210, SP 47. Frames = that movie.
+
+- **Placement**: slot 0, type 71, **740 HP** (100·7.4, L32), state 8 at f29293 (arrival), state 0 at f29532 (239 ticks). `gate` 3.
+- **Phase `+0xae4` starts at 1** (the red variant) and steps at the HP thirds: **2 at f30141** (HP 489 < 493.3), **3 at f30770** (237 < 246.7).
+  So 71 runs phases 1..3, 70 runs 0..2.
+- **Add waves (type 17 roper) = phase + 1 at once**: **2 at f29990** (phase 1), **4 at f30860** (phase 3), **4 again at f31722** (1 → 5 live) —
+  the §8 row "71: up to 3" is wrong: phase 3 gives 4. The ≥ 8-actor skip was not reached (≤ 6 live).
+- **Damage dealt** (ATK 61 class; 5-SP `B` spins while SP lasted): spins 43 / 52 / 55 / 46 / 55 / 44 / 49 (f29836..30280, one per 5 SP), then
+  sword 42 / 24 / 27 / 66 / 35 / 29 / 27 / 26 / 51 / 21 / 34 (f30367..31680). 13+ hits for 740.
+- **No damage taken** over the whole fight (f29782..31910: `hp` 210 flat) — slams, rain and the ropers never connected on the kept movie.
+- **Death**: HP 14 → 0 at **f31751** (`+0x428` 2); ropers (5 live) dying at f31855 (the death-tick-60 sweep, slow-mo stretched);
+  **f31910: `+0x428` 0, `estage` 0 → 1, `gate` 3 → 0 on the same frame** (as type 70 at f13164). `estage` stays 1 (generic floor, no story
+  flag): return door at (−45, −40), answered from +x walking −x at (−44.21, −40.30).
+- Arms checklist updates: red variant phase start **[obs f29293]**; phase-3 wave of 4 **[obs f30860, f31722]**; tick-60 sweep with adds alive
+  **[obs f31855]** (was "not seen" for 70).
