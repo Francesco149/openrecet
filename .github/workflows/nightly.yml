@@ -60,10 +60,15 @@ jobs:
       - name: Compose release notes
         run: |
           {
+            # The release's "published" date stays at its first publish (republishing would
+            # notify every watcher daily), so the real build date leads the text.
+            echo "**Last updated: $(TZ=Europe/Rome date '+%Y-%m-%d %H:%M %Z')** ($(date -u '+%H:%M UTC')) — commit \`${GITHUB_SHA::8}\`"
+            echo
+            echo "_GitHub's \"released\" date above is when this rolling release was first created, not this build._"
+            echo
             echo "Automated daily build — unsigned, **bring your own Recettear**."
             echo
             echo "Source commit: \`${GITHUB_SHA}\`"
-            echo "Built: $(date -u '+%Y-%m-%d %H:%M UTC')"
             echo
             echo "Ships **no game assets**. On first run it reads the sound"
             echo "effects out of your own legitimately-owned retail"
