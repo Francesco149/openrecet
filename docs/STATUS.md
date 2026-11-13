@@ -222,12 +222,16 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     12/6 and 12/7, `bank+0x2bd13`), return, Save; end save `26ee88a4793c`; 39,461 frames, subscription driver; was split f9627 on 42F)
     → **identical + save** (39,761 ticks) in 2 units: Arma's AI FUN_00425c3f (443a77ec) and the turret pumpkin FUN_0042a23c (type 15
     variant 1: turn, record 30 at 5, cycle 120 / 110). Arma's live stats correct the card (HP 250, not 305). Gate rows added.
+  - ✅ `lapis-51f-60f` (Lapis 51F..59F, the 55F black-knight pair (type 49 ×2, 800 HP each at L35: table HP 100, not 15), the 60F
+    rat type 60 (1,230 HP, first recording), return, Save; end save `78c391141547`; 30,892 frames, subscription driver):
+    **identical + save on the first triage** (31,192 ticks) — no port change; gate rows added. Event 12/4 NOT played: the crafted
+    lineage already has `+0x2bcf7` = 1 → ☐ a crafted save with it cleared (`craft_pix_save.py --set`) + a 59F→60F task.
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`
        port-identical + save (one bug: record 104's NULL-owner return, `findings/bosses/tielle.md` §7). One subscription subagent at a time.
-    1. ✅ the two open splits (ending, New Game + / Survival) closed 2026-11-13; Arma verified (`lapis-41f-50f`). Next on the
-       Lapis line: 51F..60F (55F black-knight pair, 60F rat type 60, event 12/4).
+    1. ✅ the two open splits (ending, New Game + / Survival) closed 2026-11-13; Arma verified (`lapis-41f-50f`). 51F..60F identical
+       2026-11-13. Next on the Lapis line: 61F..70F (65F skeleton / ghost list, 70F dark golem 64 / 65 / 66, case 69), then event 12/4.
     2. keep the agent rows green: `gates` has 95 rows; **86/86 ok at 10e36b61, Windows, `-j 8`, 571 s**
        (2026-11-10; 36 of them agent-authored), + the 9 rows of five later probes **9/9 ok** in 24 s. Add a scenario's rows when its triage is
        identical.
