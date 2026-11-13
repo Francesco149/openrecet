@@ -1614,6 +1614,44 @@ static void actor_ai_bomb(actor_t *a)
     }
 }
 
+/* FUN_0042a23c: type 15 variant 1 (+0xae4 == 1), the turret pumpkin.  +0xb54
+ * 1 every tick.  State 0: turn 0.03 toward the player, anim 0, at 120 → 1
+ * (+0xa64 0, anim 3).  State 1: +0xa00 0, turn 0.01 (from 45: 0.01 - 0.001·(t
+ * - 45), floored at 0), record 30 at tick 5, back to 0 at 110.  Anim 4 last,
+ * every tick.  asm 0x42a23c..0x42a33d. */
+static void actor_ai_pumpkin_turret(actor_t *a)
+{
+    static const float k0p001 = 0.0010000000474974513f;   /* 0x5198f4 */
+    const int32_t st = AI(a, 0xa54);
+    AI(a, 0xb54) = 1;
+    if (st == 0) {
+        actor_turn_to_player(a, k0p03);                  /* FUN_0041f789 */
+        actor_anim_set(a, 0);
+        if (++AI(a, 0xa58) >= 120) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 1;
+            AI(a, 0xa64) = 0;
+            actor_anim_set(a, 3);
+        }
+    } else if (st == 1) {
+        const int32_t t = AI(a, 0xa58);
+        AI(a, 0xa00) = 0;
+        float sp = k0p01;
+        if (t >= 45) {
+            const float f = spill32((long double)(t - 45));
+            sp = spill32((long double)k0p01 - (long double)f * k0p001);
+            if (sp < k0) sp = 0.0f;
+        }
+        actor_turn_to_player(a, sp);
+        if (++AI(a, 0xa58) == 5) scene1_record_b_spawn_npc(a, 30, 1);   /* FUN_00445a8c */
+        if (AI(a, 0xa58) >= 110) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+        }
+    }
+    actor_anim_set(a, 4);
+}
+
 /* FUN_0042a33e: type 15 variant 0, the pumpkin.  Asleep (+0xa60 0) until the
  * player comes within 13.  State 0 floats (+0xa00 = 1; vy eases toward 6.5 ..
  * 7.5 over the ground, clamped ±0.1; anim 0): on tick 1 up to 20 headings at a
@@ -5532,7 +5570,7 @@ void actor_ai_alive(actor_t *a)
         } else if (type == 15 && sub != 1) {
             actor_ai_pumpkin_bounce(a);          /* FUN_00429e6f */
         } else if (type == 15) {
-            /* PORT-DEBT(stub, FUN_0042a23c): the pumpkin's variant 1 */
+            actor_ai_pumpkin_turret(a);          /* FUN_0042a23c */
         } else if (type == 16 && sub == 3) {
             actor_ai_t16_perch(a);               /* FUN_00423686 */
         } else if (type == 16) {
@@ -5560,7 +5598,7 @@ void actor_ai_alive(actor_t *a)
                    type == 65 || type == 66 || type >= 78 || type < 0) {
             actor_ai_skeleton(a);                /* FUN_0042f28c default: FUN_00428213 */
         } else {
-            /* PORT-DEBT(stub, FUN_0042f28c): the arms not yet ported (FUN_0042a23c,
+            /* PORT-DEBT(stub, FUN_0042f28c): the arms not yet ported (
              * FUN_004262b7, FUN_0042ac16, FUN_004284ba,
              * FUN_004205e5, FUN_00420bd0, FUN_0044f01d,
              * FUN_0044f009) */

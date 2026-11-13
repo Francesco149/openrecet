@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **56**
-- distinct retiring engine functions: **48**
+- total open debts: **55**
+- distinct retiring engine functions: **47**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 33 | wired call boundary, body incomplete |
+| stub | 32 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 7 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -43,7 +43,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004161c7 | 1 |
 | FUN_0041ee24 | 1 |
 | FUN_0041f4a6 | 1 |
-| FUN_0042a23c | 1 |
 | FUN_0042df55 | 1 |
 | FUN_0042e1a6 | 1 |
 | FUN_0042e791 | 1 |
@@ -79,7 +78,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (33)
+## stub (32)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -87,11 +86,10 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0040a765 | src/scene1_hud.c:412 | the pages of entries 8 (news summary) and |
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
 | FUN_0041ee24 | src/sim.c:774 | mode 3's callee |
-| FUN_0042a23c | src/actor_ai.c:5535 | the pumpkin's variant 1 |
 | FUN_0042df55 | src/actor_ai.c:125 | stages >= 20 index past the dungeon |
-| FUN_0042e1a6 | src/actor_ai.c:6011 | the death (EXP, drops, the kill count) |
-| FUN_0042e791 | src/actor_ai.c:5968 | the poison tick (ftol(p), 4) |
-| FUN_0042f28c | src/actor_ai.c:5563 | the arms not yet ported (FUN_0042a23c, |
+| FUN_0042e1a6 | src/actor_ai.c:6049 | the death (EXP, drops, the kill count) |
+| FUN_0042e791 | src/actor_ai.c:6006 | the poison tick (ftol(p), 4) |
+| FUN_0042f28c | src/actor_ai.c:5601 | the arms not yet ported ( |
 | FUN_0042f7ad | src/actor_ai.c:867 | the final boss's death arms (73 / 74: |
 | FUN_00434ceb | src/scene_guild.c:21 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:472 | the message box is unported. |
@@ -103,7 +101,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:398 | its b924 == 0x276 consumer, scene0/sub8), |
 | FUN_0044e08f | src/dungeon_flow.c:1147 | the +0x2bce2 story beat's setup (the |
 | FUN_0044ecc4 | src/dungeon_flow.c:1741 | Lapis 100F's setup — no recording reaches it |
-| FUN_0044eff5 | src/actor_ai.c:5552 | Arma as the floor-99 prop |
+| FUN_0044eff5 | src/actor_ai.c:5590 | Arma as the floor-99 prop |
 | FUN_0044f078 | src/dungeon_party.c:653 | dungeon 4 floor 99's event helper |
 | FUN_0044f13d | src/dungeon_flow.c:1992 | Lapis 100F's events — no recording reaches it |
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
