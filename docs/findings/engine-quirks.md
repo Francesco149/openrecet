@@ -5279,6 +5279,13 @@ game diverged from there. Retail's own new-game RNG is therefore not run-to-run
 deterministic (~1 boot in 32). The port reads the .data1 / .rsrc bytes from the user's exe
 at run time (src/retail_image.c) and takes the pointer's common case.
 
+The overrun also crosses the Encyclopedia catalog (FUN_0049f012: the slot table DAT_09643698, the category
+keys DAT_09646578, the display order DAT_09646650; 0x9643698..0x964c410): zero on a fresh boot, but -1-filled
+and 0..59-numbered once built — and any item entering the bag rebuilds it (FUN_00468d22 → FUN_0049126b). The
+Survival Hell start (FUN_0049d36d) returns the bag / storage items just before its FUN_00490e56(0), so its init
+pass reads 48 catalog bytes and draws 913 rands instead of 866 (rhost `survival-hell-start` f252). The port reads
+its own catalog arrays there (`guild_stock.c` kind_past).
+
 ## 164. The enemylist table is .data with a build-time image (DAT_0053f8e8)
 The 10 × 60 × 0x2f0 enemylist sections sit in .data with initial contents; the boot parse
 scrubs only floor_lo and the enemy ids to -1, so retail keeps the image's floor_hi /

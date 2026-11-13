@@ -7,6 +7,17 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-11-13 — the ending, New Game + and both Survival modes RNG- and save-exact
+The last two open agent-probe splits closed. **The ending** (`ending-week5-paid`, 57,780 ticks): retail runs
+FUN_00406584 in modes 2..3 and 6..8 (the port only in 2 / 6 / 8), so the displayed gold never rolled after the
+500,000 payment; then the ending's own tick FUN_0049db8a (events 1/20..22, the file's best score and gold, the True
+Card for the highest-level adventurer seen, "Save the game?", the save picker) and its render were stubs. **The
+title's picker starts** (`newgame-plus`, `survival-start`, `survival-hell-start`): the New Game+ / Survival picker opens
+a message box that freezes the title sim until closed (the port took the first A as the confirm, 40 frames early);
+the Continue arm's code-4 / code-6 branches (FUN_0049d55c, FUN_004864fd, Hell's seeder FUN_0049d36d) were missing; and
+FUN_00490e56's 424-record overrun (quirk §163) also reads the Encyclopedia catalog, which Hell's item returns rebuild
+just before. All four identical + save IDENTICAL; gate rows added. Arma's AI (FUN_00425c3f) ported, awaiting a recording.
+
 ## 2026-11-10 — agents author retail traces: headless rhost, savestates, `rd`, a 35-scenario campaign
 **The target.** rhost runs retail without devices (`--headless`: fake D3D8 / DirectMusic / DirectShow / DirectInput,
 wine without X; ≡ the Windows real-device goldens over 120 scenarios, 1.8 M frames), with in-process savestates

@@ -61,16 +61,14 @@ Phase 0: dungeon hybrid (§3 Phase 1).
       `guild-sell-expansion` (f746) + `pause-options-saved` (save 5 bytes) → dfa39b94 (also closed the legacy
       `guild-ui-flow` f3425 split), `vending-level16` (f5500) + `vender-sales-l16` (save 5 bytes) → 10e36b61
       (vending machines: `findings/vending-machines-RE.md`; `vender-revert-sell` identical + save).
-    - ☐ `ending-week5-paid`: **split f30885** `FUN_00406584 < FUN_004536cb < FUN_0047be92 ⇄ - (+1)`, scene 9 —
-      the money roll (displayed gold lags the bank after the 500,000 payment) runs in the pause scene in retail;
-      behind it: the ending scenes, credits, True Card, the "Save the game?" prompt, the title's unlocked
-      entries, Endless Mode's opening (none ported / verified). `portrng ending-week5-paid --window 30883:30886 --seq`.
-    - ☐ `newgame-plus`: **split f436** `- ⇄ floor_layout_maze (-7)` at the title's New Game + start (picker
-      `t_sub` 1 on cleared saves only; the bank reset of 86 dwords; opening script 2/6; FUN_004864fd's title arm).
-      `portrng newgame-plus --window 434:437 --seq`. Same signature: `survival-start` **split f243** (Normal
-      Survival starts through the same picker; day dword starts at 0; no item moves) and `survival-hell-start`
-      **split f212** (Hell wipes 687 bank dwords; marker dword 0xb78d; behind it a missed 20,000 payment on day 7
-      and the game over back to the title).
+    - ✅ 2026-11-13: `ending-week5-paid` (was split f30885) **identical + save** (57,780 ticks): modes 3 / 7 run
+      FUN_00406584 (LABEL_106; the money roll), the ending's tick FUN_0049db8a + entry FUN_0049da9e (events 1/20..22,
+      best score / gold, the True Card FUN_0049dac0, "Save the game?", the picker FUN_004808e2 / 4808fb) and its
+      render (FUN_0049dd71 = the game over's). `newgame-plus` (was f436), `survival-start` (f243), `survival-hell-start`
+      (f212) **identical + save**: the picker's "Please choose a file for New Game+ data." box gates the title sim
+      (FUN_00434d6a == -1 → FUN_0049a59e returns), the Continue arm's code-4 / code-6 branches after FUN_00490e56(1),
+      Hell's new-game seeder FUN_0049d36d, and the guild-stock overrun reading the Encyclopedia catalog (engine quirk
+      §163). Gate rows added.
     - retail facts corrected on the way: the guild has no mode 3 (Sell = mode 0 → 8); `floor` DAT_0438b4cc is
       0-based, the stage record DAT_0438b4dc ≥ 4 = a dungeon; Outstanding Orders needs merchant level dword ≥ 6,
       Move Tables ≥ 9, vending machines ≥ 14; crafted level saves play a level-up event at load; a recipe's
@@ -184,8 +182,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`
        port-identical + save (one bug: record 104's NULL-owner return, `findings/bosses/tielle.md` §7). One subscription subagent at a time.
-    1. the two open splits (port work by the porting loop; each fix moves the split later in a 57k-frame trace):
-       the pause-scene money roll first, then the ending chain; New Game +.
+    1. ✅ the two open splits (ending, New Game + / Survival) closed 2026-11-13. ◐ Arma (type 41, FUN_00425c3f) ported
+       from IDA + disasm, unverified: `lapis-41f-50f` (Lapis 41F..50F, Arma) being recorded by a driver.
     2. keep the agent rows green: `gates` has 95 rows; **86/86 ok at 10e36b61, Windows, `-j 8`, 571 s**
        (2026-11-10; 36 of them agent-authored), + the 9 rows of five later probes **9/9 ok** in 24 s. Add a scenario's rows when its triage is
        identical.
