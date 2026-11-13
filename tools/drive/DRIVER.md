@@ -217,8 +217,9 @@ rd eval R "actors(T == 10)" a0hp --at-frame 40650                               
   (read the grid with `rd ram R dwords 0x73dfd08 N`), then one scored search per 40-unit leg: `--score "-dist"` to the
   next cell centre, `--cell "(int(px/2), int(pz/2))"`, actions = an aimed 12-tick walk + the 8 plain ones,
   `--avoid "hp < H"` (H = the HP now), `-j 2`. Wait for `ticker == 0` first (the floor banner freezes play although
-  `lock == -1`). Boss floors: the exit is not object 0 — use `estage == 1`, then the portal / door (`portal > 0`; a door
-  answers from one side only); the pad is dead ~120 ticks after a clear.
+  `lock == -1`). Boss floors: the exit is not object 0 — use `estage == 1`, then the portal / door (`portal > 0`; the return
+  door opens only after a sword hit on it — `s32(0x695f218+0x268)` 1 = open; walking into it before that does nothing;
+  `lapis-61f-70f`); the pad is dead ~120 ticks after a clear.
 - Enemy stats live at `0x5c23f0 + type*0x68` (+0x2c HP, +0x34 AT, +0x38 DF, +0x3c MA, +0x40 MD): read them, the cards'
   code-read stats were wrong more than once. Hit records: `0x69324b0 + i*0x124` (type +0, side +4, age +0x98).
 - `rd` reads state AFTER the tick (a state entered this tick shows tick 0); wrap `--expr` defines in parentheses.

@@ -3,12 +3,13 @@
 **code-read**: IDA `sub_420F4D` (body AI, 0x420f4d), `sub_430C6D` part branch (IDA 31926.., 32040..32130),
 `sub_42F7AD` case 61 / 64, tables at 0x52b8a4. Disassembly checked at 0x420fab..0x421004 (arm scan) and
 0x42130d / 0x421316 (the side write). **Port (2026-11-11): body AI `actor_ai_golem`, part branch `actor_golem_part` (`src/actor_ai.c`), death arm — verified by
-`obsidian-16f-20f-golem` portrng + portsave IDENTICAL (type 61; the adds type 36). Dark golem 64 / 65 / 66, the † arm-lost /
+`obsidian-16f-20f-golem` portrng + portsave IDENTICAL (type 61; the adds type 36). Dark golem 64 / 65 / 66: recorded `lapis-61f-70f` (not triaged). The † arm-lost /
 detached-arm branches: no recording.**
 Shared rules: `boss-floor-common.md`.
 **Run live 2026-11-11** (Obsidian 20F, Louie L40, ATK 56 / DEF 58): probe `docs/findings/probes/obsidian-16f-20f.md`, run
 `golem-20f` (15177 frames, `rd verify` MATCH). Tags **[obs fNNNN]** = that run (frames there); corrections from retail are marked
-**(corrected)**.
+**(corrected)**. **Run live 2026-11-14** (Lapis 70F, dark golem, Louie L45, ATK 63 / DEF 83): probe
+`docs/findings/probes/lapis-61f-70f.md`, run `lapis-70f`; tags **[lap fNNNNN]**.
 
 ## 1. Where
 
@@ -28,12 +29,14 @@ Shared rules: `boss-floor-common.md`.
 
 | | table HP / AT / DF | d3 f19 (lv 20, ×5.0) | d4 f69 (lv 38, ×8.6) |
 |---|---|---|---|
-| body 61 / 64 | 150 / **30** / 30 | 750 | 1290 |
+| body 61 / 64 | 150 / **30** / 30 | 750 | 1290 **[lap f39447]** |
 | arm 62 / 63, 65 / 66 | 150 / **30** / 30 | 750 | 1290 |
 
 **(corrected)** Retail record (`0x5c23f0 + type*0x68`, read live) for 61 and 62 alike: HP 150, EXP 35, **AT 30**, DF 30, MA 0,
 MD 30, rf 0.9 / 4 / 3 / 4.5. 20F: all three parts HP 750 = L20 **[obs f10062]** (the wiki's "Lv 32 / 1080" is not this floor).
 Add type 36: HP 15, EXP 20, AT 16, DF 20, MA 16, MD 20, rf 1.5 / 2 / 2 / 0.18 (HP 75 on 20F).
+**[lap]** Dark 64 / 65 / 66 alike: HP 150, EXP 35, **AT 30**, DF 30, MA 0, **MD 40** (ROSTER's txt / baked rows said 25 / 20 (arms 1) / 30 / 0 / 10).
+Add type 35: HP 15, EXP 10, AT 16, DF 30, MA 16, MD 10 (HP 129 on 70F).
 
 - d5 floor 41: lv `ftol(11·1.7 + 50)` = 68 → ×14.6 = 2190; floor 56: lv 94 → ×19.8 = 2970. Boss Rush: lv
   `(5·floor − 145)/4 + 16` = 31 (d3 run) → 1080; `(5·56 − 145)/5 + 25` = 52 (d4 run) → 1710.
@@ -140,6 +143,9 @@ the body centre (t 81..105); standing within ~3.6 of the centre the double never
    (f13664..13679), alpha fades from ~tick 100 (199 at 106, 79 at 121), all three freed at death tick ~131 → `s32(0x438b8a0) == 1`,
    `gate` 0 **[obs f13754]**. `p_inv` 1200 at death tick 1, slow-mo 60.
 7. Return portal (−45, −40): `A` from −z facing +z at (−44.95, −40.91) → "Return to town now?" **[obs f13971]**.
+   **[lap]** The door (object 1, kind 6, `0x695f218`) opens only after a **sword hit**: state `+0x268` 3 → 0 at the floor open,
+   hit counter `+0x264` 1; the first swing on it (f48776) → state 1, and only then does standing within 1 raise `portal` (walking
+   into it from every side for 1,200 frames, `p_inv` 0 included, did nothing).
 
 ## 7. Arms checklist (every AI branch + a predicate)
 
@@ -156,10 +162,22 @@ the body centre (t 81..105); standing within ~3.6 of the centre the double never
 | jump at the player (act 4) | `s32(B+0xa54) == 3 and s32(B+0xa5c) == 0`, `f32(B+0x400) > 2` at t 20 | **[obs f11211..11351]** peak y 32.9 (t 55), stomp hit f11302 (34) |
 | jump home (act 5) | `s32(B+0xa54) == 3 and s32(B+0xa5c) == 1` | **[obs f11791]** lands t 90 (f11880) at (−39.94, −35.63); not taken (no HP food) |
 | add spawn | an actor with `s32(+0x424) in (35, 36) and s32(+0xb2c) == 1`; `s32(B+0xa68)` 1..4 (dark: ..9) | **[obs]** type 36 ≈f10340 / ≈f12736 / f13376, `gn` 1 / 2 / 3 |
-| add back-off | `s32(B+0xa64) in (−60, −120)` | −60 **[obs f13376]** (`gn` 3); −120 **not reached** (needs `gn` 5; the body died at `gn` 3) |
-| dark variant | type 64: `need` 2, add type 35 | **not reached** (Lapis 70F) |
+| add back-off | `s32(B+0xa64) in (−60, −120)` | −60 **[obs f13376]** (`gn` 3); dark: −60 at `+0xa68` 5 **[lap f43265]**, **−120 at 9 [lap f45886]**; `+0xa68` 10 **[lap f46700]**: no spawn (cap), the counter keeps going (11 at f47023) |
+| dark variant | type 64: `need` 2, add type 35 | **[lap f40011 / f40049]** adds #1 / #2 ≈38 ticks apart; 9 type-35 adds over the fight |
 | death | `s32(B+0x428) == 2`; arms `s32(+0x3dc)` fading with the body from death tick 100 | **[obs f13574..13754]** (arms → 2 at t 46..61, see §6) |
 | † arm lost / state 4 / act 3 fallback | `f32(arm+0x42c) <= 0`, `s32(arm+0xa04) == −1`, `s32(B+0xa54) == 4` | **not reached**: arm HP 750 and `+0xb08` 1 the whole fight; nothing a player does reaches it |
+
+## 7b. Lapis 70F live (dark golem) **[lap]**
+
+- Arrival f39447: all three parts at (−40, −12, −35), HP 1290, state 8; arms `+0xb08` 1 from tick 1; state 0 at f39688 (240 ticks).
+- Pattern (idx after the step / state / side): 1 st1 R (f40049), 2 st1 R, 3 st1 **L** (f40459), 4 **double** (f40728), 5 jump at
+  (f40937), 6 jump home (f41114), 7 st1 R, 8 L, 9 L, 10 / 11 jump at ×2, 0 jump home (f42454, wrap). Act-2 picks over three cycles:
+  L, R, L, L / L, L, R, R / R.
+- Damage dealt (ATK 62–63): sword front 25–27, counter 29–32, side 36; spin counter 56–67. Damage taken (undone branch, f41970):
+  right fist **53** (219 → 166) at 7.3 from the body centre — `ftol`-scaled by L38, not the 30–34 of 20F.
+- Standing within ~3.6 of the body between attacks: no hit over 7,600 frames (searches with `--hold 60`; `--hold 30` ended one path
+  2 ticks before a t-100 fist).
+- Death f47301 (state 3, idx 10), arms `+0x428` 2 at f47405, all freed + `estage` 1 at f47476. Arms 1290 / 1290 to the end.
 
 ## 8. Unresolved
 

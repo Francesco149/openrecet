@@ -69,6 +69,7 @@ observed in the running game; anything read from code only is a lead. Named stat
 | [probes/lapis-31f-40f.md](probes/lapis-31f-40f.md) | Lapis Ruins 31F–40F in one trip (no damage): per-floor banners / enemy mixes / grids, new types 12 / 71 stats, the 35F pumpkin-ghost trio (1,080 HP each), the 40F red jellyfish (type 71: phase starts at 1, waves of 4 at phase 3), the return door, the day end, Save. |
 | [probes/lapis-41f-50f.md](probes/lapis-41f-50f.md) | Lapis Ruins 41F–50F in one trip: the 45F mob floor (34 enemies, gate 3), Arma on 50F (type 41: live stats HP 250 → 1,950; every attack state but the finisher; fresh / non-fresh hits; her AI frozen during event 12/6), event 12/7, `bank+0x2bd13`, the return, Save. |
 | [probes/lapis-51f-60f.md](probes/lapis-51f-60f.md) | Lapis Ruins 51F–60F in one trip: the 55F black-knight pair (live HP 800 each, knights refilled 2 per tick, 60 / 1200 invulnerability at the two deaths), the 60F type-60 rat (HP 1230, `+0xab8` 3, two-swing end 114, three purple windows), event 12/4 skipped (bank+0x2bcf7 already set in this lineage), the 60F return door answers walking +x, Save. |
+| [probes/lapis-61f-70f.md](probes/lapis-61f-70f.md) | Lapis Ruins 61F–70F in one trip: the 65F mob floor (39 skeletons / ghosts, skeletons down 3× each, exit hidden until all freed), the 70F dark golem (64 + 65 + 66, live HP 1290, AT 30 / MD 40; adds type 35 `need` 2, back-off −60 / −120, cap 9; every non-† arm), the return door opens only after a sword hit, zero damage, Save. |
 
 ## Boot / init
 

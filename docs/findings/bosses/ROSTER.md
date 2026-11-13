@@ -52,7 +52,7 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 52 / 53 ghosts | ゴーストＯ / Ｎ | `+0xae4 == 0` `FUN_004275a7`, else `FUN_004278de` | ported (53 variant 0 verified: `obsidian-1f`; 52 + 53 walk variant verified: `obsidian-3f-5f-pumpkin`; 52 variant 0 no recording) |
 | 54 boss ahriman | ボスアーリマン | `FUN_00426811` | ported, verified (the 15F pair: `obsidian-11f-15f-ahrimans` identical + save) |
 | **55 pumpkin ghost** | かぼちゃゴースト | **`FUN_00426eab`** | ported (`actor_ai_t55`), verified `obsidian-3f-5f-pumpkin`, the pair `lapis-1f-10f` (identical + save) |
-| **61 / 64 golem bodies** | ゴーレム / ダークゴーレム | **`FUN_00420f4d`** | ported; 61 verified `obsidian-16f-20f-golem` (identical + save; states 8 / 0 / 1 / 2 / 3, adds, death); 64 (dark) no recording |
+| **61 / 64 golem bodies** | ゴーレム / ダークゴーレム | **`FUN_00420f4d`** | ported; 61 verified `obsidian-16f-20f-golem` (identical + save; states 8 / 0 / 1 / 2 / 3, adds, death); 64 (dark) recorded `lapis-61f-70f` (not triaged) |
 | 62 / 63, 65 / 66 golem arms | ゴーレム右 / 左, ダーク… | none (`FUN_00430c6d` part branch) | ported; attached branch verified `obsidian-16f-20f-golem`; detached (arm lost) unreached |
 | 67 Ohm | オーム | `FUN_00422ed6` | ported, verified (40F pair: `obsidian-31f-40f-ohms` identical + save) |
 | 68 / 69 crabs | カニ / 黒カニ | `FUN_00422092` | ported (68 verified) |
@@ -140,8 +140,8 @@ Extra d3 state: first trip to row 0 runs a stage-type-20 cutscene (event 7/6); f
 | 49 | 50 | 41 Arma (250·7.8 = 1950, observed) | — | own: default arm + `FUN_00450877` | `arma.md` |
 | 54 | 55 | 49 ×2 (15·8.0 = 120; **live 100·8.0 = 800 each**, `lapis-51f-60f`) | 44..48, kept at 5 (2 spawned per tick: both BKs run the test) | generic | `black-knight.md` § 11 |
 | 59 | 60 | 60 rat (150·8.2 = 1230; live 1230) | 13 / 14 | generic; after: event 12/4 once (+0x2bcf7; flag already set in the `lapis-51f-60f` lineage: skipped, `estage` stays 1) | `mushroom-king.md` § 9 |
-| 64 | 65 | none (skeleton / ghost list) | — | generic | — |
-| 69 | 70 | 64 + 65 + 66 dark golem (150·8.6 = 1290 each) | 35, ≤ 9 over the fight | own: case 69 | `golem.md` |
+| 64 | 65 | none: mob floor, 50 ×10 + 51 ×10 (126), 52 ×10 (168), 53 ×9 (126) at L37; skeletons revive twice; exit hidden until all freed (`lapis-61f-70f`) | — | generic | — |
+| 69 | 70 | 64 + 65 + 66 dark golem (150·8.6 = 1290 each; live 1290, `lapis-61f-70f`) | 35, 9 over the fight (live: cap reached) | own: case 69 | `golem.md` |
 | 74 | 75 | none (yellow mob list) | — | generic | — |
 | 79 | 80 | no fight: 42 ヒドラ + 43 親父 props, events 12/10..12/12 | — | own: case 79 + `FUN_00450877` | — (prop AI `FUN_004284ba`) |
 | 84 | 85 | none (roper list) | — | generic | — |
@@ -200,8 +200,8 @@ enemy.txt line, the `.data` values stand.
 | 55 | かぼちゃゴースト | 15 | 30 | 20 | 20 | 0 | 10 | 0.9 / 2.0 / 2.0 | 0 | txt |
 | 61 | ゴーレム | 150 | 25 | 20 | 30 | 0 | 10 | 0.9 / 3.0 / 4.5 (rf4 0.65) | 1 | txt |
 | 62 / 63 | ゴーレム右 / 左 | 150 | 25 | 1 | 30 | 0 | 10 | 0.9 / 3.0 / 4.5 | 1 | baked |
-| 64 | ダークゴーレム | 150 | 25 | 20 | 30 | 0 | 10 | 0.8 / 3.0 / 4.5 (rf4 0.65) | 1 | txt |
-| 65 / 66 | ダークゴーレム右 / 左 | 150 | 25 | 1 | 30 | 0 | 10 | 0.8 / 3.0 / 4.5 | 1 | baked |
+| 64 | ダークゴーレム | 150 | 35 | 30 | 30 | 0 | 40 | 0.8 / 3.0 / 4.5 (rf4 0.65) | 1 | live (`lapis-61f-70f`; the txt read said 25 / 20 / 30 / 0 / 10) |
+| 65 / 66 | ダークゴーレム右 / 左 | 150 | 35 | 30 | 30 | 0 | 40 | 0.8 / 3.0 / 4.5 | 1 | live (`lapis-61f-70f`; baked read said 25 / 1 / 30 / 0 / 10) |
 | 70 | クラゲ | 150 | 25 | 20 | 30 | 0 | 10 | 1.0 / 3.0 / 4.5 | 1 | txt |
 | 71 | 赤クラゲ | 150 | 25 | 20 | 30 | 0 | 10 | 0.8 / 3.0 / 4.5 | 1 | txt |
 | 72 | 魔王の手 | 150 | 25 | 20 | 30 | 0 | 10 | 0.8 / 3.0 / 4.5 | 1 | baked |
@@ -209,7 +209,7 @@ enemy.txt line, the `.data` values stand.
 | 74 | アルマゴーレムコア | **1** | 25 | 0 | 30 | 0 | 10 | 1.1 / 3.0 / 4.5 | 1 | baked |
 | 75 / 76 | アルマゴーレム右手 / 左手 | 150 | 25 | 20 | 30 | 0 | 10 | 1.1 / 3.0 / 4.5 | 1 | baked |
 | 77 / 78 | プリム本体 / 羽 | 15 | 30 | 20 | 20 | 0 | 10 | 0.6 / 2.0 / 2.0 | 0 | baked |
-| 35 / 36 | モアイ金 / 銀 (golem adds) | 15 | 0 | 20 | 20 | 0 | 10 | 0.6 / 2.0 / 2.0 | 0 | txt |
+| 35 / 36 | モアイ金 / 銀 (golem adds) | 15 | 0 | 20 | 20 | 0 | 10 | 0.6 / 2.0 / 2.0 | 0 | txt (live 35: 15 / 10 / 16 / 30 / 16 / 10, `lapis-61f-70f`; 36: 15 / 20 / 16 / 20 / 16 / 20, `golem.md`) |
 
 Boss flag (+0x20 == 1), `FUN_00430c6d`: the distance sleep `+0xaf4` is forced 0 (IDA 31880), the anim driver
 `FUN_00482a71` is replaced by the +0x2c blend (IDA 31926..), and the fall-out-of-the-map kill (IDA 32163) is skipped.
