@@ -68,6 +68,7 @@ observed in the running game; anything read from code only is a lead. Named stat
 | [probes/dungeon2-21f-25f.md](probes/dungeon2-21f-25f.md) | Dungeon 2 floors 21F–25F by search: enemy mixes per floor, exit / ticker / lock state, the actor table, the double crown slime; search settings that worked and failed. |
 | [probes/lapis-31f-40f.md](probes/lapis-31f-40f.md) | Lapis Ruins 31F–40F in one trip (no damage): per-floor banners / enemy mixes / grids, new types 12 / 71 stats, the 35F pumpkin-ghost trio (1,080 HP each), the 40F red jellyfish (type 71: phase starts at 1, waves of 4 at phase 3), the return door, the day end, Save. |
 | [probes/lapis-41f-50f.md](probes/lapis-41f-50f.md) | Lapis Ruins 41F–50F in one trip: the 45F mob floor (34 enemies, gate 3), Arma on 50F (type 41: live stats HP 250 → 1,950; every attack state but the finisher; fresh / non-fresh hits; her AI frozen during event 12/6), event 12/7, `bank+0x2bd13`, the return, Save. |
+| [probes/lapis-51f-60f.md](probes/lapis-51f-60f.md) | Lapis Ruins 51F–60F in one trip: the 55F black-knight pair (live HP 800 each, knights refilled 2 per tick, 60 / 1200 invulnerability at the two deaths), the 60F type-60 rat (HP 1230, `+0xab8` 3, two-swing end 114, three purple windows), event 12/4 skipped (bank+0x2bcf7 already set in this lineage), the 60F return door answers walking +x, Save. |
 
 ## Boot / init
 

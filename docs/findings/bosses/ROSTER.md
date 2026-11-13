@@ -34,7 +34,7 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 17–21, 56–58 ropers | ローパー* | `FUN_0042a74c` | ported |
 | 22 rabbit | 兎 | `FUN_00429962` | ported |
 | 23 crown slime | クラウンスライム | `FUN_0042aef7` | ported, verified |
-| 24 / 59 / 60 rats | ねずみバール / ハリセン / マグロ | `FUN_0042b6b7` | ported (24 verified; 59 verified: `lapis-1f-10f`; 60 no recording) |
+| 24 / 59 / 60 rats | ねずみバール / ハリセン / マグロ | `FUN_0042b6b7` | ported (24 verified; 59 verified: `lapis-1f-10f`; 60 recorded: `lapis-51f-60f`, not triaged) |
 | 25 Charme | シャルム | `FUN_0041fa6e` | ported, verified |
 | 27 Tielle | ティエール | `FUN_00423b58` | ported, unverified |
 | 28 Griff | グリフ | `FUN_00424b42` | ported, verified `obsidian-21f-30f-griff` (identical + save; phase 0 / 1, all five states, the counter) and `obsidian-41f-50f-finale` (floor 49: phase 2, record 23, the kept bats) |
@@ -138,8 +138,8 @@ Extra d3 state: first trip to row 0 runs a stage-type-20 cutscene (event 7/6); f
 | 39 | 40 | 71 red jellyfish (150·7.4 = 1110) | 17 | generic | `jellyfish.md` |
 | 44 | 45 | none (red mob list) | — | generic | — |
 | 49 | 50 | 41 Arma (250·7.8 = 1950, observed) | — | own: default arm + `FUN_00450877` | `arma.md` |
-| 54 | 55 | 49 ×2 (15·8.0 = 120) | 44..48, kept at 5 | generic | `black-knight.md` |
-| 59 | 60 | 60 rat (150·8.2 = 1230) | 13 / 14 | generic; after: event 12/4 once (+0x2bcf7) | other author |
+| 54 | 55 | 49 ×2 (15·8.0 = 120; **live 100·8.0 = 800 each**, `lapis-51f-60f`) | 44..48, kept at 5 (2 spawned per tick: both BKs run the test) | generic | `black-knight.md` § 11 |
+| 59 | 60 | 60 rat (150·8.2 = 1230; live 1230) | 13 / 14 | generic; after: event 12/4 once (+0x2bcf7; flag already set in the `lapis-51f-60f` lineage: skipped, `estage` stays 1) | `mushroom-king.md` § 9 |
 | 64 | 65 | none (skeleton / ghost list) | — | generic | — |
 | 69 | 70 | 64 + 65 + 66 dark golem (150·8.6 = 1290 each) | 35, ≤ 9 over the fight | own: case 69 | `golem.md` |
 | 74 | 75 | none (yellow mob list) | — | generic | — |

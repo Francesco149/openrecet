@@ -228,3 +228,19 @@ Also at **dungeon 4 / floor 9** (Lapis 10F), not only d5 f47 (§1). Louie L42 AT
   `s32(0x9643128)` 0. Circle (−35, −40), door (−45, −40).
 - Not seen on 59: spray (state 3), the stay roll, contact record, a swing hit on the player, the eat-walk timeout. What differs from 24 and
   was seen: `+0xab8` 2, swing end 99, HP / AT / DF / MA / MD above. Mushroom planting (`rand % 3`: 0 → purple) not counted.
+
+## 9. Type 60 **[obs]** (Lapis Ruins 60F; run `lapis-60f`, 2026-11-13; probe `docs/findings/probes/lapis-51f-60f.md`)
+
+Louie L44 ATK 62 / DEF 82. Dungeon 4 / floor 59 (also d5 f55, §1).
+
+- **HP 1230** = 150·(1 + 0.2·36) **[obs f24158]**; `+0xab8` 1 on the entry tick, **3.0** from the next (DF_eff ftol(52·9) = 468): outside state 4
+  every hit is min damage. State 4: `+0xab8` 1, `+0xb28` 1 from t 1.
+- Intro state 8 t 0..239 (f24158..24398), state 0 f24398.
+- **Two swings (`ksub` 1) end after kt 113 → state 0 at 114** (= type 24; 59 ended at 99) **[obs f24972..25085, f25326..25439, f26953..27066]**.
+  Records at kt 25 / 56; player ≥ 8.4 away each time: no hit.
+- Red meal at full HP → heal (state 5, f25775 → 25815), HP capped.
+- Purple windows (state 4 from behind, back + counter): spins **121, 119, 124, 114 / 117, 131, 111, 128 / 115** = ftol(31·2·1.8) = 111, +0..20;
+  swords 56, 58, 36. Kill f27463 (state 4); **death tick 500 at f28007**: slot freed, `estage` 0 → 1.
+- **Event 12/4 skipped** when bank+0x2bcf7 is already 1 (`FUN_00450877` floor-59 arm): `estage` stays 1, no dialogue; portals were raised by
+  `FUN_0044d0a4(1)` as usual.
+- Not seen on 60: three lunges (`ksub` 2), spray, stay roll, contact record, a hit on the player, the eat-walk timeout.

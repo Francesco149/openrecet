@@ -132,3 +132,19 @@ Knights (retail): 44 HP 12 EXP 10 AT 17 DF 18 · 45 14 / 15 / 19 / 20 · 46 18 /
 Damage dealt (ATK 60 vs DF 20 → sword 25): side 34 / 35, counter front 33; a spin (×2) killed knight 48, took knight 46 83 → 20 and
 the BK 538 → 477 (61) at once (f16290); spins from behind 101 (477 → 376, f16689) and 101 / 139 per later chunk. Damage taken: knight 48
 contact / lunge 202 → 168 (34 = ftol(27·3.7/2 − 17) = 32, +0..6, f16100), the wave 47. Whole fight f15713 → f17453 (1,740 frames).
+
+## 11. Retail run (run `lapis-60f`, Lapis 55F pair, 2026-11-13)
+
+Louie L44, ATK 62 / DEF 82, HP 215. Probe `docs/findings/probes/lapis-51f-60f.md`. Slot 0 = the BK at x −45, slot 1 = x −35.
+
+| arm | status |
+|---|---|
+| placement / HP | **[obs f12566]** (−45 / −35, 0, −34), state 8, **HP 800 each** = 100·(1 + 0.2·35) (§1's 120 used the wrong table HP) |
+| intro, no knights | **[obs f12566..12806]** `kn` 0; both 8 → 0 at etick 240 (f12806) |
+| knight upkeep (d4: 5) | **[obs f12807..12809]** `kn` 0 → 2 → 4 → 5: **both BKs spawn one each per tick** while the shared count < 5 (§4's "still 5 in all" holds; the fill takes 3 ticks, not 5). Refill the tick after a kill (f12931 → 12938 etc.). Colours: 45, 46, 47, 48 (47 seen here) |
+| throw, shield drop | **[obs f12856..12877]** both in state 1 together; `bksh` 1 → 0 at t 21 (after-tick read) |
+| frontal block → hunt | **[obs f13110 → 13134]** slot 1: HP unchanged, 0 → 4 → 0 |
+| side hit through the shield | **[obs f12843]** 800 → 738 with `bksh0` 1 |
+| two BKs: invulnerability | **[obs]** first death (slot 1, f13777): `p_inv` **60** (f13782); last (slot 0, f14005): **1200** (f14010) |
+| death sweep | **[obs f14113]** `kn` 5 → 0 at the last BK's death tick 60; freed f14173 → `estage` 1, `gate` 0 the same tick |
+| blocked → burst, frozen bypass, state 3 | not seen |
