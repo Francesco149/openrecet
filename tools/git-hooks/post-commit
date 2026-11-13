@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# post-commit hook — the daily playable build (owner rule 2026-11-13).
+# After 13:00 Europe/Rome, the first commit with no nightly build started since then
+# pushes master and dispatches the `nightly` workflow (tools/ci/daily_build.py).
+# Runs detached so the commit returns at once; log: .git/daily-build.log.
+# Opt out for one commit: DAILY_BUILD=0 git commit ...
+
+[[ "${DAILY_BUILD:-1}" == "0" ]] && exit 0
+root="$(git rev-parse --show-toplevel)"
+log="$(git rev-parse --git-dir)/daily-build.log"
+( cd "$root" && nohup python3 tools/ci/daily_build.py >>"$log" 2>&1 & ) >/dev/null 2>&1
+exit 0

@@ -38,48 +38,61 @@ customer-service negotiation UI rendered over the live shop.*
 In memory of Andrew Dice / [@SpaceDrakeCF](https://x.com/SpaceDrakeCF)
 and Carpe Fulgur.
 
-## Status — early, not yet playable
+## Status — playable, unfinished
 
-This is **early-stage** and **not playable yet**. A real boot path runs
-(title → new game → the 3D shop interior renders), but large subsystems
-are unported and there is no end-to-end gameplay. The screenshot above is
-the kind of milestone that's working today; **screenshots here get
-refreshed on major breakthroughs**, so treat them as a high-water mark,
-not a promise of completeness.
+The port boots, plays and saves through the whole game: from the opening
+prologue, the shop days and the dungeons through the ending, New Game+ and the
+Survival modes. It is **not finished**. Many functions are still stubs or
+shortcuts (tagged `PORT-DEBT` in the source, listed in
+[`docs/port-debt.md`](docs/port-debt.md)), and only the paths a recording has
+reached are checked against the original. Expect bugs off those paths. Rendering
+and audio are checked less than game logic.
 
-For the actual state of things — what's ported, verified, or untouched,
-function by function — see the live status pages (these are generated
-from the source, not hand-maintained marketing):
+Where things stand:
 
-- **[`docs/STATUS.md`](docs/STATUS.md)** — 60-second headline:
-  port-coverage counts and the current front.
-- **[`docs/port-ledger.md`](docs/port-ledger.md)** — per-function port
-  status for all ~2,550 engine functions.
-- **[`docs/PROGRESS.md`](docs/PROGRESS.md)** — dated narrative changelog.
+- **[`docs/FRONT.md`](docs/FRONT.md)**: the open work and the latest results.
+- **[`docs/PROGRESS.md`](docs/PROGRESS.md)**: dated changelog.
+- **[`docs/STATUS.md`](docs/STATUS.md)** and
+  **[`docs/port-ledger.md`](docs/port-ledger.md)**: per-function inventory,
+  generated from the source. It counts source markers only, not proof that a
+  function matches retail.
 
-The generated status is the only authoritative source for changing counts.
-Its current function labels are implementation/source-instrumentation inventory,
-not a claim that every labelled function has full behavioral proof.
+**[Recettear Agent Runs](https://claude.ai/artifact/DtZTrpxVmeBmEQ97eDEtBG)**
+has videos and notes from the AI agents that play the original game to make
+the test recordings: boss fights, mob floors and 100 dungeon floors, each one
+replayed by the port to the same state.
 
 ## How it's verified
 
-Correctness is measured as **behavioural parity against the original
-binary**, not guesswork:
+The original game is the reference. It runs **inside our own test host**
+(`tools/rhost/`) with its clock, heap, file access, input and loaders pinned,
+so the same save and input recording always gives the same game state, byte
+for byte. It runs on Windows, or headless under wine. Then the port replays
+the same recording, and the two must match:
 
-- **Direct3D 8 command-stream traces** captured from both the port and
-  retail and replayed/diffed draw-call by draw-call — this is how the
-  shop's brightness, window blinds, and god-rays above were pinned to 1:1.
-- **Call-trace diffing** — per-frame function-call sequences compared
-  between port and retail to catch missing or divergent logic.
-- **Frame captures** — port-vs-retail image comparisons at fixed frames.
-- **A large host unit suite** for portable decoders and game logic, run
-  under AddressSanitizer + UndefinedBehaviorSanitizer on C changes.
+- **every tick**: random-number draws and game-state fields, frame for frame;
+- **at the end**: the `save.dat` the port writes must be byte-identical to
+  retail's.
 
-The current methodology decision record is
+Recordings come from two places: people playing the game, and AI agents that
+drive the original game with a small command-line tool (`./rd`, see
+[`tools/drive/README.md`](tools/drive/README.md)). An agent's run is an input
+movie that a fresh retail process replays to the same state. That lets agents
+cover things nobody has recorded yet, such as boss fights, rare menus and late
+dungeon floors. When the port splits from retail, the first frame where it
+differs points at the function to fix. Each fix is committed with its evidence.
+
+Today the gate suite is **153 checks over 106 scenarios** (tick-identical runs
+and byte-identical saves), and every one has to stay green. Other tools:
+
+- Direct3D 8 command-stream capture and replay for visual checks;
+- a host unit suite for decoders and game logic, run under
+  AddressSanitizer + UndefinedBehaviorSanitizer.
+
+Background: the methodology decision record
 [`docs/audits/2026-10-13-methodology-reset.md`](docs/audits/2026-10-13-methodology-reset.md),
-the operational trace guide is in
-[`docs/trace-workflow.md`](docs/trace-workflow.md), and delegation conventions in
-[`docs/AGENT-WORKFLOW.md`](docs/AGENT-WORKFLOW.md).
+the test host [`tools/rhost/README.md`](tools/rhost/README.md), and delegation
+conventions [`docs/AGENT-WORKFLOW.md`](docs/AGENT-WORKFLOW.md).
 
 ## Building & running
 
@@ -99,9 +112,10 @@ Place the resulting `openrecet.exe` in your Recettear install folder
 reference binary all of this targets is documented in
 [`docs/reference/vendor-exe.md`](docs/reference/vendor-exe.md).
 
-Pre-built nightly binaries are published as a rolling
-[`nightly`](https://github.com/Francesco149/openrecet/releases/tag/nightly) pre-release (unsigned; bring your
-own Recettear).
+**Pre-built:** a fresh build goes up at least once a day as the rolling
+[`nightly`](https://github.com/Francesco149/openrecet/releases/tag/nightly)
+pre-release. Download `openrecet.exe`, drop it into your Recettear folder and
+run it. It is unsigned and needs your own copy of the game.
 
 ## Repository layout
 
@@ -109,7 +123,7 @@ own Recettear).
 docs/     design notes, file-format specs, RE findings, status pages
 src/      the C reimplementation (cross-compiled with mingw32)
 tests/    host unit tests, golden-frame diffs, format-decoder tests
-tools/    build/run harness, extractors, Frida capture, CI scripts
+tools/    test host (rhost), agent driver (rd), extractors, CI scripts
 ```
 
 ## Support & how this is made

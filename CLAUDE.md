@@ -12,7 +12,10 @@ Dense on purpose; auto-loads every session. **The repo is the source of truth**;
 ## Session start
 1. `git log -n 5 --oneline`
 2. `docs/FRONT.md` — the active front, ★ next micro-task, human-verification queue.
-3. At session end: report pending human items (FRONT §Human queue), ranked by what they unblock.
+3. `python3 tools/ci/daily_build.py` — the daily playable build (owner rule 2026-11-13): after 13:00
+   Europe/Rome with no build started since, it pushes master + dispatches `nightly.yml`. The post-commit
+   hook runs it too (log `.git/daily-build.log`).
+4. At session end: report pending human items (FRONT §Human queue), ranked by what they unblock.
 
 **Hosts.**
 - **maximus** — this Arch box, primary agent host. Native `python3`/`gcc`/
@@ -145,7 +148,7 @@ replayed from captured D3D8 streams. rhost records retail's stream with
   subagents; keep RE interpretation, parity adjudication and cross-subsystem decisions
   (`docs/AGENT-WORKFLOW.md`, R1/R2/R3).
 - **Commits:** in logical units, without being asked. Master only, no branches. Push
-  only when asked. The pre-commit hook (`core.hooksPath=tools/git-hooks`) regenerates
+  only when asked, except the daily build's push (`tools/ci/daily_build.py`). The pre-commit hook (`core.hooksPath=tools/git-hooks`) regenerates
   STATUS / port-ledger / port-debt and runs the Python / C suites when those change.
 - **Knowledge in `docs/`.** `FRONT.md` holds only open work; resolved arcs move to
   `PROGRESS.md` or findings in the same edit. Archive, don't delete prose

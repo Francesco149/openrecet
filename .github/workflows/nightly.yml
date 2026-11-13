@@ -1,4 +1,9 @@
-# Nightly build → single rolling 'nightly' pre-release.
+# Daily build → single rolling 'nightly' pre-release.
+#
+# No cron: tools/ci/daily_build.py (run by the post-commit hook and at session
+# start) pushes master and dispatches this workflow once a day after 13:00
+# Europe/Rome, so the build is always of the current master (a cron ran on
+# whatever had last been pushed).
 #
 # Cross-compiles openrecet.exe with mingw via the lean `.#ci` Nix shell
 # (no game assets needed — SE are runtime-extracted, see
@@ -15,9 +20,7 @@
 name: nightly
 
 on:
-  schedule:
-    - cron: '0 6 * * *'        # daily, 06:00 UTC
-  workflow_dispatch: {}         # manual "Run workflow" button
+  workflow_dispatch: {}         # tools/ci/daily_build.py, or the "Run workflow" button
 
 permissions:
   contents: write               # create/update the 'nightly' release
@@ -57,7 +60,7 @@ jobs:
       - name: Compose release notes
         run: |
           {
-            echo "Automated nightly build — unsigned, **bring your own Recettear**."
+            echo "Automated daily build — unsigned, **bring your own Recettear**."
             echo
             echo "Source commit: \`${GITHUB_SHA}\`"
             echo "Built: $(date -u '+%Y-%m-%d %H:%M UTC')"

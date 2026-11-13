@@ -7,6 +7,13 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-11-13 — daily playable build; README on the rhost methodology
+`tools/ci/daily_build.py` (post-commit hook + session start): after 13:00 Europe/Rome, with no `nightly` build started
+since, it fast-forward-pushes master and dispatches `.github/workflows/nightly.yml` (cron dropped: it built whatever had
+last been pushed — today's run built `41754e4a` while master was at `d7c3f456`). README: status "playable, unfinished",
+verification = rhost + agent-driven recordings + gates (153 rows / 106 scenarios), link to the public
+[Recettear Agent Runs](https://claude.ai/artifact/DtZTrpxVmeBmEQ97eDEtBG) page.
+
 ## 2026-11-13 — the ending, New Game + and both Survival modes RNG- and save-exact
 The last two open agent-probe splits closed. **The ending** (`ending-week5-paid`, 57,780 ticks): retail runs
 FUN_00406584 in modes 2..3 and 6..8 (the port only in 2 / 6 / 8), so the displayed gold never rolled after the
