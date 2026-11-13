@@ -10,6 +10,7 @@
 #include "scene_title.h"   /* g_scene_title_anim.continue_mode */
 #include "save_work.h"     /* seed working slot 0 */
 #include "scene_adv_guild.h" /* adv_guild_continue_reset */
+#include "scene1_shop_display.h" /* FUN_004864fd */
 #include "scene_gameover.h"  /* FUN_0049d2e5 — resume mode 2 */
 #include "scene_guild.h"     /* FUN_00490e16 — resume modes 3 / 4 */
 #include "stage_palette.h"   /* g_stage_b4dc — DAT_0438b4dc */
@@ -87,6 +88,41 @@ void scene_post_fade_init(void)
          * HOUSE_CAM_FLAG (0xb37d) to 0: a save taken right after a map->house
          * return carries a stale 1 (findings/parity-save-producer.md). */
         uint32_t *work = save_work_dwords_at(save_work_active_slot());
+        /* all_ida 111808: FUN_00490e56(1) first, then the title entry's arm
+         * (all_ida 111809-111823): New Game+ (code 4) — FUN_0049d55c(w, 1),
+         * mode dword 1, the shop tier 0 and its re-layout FUN_004864fd;
+         * Survival (code 6) — FUN_0049d55c(w, 2), Hell (DAT_09643558 == 0) also
+         * the new-game seeder FUN_0049d36d, mode dword 2, day dword 0. */
+        guild_stock_daily(1);
+        if (work) {
+            const scene_title_anim_t *ta = &g_scene_title_anim;
+            const int code = ta->cursor_pos < (uint32_t)g_scene_title_menu.count
+                           ? g_scene_title_menu.items[ta->cursor_pos] : -1;
+            if (code == SCENE_TITLE_MENU_NEW_HAS_SAVE) {
+                scene_gameover_restart_reset((uint8_t *)work, 1);   /* FUN_0049d55c */
+                work[46937] = 1;
+                work[45944] = 0;
+                shop_display_relayout(work);                     /* FUN_004864fd */
+            } else if (code == SCENE_TITLE_MENU_SURVIVAL) {
+                scene_gameover_restart_reset((uint8_t *)work, 2);
+                if (ta->survival_option == 0) {
+                    /* FUN_0049d36d: the new-game record seeder */
+                    uint8_t *wb = (uint8_t *)work;
+                    work[45944] = 0;                             /* +0x2cde0 */
+                    shop_display_relayout(work);                 /* FUN_004864fd */
+                    work[46989] = 1;                             /* +0x2de34 */
+                    work[45948] = 0;
+                    work[45947] = 0;
+                    work[45946] = 0;
+                    work[45945] = 0;
+                    *(uint16_t *)(void *)(wb + 169464) = 0;
+                    guild_stock_daily(0);                        /* FUN_00490e56(0) */
+                    save_bank_newgame_seed_tail(wb);
+                }
+                work[46937] = 2;
+                work[45307] = 0;
+            }
+        }
         /* all_ida 111824-111853: DAT_0438b4dc = work +0x2cde0 (the shop
          * tier's stage), then the resume-mode dispatch on work dword 0xb381
          * (written by the pause-menu Save with the scene it was taken in):
@@ -158,7 +194,7 @@ void scene_post_fade_init(void)
 
     /* FUN_00490e56, the guild's item stock: the NEW branch passes 0, the
      * CONTINUE branch 1 (all_ida 111803 / 111808).  See src/guild_stock.h. */
-    guild_stock_daily(continue_mode ? 1 : 0);
+    if (!continue_mode) guild_stock_daily(0);   /* CONTINUE: above, before the arms */
 
     g_scene_state    = resume_state;
     g_scene_substate = 0;

@@ -10,6 +10,7 @@
  */
 
 #include "title_continue_picker.h"
+#include "title_save_dialog.h"     /* FUN_00434ceb */
 
 #include "audio.h"        /* audio_play_se_by_id */
 #include "save_bank.h"    /* occupied test + last-slot header field */
@@ -96,9 +97,9 @@ title_picker_result_t title_continue_picker_step(uint16_t pressed,
     /* Queued "please choose a file" toast (rendered in M2). */
     if (p->prompt_pending) {
         p->prompt_pending = 0;
-        /* PORT-DEBT(render): engine calls FUN_00434ceb to push the
-         * toast text into the title_save_dialog text buffers; the
-         * dialog render is deferred (M2). */
+        /* FUN_00434ceb: the message box (the title sim then waits on
+         * FUN_00434d6a until Z / X closes it) */
+        title_save_dialog_message_open("Please choose a file for New Game+ data.");
     }
 
     /* B — cancel out of the picker. */

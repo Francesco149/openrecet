@@ -386,6 +386,9 @@ void save_bank_init_all(void);
  * zero (parser not run), the bank's stats fields end up zero — no
  * crash, just garbage values that later consumers would misread. */
 void save_bank_init_one(int bank_idx);
+/* FUN_0049d36d after its FUN_00490e56(0): the Survival Hell re-seed of the
+ * working record (no rand). */
+void save_bank_newgame_seed_tail(uint8_t *w);
 
 /* Port of FUN_0047a8c0 — per-chara level-up stat interpolation.
  *

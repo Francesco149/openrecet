@@ -421,6 +421,12 @@ static void sm_prep(int mode, int status_count, int stage_type)
     pause_sm_reset();
     stage_load_pulse_reset();   /* no item window left open by an earlier test */
     display_menu_reset();
+    save_work_clear();          /* no bag left by an earlier test (its items have no record here) */
+    {
+        uint32_t *w = save_work_dwords_at(save_work_active_slot());
+        if (w) for (int i = 0; i < SAVE_BANK_ITEM_TABLE_COUNT; i++)
+            w[SAVE_BANK_ITEM_TABLE_DWORD + i] = 0xffffffffu;   /* an empty item table */
+    }
     g_scene_state = mode;
     g_pause_saved_mode = mode;
     pause_set_menu_inputs(status_count, stage_type);

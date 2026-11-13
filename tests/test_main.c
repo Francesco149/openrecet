@@ -1019,6 +1019,7 @@ struct test_case {
     X(chara_skills_idempotent) \
     \
     X(guild_stock_init_by_kind) \
+    X(guild_stock_overrun_reads_catalog) \
     X(guild_stock_daily_kind4_and_kind1) \
     X(guild_stock_continue_reinit_gate) \
     \

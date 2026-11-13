@@ -8,6 +8,7 @@
 #include "save_work.h"
 #include "tables_gousei.h"
 #include "tables_item.h"
+#include "encyclopedia.h"
 
 #include <string.h>
 
@@ -26,6 +27,10 @@ static void reset(void)
     s_saved_gousei = g_gousei;
     memset(&g_item, 0, sizeof g_item);
     memset(&g_gousei, 0, sizeof g_gousei);
+    /* the Encyclopedia catalog the overrun crosses: a fresh boot's zeros */
+    memset(g_enc_slot, 0, sizeof g_enc_slot);
+    memset(g_enc_cat_key, 0, sizeof g_enc_cat_key);
+    memset(g_enc_index, 0, sizeof g_enc_index);
     save_work_set_active_slot(0);
     memset(stock(), 0, GUILD_STOCK_INIT_ITEMS * 4);
     rng_seed(1);
@@ -68,6 +73,25 @@ int test_guild_stock_init_by_kind(void)
     memset(stock(), 0, GUILD_STOCK_INIT_ITEMS * 4);
     guild_stock_daily(0);
     T_ASSERT_EQ_U(g_rng_seed, want);
+    done();
+    return 0;
+}
+
+int test_guild_stock_overrun_reads_catalog(void)
+{
+    /* engine quirk §163: records 641..656 of the init pass land in the
+     * Encyclopedia slot table (DAT_09643698) — 0 on a fresh boot (kind 0:
+     * count 100), 0xff once FUN_0049f012 has built it (count 1, one rand) */
+    reset();
+    guild_stock_daily(0);
+    T_ASSERT_EQ_I(stock()[2 * 641], 100);
+    reset();
+    memset(g_enc_slot, 0xff, sizeof g_enc_slot);
+    rng_seed(7);
+    guild_stock_daily(0);
+    T_ASSERT_EQ_I(stock()[2 * 641], 1);
+    T_ASSERT_EQ_I(stock()[2 * 656], 1);
+    memset(g_enc_slot, 0, sizeof g_enc_slot);
     done();
     return 0;
 }

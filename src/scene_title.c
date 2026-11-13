@@ -833,11 +833,12 @@ void scene_title_sim_default(void)
     CALL_TRACE_U32("fade_counter",    g_scene_title_anim.fade_counter);
     CALL_TRACE_END();
 
-    /* Engine FUN_0049a59e L100567: `if (FUN_00434d6a() == -1) return;` —
-     * save/load dialog gate.  Our port ignores the return for now (the
-     * dialog never opens — its writers aren't ported); calling the
-     * function alone is what trace parity needs. */
-    (void)title_save_dialog_gate_tick();
+    /* Engine FUN_0049a59e entry (asm 0x49a5a2..0x49a5aa): FUN_00434d6a() ==
+     * -1 (a message box is up — the New Game+ / Survival picker's "Please
+     * choose a file" box) → return at once: no sim, no pulse counter, no
+     * FUN_004356cd. */
+    if (title_save_dialog_gate_tick() == -1)
+        return;
 
     /* Dispatch off the global button ring (sim.c wrote it earlier in
      * the same sim_step_a call). The engine's button masks live at

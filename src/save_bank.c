@@ -609,6 +609,74 @@ void save_bank_init_one(int bank_idx)
      * sweep resets it again — idempotently, since the pattern is canonical. */
 }
 
+/* FUN_0049d36d's tail (after its FUN_00490e56(0)): the Survival Hell start
+ * re-seeds the working record `w` like a new game — the item / storage spans
+ * to -1, gold and its objective 1000, the counters, the 100 category records
+ * rebuilt from the catalog, FUN_0048ffd9, the adventurers at level 0 (unlike
+ * FUN_0049001c: no rand, every level dword 0), FUN_0048ff93.  all_ida 0x49d36d. */
+void save_bank_newgame_seed_tail(uint8_t *w)
+{
+    uint32_t *d = (uint32_t *)(void *)w;
+    w[179344] = 0;
+    w[179345] = 0;
+    memset(w + 24, 0xff, 0x13880);
+    d[3] = 1000;
+    d[45302] = 1000;
+    d[2] = 0;
+    *(uint16_t *)(void *)(w + 16) = 2;
+    memset(w + 24, 0xff, 0x13880);
+    memset(w + 80024, 0xff, 0x4b0);
+    memset(w + 179996, 0xff, 0x4b0);
+    memset(w + 182176, 0xff, 0x640);
+    d[0xb388] = 3;
+    d[0xb389] = 3;
+    d[0xb38a] = 1;
+    d[0xb38d] = 1;
+    d[0xb38b] = 0;
+    d[0xb38c] = 0;
+    d[0xaec6] = 0;
+    d[45309] = 0;
+    d[45310] = 0;
+    d[45311] = 100;
+    d[45312] = 0;
+    memset(w + 184848, 0, 0x190);
+    for (int k = 0; k < 100; k++) memset(w + 162264 + 72 * k, 0, 72);
+    {
+        int32_t prev = -1;
+        int ci = -1;
+        for (int i = 0; i < g_item.count; i++) {
+            const int32_t cat = g_item.records[i].category;
+            if (cat != prev) { ci++; prev = cat; }
+            if (ci >= 0 && ci < 100) {
+                d[0x9e76 + 18 * ci]  = (uint32_t)cat;
+                d[0x9e77 + 18 * ci] += 1;
+            }
+        }
+    }
+    memset(w + 187648, 0, 0x64);
+    apply_starter_flag_pairs(w);                       /* FUN_0048ffd9 */
+    for (int chara = 0; chara < SAVE_BANK_CHARA_COUNT; chara++) {
+        uint32_t *rec = d + SAVE_BANK_CHARA_BASE_DWORD
+                      + (size_t)chara * SAVE_BANK_CHARA_STRIDE_DWORDS;
+        const chara_def_t *src = &g_chara[chara];
+        rec[0xb] = (uint32_t)src->at_base;
+        rec[0xc] = (uint32_t)src->df_base;
+        rec[0xd] = (uint32_t)src->mt_base;
+        rec[0xe] = (uint32_t)src->mf_base;
+        uint16_t *shorts = (uint16_t *)(rec + 0xf);
+        shorts[0] = (uint16_t)src->hp_base;
+        shorts[2] = (uint16_t)src->sp_base;
+        rec[0x11] = 0;
+        rec[0x12] = 0;
+        rec[0x13] = 300;
+        rec[0] = 0;
+        CALL_TRACE_ENTER(0x47a8c0u);
+        save_bank_apply_chara_interp_at(w);            /* FUN_0047a8c0 */
+        ((uint8_t *)(rec + 0x18))[0] = 1;
+    }
+    apply_starter_items(w, -1);                        /* FUN_0048ff93 */
+}
+
 /* ── FUN_004901c2 body ── */
 
 void save_bank_init_all(void)
