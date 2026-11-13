@@ -104,7 +104,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
       before the scene dispatch) was never handled, only the WndProc ESC → ced263ee, identical; gate row added.
     - ✅ the render skip with Griff: FUN_00414ee2 case 7 animates the second strip vertex table 0x64d408..0x64da38
       (render scratch, no other reader) → mask `76b750:76b7b0,64c514:64da38`, skip-check 17/17 on the new scenarios
-      (7616a9c0; `skip-check --dump-at` now works). ☐ re-run the full-corpus skip-check with the new mask.
+      (7616a9c0; `skip-check --dump-at` now works). ✅ full corpus with the new mask (2026-11-13, wine `-j 3`): **169/169 equal**
+      (frame, RNG, state_sem, save.dat), wall 5139 s → 2084 s (×2.47).
     - ✅ `obsidian-3f-5f-pumpkin` (was split f12652; Obsidian Tower 3F..5F, the pumpkin ghost killed, town, Save):
       FUN_00426eab (type 55), FUN_00429e6f (the summoned pumpkin, type 15 variant 2), dungeon 3's setup FUN_0044e08f +
       its FUN_004427f1 arm (checkpoint floors only: the arena, FUN_0044d0a4) ported → identical + save; gate rows
