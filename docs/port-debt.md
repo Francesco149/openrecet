@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **55**
-- distinct retiring engine functions: **47**
+- total open debts: **56**
+- distinct retiring engine functions: **48**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 32 | wired call boundary, body incomplete |
+| stub | 33 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 7 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -41,6 +41,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0040a765 | 1 |
 | FUN_0040cea6 | 1 |
 | FUN_004161c7 | 1 |
+| FUN_0041ee24 | 1 |
 | FUN_0041f4a6 | 1 |
 | FUN_0042a23c | 1 |
 | FUN_0042df55 | 1 |
@@ -56,6 +57,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0044b219 | 1 |
 | FUN_0044e08f | 1 |
 | FUN_0044ecc4 | 1 |
+| FUN_0044eff5 | 1 |
 | FUN_0044f078 | 1 |
 | FUN_0044f13d | 1 |
 | FUN_00452809 | 1 |
@@ -74,22 +76,22 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0048f87c | 1 |
 | FUN_00490e56 | 1 |
 | FUN_0049a59e | 1 |
-| FUN_0049da9e | 1 |
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (32)
+## stub (33)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_00405b1a | src/scene1_render.c:338 | unported, with the sun sprite FUN_00405d70 |
 | FUN_0040a765 | src/scene1_hud.c:412 | the pages of entries 8 (news summary) and |
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
-| FUN_0042a23c | src/actor_ai.c:5347 | the pumpkin's variant 1 |
+| FUN_0041ee24 | src/sim.c:774 | mode 3's callee |
+| FUN_0042a23c | src/actor_ai.c:5535 | the pumpkin's variant 1 |
 | FUN_0042df55 | src/actor_ai.c:125 | stages >= 20 index past the dungeon |
-| FUN_0042e1a6 | src/actor_ai.c:5819 | the death (EXP, drops, the kill count) |
-| FUN_0042e791 | src/actor_ai.c:5776 | the poison tick (ftol(p), 4) |
-| FUN_0042f28c | src/actor_ai.c:5371 | the arms not yet ported (FUN_0042a23c, |
+| FUN_0042e1a6 | src/actor_ai.c:6011 | the death (EXP, drops, the kill count) |
+| FUN_0042e791 | src/actor_ai.c:5968 | the poison tick (ftol(p), 4) |
+| FUN_0042f28c | src/actor_ai.c:5563 | the arms not yet ported (FUN_0042a23c, |
 | FUN_0042f7ad | src/actor_ai.c:867 | the final boss's death arms (73 / 74: |
 | FUN_00434ceb | src/scene_guild.c:21 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:472 | the message box is unported. |
@@ -101,6 +103,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:398 | its b924 == 0x276 consumer, scene0/sub8), |
 | FUN_0044e08f | src/dungeon_flow.c:1147 | the +0x2bce2 story beat's setup (the |
 | FUN_0044ecc4 | src/dungeon_flow.c:1741 | Lapis 100F's setup — no recording reaches it |
+| FUN_0044eff5 | src/actor_ai.c:5552 | Arma as the floor-99 prop |
 | FUN_0044f078 | src/dungeon_party.c:653 | dungeon 4 floor 99's event helper |
 | FUN_0044f13d | src/dungeon_flow.c:1992 | Lapis 100F's events — no recording reaches it |
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
@@ -111,9 +114,8 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
 | FUN_00485c74 | src/dungeon_flow.c:191 | the party damage (HP bar + |
 | FUN_0048a383 | src/record_hit.c:261 | the level-up of s_easydisp |
-| FUN_0048b850 da1bc | src/dungeon_party.c:3179 | the attack lunge (da1bc 1..ccb8) |
+| FUN_0048b850 da1bc | src/dungeon_party.c:3197 | the attack lunge (da1bc 1..ccb8) |
 | FUN_0048e49c | src/scene_day_end.c:169 | the |
-| FUN_0049da9e | src/scene_day_end.c:227 | the ending's entry + mode 7 FUN_0049db8a |
 
 ## synthetic-data (0)
 
@@ -127,7 +129,7 @@ _none_
 | FUN_004536cb | src/sim.c:506 | retail freezes the *entire |
 | FUN_00465db4 | src/customer_service.c:1568 | <D1>'s length is DAT_0730b274 = |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:442 | the engine teardown also restores the |
-| FUN_00490e56 | src/guild_stock.c:41 | the other runtime globals it crosses |
+| FUN_00490e56 | src/guild_stock.c:43 | the other runtime globals it crosses |
 | FUN_004cdd9f | src/math3d.c:29 | only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only). |
 | scene1-rng-stream-parity.md | src/sim.c:394 | sim_loading_pump() |
 
@@ -135,7 +137,7 @@ _none_
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
-| NONE | src/scene.c:58 | active save-slot pinned to bank 0; |
+| NONE | src/scene.c:59 | active save-slot pinned to bank 0; |
 
 ## scaffold (0)
 
@@ -150,7 +152,7 @@ _none_
 | kind | retire | location | what's synthetic |
 |------|--------|----------|------------------|
 | actor-table-split | FUN_0041f4a6 | src/actor_table.h:17 | fold its users onto g_actor. |
-| continue-arm | FUN_0049a59e | src/scene.c:121 | the rest of the arm (the |
+| continue-arm | FUN_0049a59e | src/scene.c:157 | the rest of the arm (the |
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:132 | box_pos_mode/off (DAT_005c7984/80) are |
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:829 | the engine frees the shop |

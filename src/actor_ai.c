@@ -5280,6 +5280,194 @@ static void actor_ai_griff(actor_t *a)
     }
 }
 
+/* FUN_00425c3f: Arma (type 41; docs/findings/bosses/arma.md).  Every tick
+ * the untouchable count +0xb08 counts down and the hit clock +0xa64 rises.
+ * States +0xa54: 8 the 250-tick intro; 0 the hunt — +0xa68 arms the
+ * finisher (player knock-down DAT_056daeb0 > 60, +0xa68 >= 60 → 5, the rest
+ * of state 0 still runs this tick), the charges +0xa74 / a78 / a7c pick
+ * volley / lob / fans past 30·(6 / 8 / 12 − phase), at t 1 a random pick,
+ * then the line-up step (FUN_00423789: reach 20 / 18 / 25 / 15, wait 5, 0.03)
+ * → 4 (fans), else face the player and 2 / 1 / 3; 1 volley (record 160 at 7,
+ * 15, 23, 31; 60 ticks), 2 lob (161 at 7; 60), 3 spread (162 at 7, 11, 15,
+ * 19; 43), 4 fans (163 at 7, 17, 27, 37; 63), 5 the finisher: sub 0 springs
+ * toward (player x, −25 / −55) by side (abort past 25: the tick ends there),
+ * damped from t 31, at 40 sub 1 and the yaw π / 0; sub ≥ 1 alpha 255, anim
+ * 4, record 156 at 12, back to 0 at 230.  The tail: in state 0, anim 1
+ * when moving faster than 0.05, else 0.  asm 0x425c3f..0x4262b6. */
+static void actor_ai_arma(actor_t *a)
+{
+    static const float k0p0097 = 0.009700000286102295f, k0p97 = 0.9700000286102295f;
+    static const float k_pi = 3.1415927410125732f;                      /* 0x51943c */
+    static const float k25 = 25.0f, km25 = -25.0f, km55 = -55.0f;
+    static const float k18 = 18.0f, k15 = 15.0f;
+    const float dx = spill32((long double)PX - AF(a, 0x3f0));
+    float dz = spill32((long double)PZ - AF(a, 0x3f8));
+    const float d2 = spill32((long double)dz * dz + (long double)dx * dx);
+    if (d2 == 0.0f) dz = k0p01;                       /* else sqrt(d2), unused */
+    if (AI(a, 0xb08) > 0) --AI(a, 0xb08);
+    const int32_t st = AI(a, 0xa54);
+    ++AI(a, 0xa64);
+    int32_t end = 0;                                  /* t past the state's length */
+    switch (st) {
+    case 8:
+        if (++AI(a, 0xa58) == 250) {
+            AI(a, 0xa54) = 0;
+            AI(a, 0xa58) = 0;
+        }
+        break;
+    case 0: {
+        ++AI(a, 0xa68);
+        if (PW(0x56daeb0u).i > 60 && AI(a, 0xa68) >= 60) {   /* the rest of state 0 still runs */
+            AI(a, 0xa54) = 5;
+            AI(a, 0xa68) = 0;
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa5c) = 0;
+            AI(a, 0xa84) = 0;
+        }
+        const int32_t ph = AI(a, 0xae4);
+        const int32_t c1 = ++AI(a, 0xa74);
+        ++AI(a, 0xa78);
+        ++AI(a, 0xa7c);
+        int32_t want = c1 > 30 * (6 - ph) ? 1 : 0;
+        if (AI(a, 0xa78) > 30 * (8 - ph)) want = 2;
+        if (AI(a, 0xa7c) > 30 * (12 - ph)) want = 3;
+        if (AI(a, 0xa58) == 1) want = (int32_t)(rng_next15() & 3);
+        const float reach = want == 1 ? k18 : want == 2 ? k25 : want == 3 ? k15 : k20;
+        if (actor_ai_line_up(a, reach, 5, k0p03, 5, 30, 0)) {             /* FUN_00423789 */
+            if (want == 3) {
+                AI(a, 0xa58) = 0;
+                AI(a, 0xa7c) = 0;
+                AI(a, 0xa54) = 4;
+            } else {
+                AF(a, 0x420) = spill32(crt_atan2(dx, dz));
+                AI(a, 0xa58) = 0;
+                if (want == 2) {
+                    AI(a, 0xa5c) = 0;
+                    AI(a, 0xa78) = 0;
+                    AI(a, 0xa54) = 2;
+                } else if (want == 1) {
+                    AI(a, 0xa5c) = 0;
+                    AI(a, 0xa74) = 0;
+                    AI(a, 0xa54) = 1;
+                } else {
+                    AI(a, 0xa54) = 3;
+                }
+            }
+        }
+        break;
+    }
+    case 1: {
+        const int32_t t = ++AI(a, 0xa58);
+        if (t == 1 && (rng_next15() & 7) == 0) arma_voice(0);           /* FUN_00498699 */
+        actor_anim_set(a, AI(a, 0xa58) < 3 ? 0 : 3);
+        for (int32_t k = 7; k != 39; k += 8) {
+            if (AI(a, 0xa58) == k) {
+                scene1_record_b_spawn_npc(a, 160, 1);                    /* FUN_00445a8c */
+                audio_play_se_by_id(695);
+            }
+        }
+        end = AI(a, 0xa58) >= 60;
+        break;
+    }
+    case 2:
+        if (++AI(a, 0xa58) == 1) {
+            (void)rng_next15();
+            audio_play_se_file("bin/se/09ar/skill/09ar_10a.bin");        /* FUN_0049933c */
+        }
+        actor_anim_set(a, AI(a, 0xa58) < 3 ? 0 : 3);
+        if (AI(a, 0xa58) == 7) {
+            scene1_record_b_spawn_npc(a, 161, 1);
+            audio_play_se_by_id(385);
+        }
+        end = AI(a, 0xa58) >= 60;
+        break;
+    case 3:
+        actor_anim_set(a, ++AI(a, 0xa58) < 3 ? 0 : 3);
+        if (AI(a, 0xa58) == 1 && (rng_next15() & 7) == 0) arma_voice(0);
+        for (int32_t k = 7; k != 23; k += 4) {
+            if (AI(a, 0xa58) == k) {
+                scene1_record_b_spawn_npc(a, 162, 1);
+                audio_play_se_by_id(384);
+            }
+        }
+        end = AI(a, 0xa58) >= 43;
+        break;
+    case 4:
+        actor_anim_set(a, ++AI(a, 0xa58) < 3 ? 0 : 3);
+        if (AI(a, 0xa58) == 1) {
+            (void)rng_next15();
+            audio_play_se_file("bin/se/09ar/skill/09ar_10a.bin");
+        }
+        for (int32_t k = 7; k != 47; k += 10) {
+            if (AI(a, 0xa58) == k) {
+                scene1_record_b_spawn_npc(a, 163, 1);
+                audio_play_se_by_id(677);
+            }
+        }
+        end = AI(a, 0xa58) >= 63;
+        break;
+    case 5: {
+        actor_anim_set(a, 5);
+        const int32_t s0 = AI(a, 0xa5c);
+        const int32_t t = ++AI(a, 0xa58);
+        AI(a, 0xb08) = 1;
+        if (s0 != 0) {
+            const int32_t sub = s0 + 1;
+            AI(a, 0x3dc) = 255;
+            AI(a, 0xa5c) = sub;
+            if (sub == 2) {
+                arma_voice(1);
+                audio_play_se_file("bin/se/09ar/skill/09ar_09a.bin");
+            }
+            actor_anim_set(a, 4);
+            if (sub == 12) {
+                scene1_record_b_spawn_npc(a, 156, 1);
+                audio_play_se_by_id(368);
+            }
+            end = sub >= 230;
+            break;
+        }
+        if (AI(a, 0xa84) == 0) AI(a, 0xa84) = PZ >= km40 ? 2 : 1;
+        const float gz = AI(a, 0xa84) == 1 ? km25 : km55;
+        const float ex = spill32((long double)PX - AF(a, 0x3f0));
+        const float ez = spill32((long double)gz - AF(a, 0x3f8));
+        const float gd = spill32(crt_sqrt(spill64((long double)ez * ez + (long double)ex * ex)));
+        if (gd > k25) {
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa54) = 0;
+            return;                                   /* asm: jmp 0x4262b2, no tail */
+        }
+        const float vx = spill32((long double)ex * k0p0097 + (long double)AF(a, 0x3fc) * k0p97);
+        AF(a, 0x3fc) = vx;
+        const float vz = spill32((long double)AF(a, 0x404) * k0p97 + (long double)ez * k0p0097);
+        AF(a, 0x404) = vz;
+        if (t > 30) {
+            const float f = spill32((long double)(t - 40));
+            const float k = spill32((long double)k1 - (long double)f * k0p01);
+            AF(a, 0x3fc) = spill32((long double)vx * k);
+            AF(a, 0x404) = spill32((long double)vz * k);
+        }
+        if (t >= 40) {
+            AI(a, 0xa5c) = 1;
+            AF(a, 0x420) = AI(a, 0xa84) == 1 ? k_pi : 0.0f;
+        }
+        break;
+    }
+    default:
+        break;
+    }
+    if (end) {
+        AI(a, 0xa58) = 0;
+        AI(a, 0xa54) = 0;
+    }
+    if (AI(a, 0xa54) == 0) {
+        const float vz = AF(a, 0x404), vx = AF(a, 0x3fc);
+        const float s2 = spill32((long double)vz * vz + (long double)vx * vx);
+        const float sp = spill32(crt_sqrt(s2));
+        actor_anim_set(a, sp <= k0p05 ? 0 : 1);
+    }
+}
+
 void actor_ai_alive(actor_t *a)
 {
     if (AI(a, 0xb40) == 1) {
@@ -5358,6 +5546,10 @@ void actor_ai_alive(actor_t *a)
             actor_ai_golem(a);                   /* FUN_00420f4d */
         } else if (type == 28) {
             actor_ai_griff(a);                   /* FUN_00424b42 */
+        } else if (type == 41 && stage_gate_get_next() != 99) {
+            actor_ai_arma(a);                    /* FUN_00425c3f */
+        } else if (type == 41) {
+            /* PORT-DEBT(stub, FUN_0044eff5): Arma as the floor-99 prop */
         } else if (type == 50 || type == 51) {
             if (AI(a, 0xb8c) != 0) {             /* a fresh skeleton revives twice */
                 AI(a, 0xb8c) = 0;
@@ -5369,8 +5561,8 @@ void actor_ai_alive(actor_t *a)
             actor_ai_skeleton(a);                /* FUN_0042f28c default: FUN_00428213 */
         } else {
             /* PORT-DEBT(stub, FUN_0042f28c): the arms not yet ported (FUN_0042a23c,
-             * FUN_004262b7, FUN_0042ac16, FUN_00425c3f, FUN_004284ba,
-             * FUN_004205e5, FUN_00420bd0, FUN_0044f01d, FUN_0044eff5,
+             * FUN_004262b7, FUN_0042ac16, FUN_004284ba,
+             * FUN_004205e5, FUN_00420bd0, FUN_0044f01d,
              * FUN_0044f009) */
         }
     }

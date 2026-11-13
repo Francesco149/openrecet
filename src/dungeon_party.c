@@ -1985,6 +1985,24 @@ void griff_voice(int32_t k)
     else if (k == 2) voice_pick(voice_bag2(), k_s2, 2);
 }
 
+/* FUN_00498699: Arma's voices (the boss, type 41) — 0: a bag-of-9 pick whose
+ * switch falls through in retail (asm 0x4986b1..0x4986cc: pick 0 plays
+ * 09ar_01, 02 and 03; pick 1 plays 02 and 03; pick 2 plays 03); 1: the bag
+ * of 2, 09ar_04 / 09ar_05 */
+void arma_voice(int32_t k)
+{
+    if (k == 0) {
+        const int32_t v = voice_bag3();
+        if (v == 0) audio_play_se_file("bin/se/09ar/attack/09ar_01.bin");
+        if (v == 0 || v == 1) audio_play_se_file("bin/se/09ar/attack/09ar_02.bin");
+        if (v == 0 || v == 1 || v == 2) audio_play_se_file("bin/se/09ar/attack/09ar_03.bin");
+    } else {
+        const int32_t v = voice_bag2();
+        if (v == 0) audio_play_se_file("bin/se/09ar/attack/09ar_04.bin");
+        else if (v == 1) audio_play_se_file("bin/se/09ar/attack/09ar_05.bin");
+    }
+}
+
 /* FUN_004984bf: Griff's swing (attack state 2 of char 41): the crit roll at
  * 1 (no crit: his voice), at 8 (4 with the daea4 form up) SE 343 + the hit
  * record 109 (111 in the form), on a crit the flash, the voice (bag of 6)

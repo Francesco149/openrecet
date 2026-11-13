@@ -3,7 +3,14 @@
 **code-read**: IDA `sub_425C3F` (AI, 0x425c3f), `sub_423789` (the walk-and-align helper, shared with Tielle's kobolds
 and the black knight), `sub_425BFF` (on-damage hook from `sub_42E791`), `sub_445A8C` cases 160..163 / 156 (record
 spawn geometry), `sub_42F7AD` case 41, `sub_450443` default arm (floor 49), `sub_450877` (floor-49 timeline).
-**Port: AI stub, death arm stub, d4 setup / events stub.** Shared rules: `boss-floor-common.md`. Nothing run.
+**Port (2026-11-13): AI `actor_ai_arma` (FUN_00425c3f, from IDA + disasm; floor 99's prop FUN_0044eff5 still a stub),
+voices `arma_voice` (FUN_00498699), on-damage hook, death arm (shared with Griff's case 28), d4 floor-49 setup / timeline
+(`dungeon4_stage_setup`, `d4_floor49_event`). Unverified: no recording yet.** Shared rules: `boss-floor-common.md`.
+
+FUN_00498699(0)'s switch falls through (asm 0x4986b1..0x4986cc): pick 0 plays 09ar_01, 02 and 03, pick 1 plays 02
+and 03, pick 2 plays 03. The state-0 finisher trigger does not end the tick: the rest of state 0 (charges, the
+line-up) still runs and can replace state 5 with an attack the same tick; the finisher's abort (goal > 25) returns
+before the anim tail.
 
 ## 1. Where
 

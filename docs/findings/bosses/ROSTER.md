@@ -44,7 +44,7 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 34 wisp | ウィスプ | `FUN_0042ac16` | stub |
 | 35 / 36 moai | モアイ金 / 銀 | `FUN_0042cfd0` | ported (`actor_ai_turret`), 35 variant 0 verified `obsidian-11f-15f-ahrimans`, 36 (golem adds) `obsidian-16f-20f-golem` (identical + save); variant > 0 (octant trio) no recording |
 | 37–40 bombs | ボム* | `FUN_004293f0` | ported |
-| **41 Arma** | アルマ | **`FUN_00425c3f`**; floor 99: `FUN_0044eff5` (prop) | **stub** |
+| **41 Arma** | アルマ | **`FUN_00425c3f`**; floor 99: `FUN_0044eff5` (prop) | ported (`actor_ai_arma`), unverified; prop stub |
 | 42 / 43 | ヒドラ / 親父 | `FUN_004284ba` (prop: `+0xb08 = +0xb04 = 1`) | stub |
 | 44–48 knights | *ナイト | `FUN_00427f59` | ported |
 | 49 black knight | ブラックナイト | `FUN_004279cf` | ported, verified `obsidian-41f-50f-finale` (identical + save) |

@@ -31,6 +31,7 @@ void party_broke_tick(void);                       /* FUN_004855e2 */
 int32_t voice_bag2(void);                          /* FUN_00499fda: 0 / 1 */
 int32_t voice_bag8(void);                          /* FUN_0049a2a9: 0..7 */
 void griff_voice(int32_t k);                       /* FUN_00497745 (also the boss, type 28) */
+void arma_voice(int32_t k);                        /* FUN_00498699 (the boss, type 41) */
 float angle_ease(float a, float b, float step);    /* FUN_00482ae7 */
 void party_follow(int target, int set_anim);       /* FUN_0048a4d1 */
 void party_status_tick(void);                      /* FUN_004897c6(&DAT_056da1b8) */
