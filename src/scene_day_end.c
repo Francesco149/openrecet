@@ -224,7 +224,7 @@ void day_end_tick(uint16_t pressed, uint16_t held)
                 sim_set_mode_9a0(0);                     /* FUN_00453373: the pause closes */
                 if (g_day_end_ending != 0) {
                     g_scene_state = 7;
-                    /* PORT-DEBT(stub, FUN_0049da9e): the ending's entry + mode 7 FUN_0049db8a */
+                    scene_ending_enter();                /* FUN_0049da9e */
                 } else {
                     g_scene_state = 2;
                     scene_gameover_enter();              /* FUN_0049d2e5 */

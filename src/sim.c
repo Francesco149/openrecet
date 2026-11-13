@@ -756,7 +756,23 @@ void sim_step_a(void)
 
     case 3:    /* dialog    (engine FUN_0041ee24) */
     case 7:    /* the ending  (engine FUN_0049db8a) */
+        /* LABEL_106 (modes 2..3 and 6..8): FUN_00406584 → FUN_0040fb3a → the
+         * callee while no dialogue runs.  The ending's money roll after the
+         * 500,000 payment draws here (rhost ending-week5-paid f30885: scene 7,
+         * gold 400,000, shown 900,000). */
+        speech_bubble_tick();
+        dungeon_title_banner_tick();     /* FUN_00406584: DAT_00648270 */
+        scene1_top_hud_tooltip_off();
+        party_got_item_tick();           /* FUN_00406584: DAT_00648294 */
+        title_save_dialog_anim_tick();
+        hud_xp_shake_money_tick();
         scene1_particles_tick();
+        if (g_scene_state == 7) {
+            if (!scene1_intro_dialogue_busy())
+                scene_ending_tick();     /* FUN_0049db8a */
+        } else {
+            /* PORT-DEBT(stub, FUN_0041ee24): mode 3's callee */
+        }
         break;
 
     default:

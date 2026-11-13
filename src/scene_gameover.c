@@ -18,6 +18,11 @@
 #include "scene1_tutorial_dispatch.h" /* DAT_0438b928 */
 #include "title_save_dialog.h"     /* FUN_00435612 */
 #include "worker_load.h"           /* FUN_00452cde */
+#include "choice_box.h"            /* FUN_00434def / FUN_00434ed2 */
+#include "save_picker.h"           /* FUN_0049b537, DAT_09643564 */
+#include "scene1_display_menu.h"   /* FUN_00468d22 */
+#include "sim.h"                   /* DAT_073dddd4 */
+#include <stdio.h>
 
 static int32_t s_9643578;   /* DAT_09643578 — zeroed at entry (render side) */
 static int32_t s_exit_t;    /* DAT_0964357c — the exit countdown */
@@ -31,6 +36,7 @@ static int32_t s_step;      /* DAT_09643584 */
 
 int32_t scene_gameover_step(void)   { return s_step; }
 int32_t scene_gameover_exit_t(void) { return s_exit_t; }
+int32_t scene_ending_picker_up(void) { return s_wait; }
 
 static uint8_t *work(void) { return save_work_bank_at(save_work_active_slot()); }
 static int32_t rd(const uint8_t *b, int off) { int32_t v; memcpy(&v, b + off, 4); return v; }
@@ -170,4 +176,162 @@ void scene_gameover_tick(void)
         if (rd(w, W_MODE_DW * 4) != 2) scene1_intro_dialogue_start_single(0, 2);
         ++s_step;
     }
+}
+
+/* ─── the ending (scene mode 7): FUN_0049da9e / FUN_0049db8a ──────────────
+ * Shares DAT_09643578..584 with the game over above. */
+
+/* FUN_0049da9e: the ending's entry */
+void scene_ending_enter(void)
+{
+    s_9643578 = 0;
+    s_exit_t = 0;
+    s_wait = 0;
+    title_save_dialog_cursor_set_visible(0);   /* FUN_00435612 */
+    s_step = 0;
+}
+
+/* FUN_0049dac0: the True Card — every adventurer with +0x2bc4c[i] or
+ * +0x2bd18[i] set is marked (+0x2deb0[i] = 1) and scores its level dword
+ * (+0x2cf00 + 0x6c·i) + 1; the highest (first on a tie) gets the message, the
+ * card item (0xd49 + i) << 6 in the bag and +0x2bd18[i] = 1.  0 when none. */
+static int ending_true_card(uint8_t *w)
+{
+    static const char *const k_name[8] = {   /* DAT_005cc680, 128-byte rows */
+        "Louie", "Charme", "Caillou", "Tielle", "Elan", "Nagi", "Griff", "Arma" };
+    int32_t score[8] = { 0 };
+    for (int i = 0; i < 8; i++) {
+        if (w[0x2bc4c + i] != 0 || w[0x2bd18 + i] != 0) {
+            w[0x2deb0 + i] = 1;
+            score[i] = rd(w, 0x2cf00 + 0x6c * i) + 1;
+        }
+    }
+    int best = -1;
+    int32_t hi = 0;
+    for (int i = 0; i < 8; i++) {
+        if (score[i] > hi) {
+            hi = score[i];
+            best = i;
+        }
+    }
+    if (best < 0) return 0;
+    char buf[256];
+    snprintf(buf, sizeof buf, "Received %s's True Card!", k_name[best]);
+    title_save_dialog_message_open(buf);                       /* FUN_00434ceb */
+    display_menu_inventory_return((uint32_t *)(void *)w, (best + 0xd49) << 6);   /* FUN_00468d22 */
+    w[0x2bd18 + best] = 1;
+    return 1;
+}
+
+/* FUN_004808e2: open the save picker (the pause Save submenu's) */
+static void ending_picker_open(void)
+{
+    g_save_picker_restricted = 0;              /* DAT_09643564 */
+    g_pause_sub_dir = 1;                       /* DAT_074b2884 */
+    g_pause_sub_anim = 1;                      /* DAT_074b2880 */
+    save_picker_perm_init();                   /* FUN_0049b537 */
+}
+
+/* FUN_004808fb: the picker's open / close ramp; its nav (FUN_0047f5bc) runs
+ * on the ticks the ramp is at 10.  1 once it has closed. */
+static int ending_picker_wait(void)
+{
+    if (g_pause_sub_anim <= 0) return 1;
+    int nav;
+    if (g_pause_sub_dir == 0) {
+        if (--g_pause_sub_anim <= 0) g_pause_sub_anim = 0;
+        nav = g_pause_sub_anim == 10;
+    } else {
+        nav = g_pause_sub_anim++ == 9;
+        if (g_pause_sub_anim > 10) {
+            g_pause_sub_anim = 10;
+            nav = 1;
+        }
+    }
+    if (nav) pause_save_submenu_update();      /* FUN_0047f5bc */
+    return 0;
+}
+
+/* FUN_0049db8a: mode 7 — steps 1 / 2 the events 1/20, 1/21; 3 the best
+ * score (+0x2b0dc) and gold kept in the file header (DAT_056e60f4 / 60f8,
+ * written at once) and the True Card (none → 5); 4 its message box; 5 event
+ * 1/22; 6 "Save the game?" (the work record set to day 36 of mode 3, the
+ * hidden character unlocked); 7 its answer — Yes: the save picker, then the
+ * question again; No: 8, the fade-out to the title. */
+void scene_ending_tick(void)
+{
+    uint8_t *w = work();
+    if (w == NULL) return;
+    if (s_exit_t <= 0) {
+        if (s_step >= 8) s_exit_t = 1;
+    } else {
+        ++s_exit_t;
+        if (s_exit_t == 10) fade_phase1_start(0, 17);          /* FUN_004526f5 */
+        if (s_exit_t > 10 && fade_is_done()) {
+            g_scene_state = 0;
+            /* FUN_004735a4: texture group 9 released — render side */
+            worker_load_spawn();                               /* FUN_00452cde */
+            fade_phase_out_start(0, 17);                       /* FUN_0045281c */
+        }
+    }
+    if (s_wait != 0) {
+        if (!ending_picker_wait()) return;                     /* FUN_004808fb */
+        s_wait = 0;
+        s_step = 6;
+        return;
+    }
+    if (s_step == 1) scene1_intro_dialogue_start_single(1, 20);   /* FUN_0044ba2c(1, 20, 0) */
+    if (s_step == 2) scene1_intro_dialogue_start_single(1, 21);
+    if (s_step == 3) {
+        uint8_t *h = save_arena_base();
+        int dirty = 0;
+        if (h != NULL) {
+            if (rd(h, 0x984) < rd(w, 45303 * 4)) {             /* DAT_056e60f4 */
+                wr(h, 0x984, rd(w, 45303 * 4));
+                dirty = 1;
+            }
+            if (rd(h, 0x988) < rd(w, 3 * 4)) {                 /* DAT_056e60f8: gold */
+                wr(h, 0x988, rd(w, 3 * 4));
+                dirty = 1;
+            }
+        }
+        if (dirty) save_io_commit_slot(-1);                    /* FUN_004905a8(-1) */
+        if (!ending_true_card(w)) s_step = 5;                  /* FUN_0049dac0 */
+    }
+    switch (s_step) {
+    case 4:
+        if (title_save_dialog_gate_tick() == 1) s_step = 5;    /* FUN_00434d6a */
+        break;
+    case 5:
+        scene1_intro_dialogue_start_single(1, 22);
+        s_step = 6;
+        return;
+    case 6:
+        choice_box_open("Save the game?", 0, 0);               /* FUN_00434def */
+        wr(w, 45306 * 4, 0);
+        wr(w, W_DAY_DW * 4, 36);
+        wr(w, 45308 * 4, 0);
+        wr(w, W_MODE_DW * 4, 3);
+        w[179452] = 1;                                         /* +0x2bcfc */
+        s_step = 7;
+        g_pause_saved_mode = 7;                                /* DAT_06a499a8 */
+        {
+            uint8_t *h = save_arena_base();
+            if (h != NULL) { h[0x18] = 1; h[0x19] = 0; }       /* DAT_056e5788 (word) */
+        }
+        return;
+    case 7: {
+        const int r = choice_box_poll(g_sim_buttons[0].pressed, 1);   /* FUN_00434ed2(1) */
+        if (r == CB_OPT0) {
+            s_wait = 1;
+            ending_picker_open();                              /* FUN_004808e2 */
+        } else if (r == CB_OPT1) {
+            s_step = 8;
+        }
+        break;
+    }
+    default:
+        break;
+    }
+    if (s_step < 4) ++s_step;
 }

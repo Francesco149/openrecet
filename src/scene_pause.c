@@ -1650,7 +1650,7 @@ void scene_pause_init(struct IDirect3DDevice8 *dev)
 /* FUN_004812e4 — the pause Save submenu render wrapper. Computes the
  * save-phase pulse (clamp(c89c-30, 0, 30)), renders the shared card list, then
  * (during a commit, c89c>0) the save-progress bar over the selected card. */
-static void pause_save_picker_render(IDirect3DDevice8 *d)
+void pause_save_picker_render(IDirect3DDevice8 *d)
 {
     int phase = g_pause_save_phase - 0x1e;
     if (phase < 0)    phase = 0;

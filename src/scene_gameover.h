@@ -26,6 +26,9 @@ extern "C" {
 void scene_gameover_enter(void);                          /* FUN_0049d2e5 */
 void scene_gameover_tick(void);                           /* FUN_0049d8a4 */
 void scene_gameover_restart_reset(uint8_t *w, int keep);  /* FUN_0049d55c */
+void scene_ending_enter(void);                            /* FUN_0049da9e */
+void scene_ending_tick(void);                             /* FUN_0049db8a */
+int32_t scene_ending_picker_up(void);   /* DAT_09643580 */
 
 int32_t scene_gameover_step(void);     /* DAT_09643584 */
 int32_t scene_gameover_exit_t(void);   /* DAT_0964357c */

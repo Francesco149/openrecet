@@ -57,6 +57,7 @@
 #include "scene_floor.h"
 #include "scene_jutan.h"
 #include "scene_pause.h"
+#include "scene_gameover.h"   /* DAT_09643580 (the ending's save picker) */
 #include "scene_sc1.h"
 #include "scene_table.h"
 #include "scene_walls.h"
@@ -3523,7 +3524,9 @@ static void render_dispatch(void)
             scene1_dialogue_draw(g_dev);
             break;
         case 2:
-            /* The game over — FUN_004547ab case 2: FUN_0049da07(3, 1, 0) — a
+        case 7:
+            /* The game over — FUN_004547ab case 2: FUN_0049da07(3, 1, 0); the
+             * ending, case 7: FUN_0049dd71(3, 1, 0), the same body — a
              * black full-screen quad (system.bmp (0,0)-(7,7) at 0xff000000;
              * FUN_004812e4 waits on DAT_09643580, never set), FUN_0043537e (the
              * choice box), FUN_00435747 (the hand cursor), FUN_00435117 (the
@@ -3537,6 +3540,8 @@ static void render_dispatch(void)
                                 g_sysassets.system_bmp.height, 0xff000000u);
                 render_quad_flush(g_dev);
             }
+            if (g_scene_state == 7 && scene_ending_picker_up())     /* DAT_09643580 */
+                pause_save_picker_render(g_dev);                     /* FUN_004812e4 */
             choice_box_draw(g_dev);
             title_save_dialog_cursor_render(g_dev);
             title_save_dialog_render(g_dev);

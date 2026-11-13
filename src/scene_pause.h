@@ -322,6 +322,9 @@ void scene_pause_init(struct IDirect3DDevice8 *dev);
  * list, calendar/gold, portrait, and cursor are PORT-DEBT (see
  * docs/plans/pause-menu.md M2b/M3). */
 void pause_menu_render(struct IDirect3DDevice8 *dev);
+/* FUN_004812e4 — the Save submenu's slot list (the pause's, also the
+ * ending's save picker while DAT_09643580 is set). */
+void pause_save_picker_render(struct IDirect3DDevice8 *dev);
 
 #endif /* _WIN32 */
 
