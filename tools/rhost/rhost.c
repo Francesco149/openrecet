@@ -835,9 +835,21 @@ static void parse(int argc, char **argv)
         }
         else if (!strcmp(a, "--hash-every")) O.hash_every = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--shot-at")) {
-            char b[512]; snprintf(b, sizeof b, "%s", ARG());
-            for (char *t = strtok(b, ","); t && O.n_shot < 64; t = strtok(NULL, ","))
-                O.shot_at[O.n_shot++] = !strcmp(t, "end") ? 0xffffffffu : strtoul(t, 0, 0);
+            /* F[,F..|end], or LO-HI[/STEP] ranges (video clips); at most 4096 shots */
+            char b[1024]; snprintf(b, sizeof b, "%s", ARG());
+            const int cap = (int)(sizeof O.shot_at / sizeof O.shot_at[0]);
+            for (char *t = strtok(b, ","); t && O.n_shot < cap; t = strtok(NULL, ",")) {
+                char *dash = strchr(t, '-');
+                if (dash && dash != t) {
+                    const uint32_t lo = strtoul(t, 0, 0);
+                    char *sl = strchr(dash + 1, '/');
+                    const uint32_t hi = strtoul(dash + 1, 0, 0);
+                    const uint32_t st = sl ? strtoul(sl + 1, 0, 0) : 1;
+                    for (uint32_t f = lo; f <= hi && st && O.n_shot < cap; f += st) O.shot_at[O.n_shot++] = f;
+                } else {
+                    O.shot_at[O.n_shot++] = !strcmp(t, "end") ? 0xffffffffu : strtoul(t, 0, 0);
+                }
+            }
         }
         else if (!strcmp(a, "--shot-every")) O.shot_every = strtoul(ARG(), 0, 0);
         else if (!strcmp(a, "--log-every")) O.log_every = strtoul(ARG(), 0, 0);

@@ -40,7 +40,7 @@ typedef struct {
     const char *record;         /* realtime human play: write a flat trace.jsonl */
     const char *flatten;        /* write the replayed trace as a flat (frame-absolute) trace */
     uint32_t dump_at[16]; int n_dump;
-    uint32_t shot_at[64]; int n_shot; uint32_t shot_every;
+    uint32_t shot_at[4096]; int n_shot; uint32_t shot_every;
     uint32_t hash_every;        /* log state hash every N frames (0 = only at end) */
     uint32_t log_every;         /* status line every N frames */
     uint32_t tail;              /* frames after the last trace entry (300) */
