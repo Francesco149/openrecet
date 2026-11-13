@@ -44,7 +44,7 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 34 wisp | ウィスプ | `FUN_0042ac16` | stub |
 | 35 / 36 moai | モアイ金 / 銀 | `FUN_0042cfd0` | ported (`actor_ai_turret`), 35 variant 0 verified `obsidian-11f-15f-ahrimans`, 36 (golem adds) `obsidian-16f-20f-golem` (identical + save); variant > 0 (octant trio) no recording |
 | 37–40 bombs | ボム* | `FUN_004293f0` | ported |
-| **41 Arma** | アルマ | **`FUN_00425c3f`**; floor 99: `FUN_0044eff5` (prop) | ported (`actor_ai_arma`), unverified; prop stub |
+| **41 Arma** | アルマ | **`FUN_00425c3f`**; floor 99: `FUN_0044eff5` (prop) | ported (`actor_ai_arma`), verified `lapis-41f-50f` (identical + save); prop stub |
 | 42 / 43 | ヒドラ / 親父 | `FUN_004284ba` (prop: `+0xb08 = +0xb04 = 1`) | stub |
 | 44–48 knights | *ナイト | `FUN_00427f59` | ported |
 | 49 black knight | ブラックナイト | `FUN_004279cf` | ported, verified `obsidian-41f-50f-finale` (identical + save) |
@@ -137,7 +137,7 @@ Extra d3 state: first trip to row 0 runs a stage-type-20 cutscene (event 7/6); f
 | 34 | 35 | 55 ×3 (15·7.2 = 108) | cap 5 | generic | `pumpkin-ghost.md` |
 | 39 | 40 | 71 red jellyfish (150·7.4 = 1110) | 17 | generic | `jellyfish.md` |
 | 44 | 45 | none (red mob list) | — | generic | — |
-| 49 | 50 | 41 Arma (305·7.8 = 2379) | — | own: default arm + `FUN_00450877` | `arma.md` |
+| 49 | 50 | 41 Arma (250·7.8 = 1950, observed) | — | own: default arm + `FUN_00450877` | `arma.md` |
 | 54 | 55 | 49 ×2 (15·8.0 = 120) | 44..48, kept at 5 | generic | `black-knight.md` |
 | 59 | 60 | 60 rat (150·8.2 = 1230) | 13 / 14 | generic; after: event 12/4 once (+0x2bcf7) | other author |
 | 64 | 65 | none (skeleton / ghost list) | — | generic | — |
@@ -193,7 +193,7 @@ enemy.txt line, the `.data` values stand.
 | type | name | HP | EXP | AT | DF | MA | MD | rf0 / rf2 / rf3 | boss flag (+0x20) | src |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 28 | グリフ | 150 | 30 | 20 | 20 | 0 | 10 | 0.6 / 2.0 / 2.0 (rf6 1.2) | 0 | baked |
-| 41 | アルマ | 305 | 30 | 20 | 20 | 0 | 10 | 0.6 / 2.0 / 2.0 | 0 | baked |
+| 41 | アルマ | 250 | 25 | 50 | 35 | 40 | 35 | 0.6 / 1.5 / 2.0 | 0 | live (`lapis-50f`; the baked read said 305 / 30 / 20 / 20 / 0 / 10) |
 | 42 | ヒドラ | 15 | 30 | 20 | 20 | 0 | 10 | 1.0 / 2.0 / 2.0 | 0 | baked |
 | 43 | 親父 | 15 | 30 | 20 | 20 | 0 | 10 | 0.6 / 2.0 / 2.0 | 0 | baked |
 | 49 | ブラックナイト | 15 | 30 | 2 | 20 | 0 | 10 | 1.2 / 2.0 / 2.0 | 0 | txt |

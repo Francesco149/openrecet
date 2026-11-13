@@ -5,7 +5,8 @@ and the black knight), `sub_425BFF` (on-damage hook from `sub_42E791`), `sub_445
 spawn geometry), `sub_42F7AD` case 41, `sub_450443` default arm (floor 49), `sub_450877` (floor-49 timeline).
 **Port (2026-11-13): AI `actor_ai_arma` (FUN_00425c3f, from IDA + disasm; floor 99's prop FUN_0044eff5 still a stub),
 voices `arma_voice` (FUN_00498699), on-damage hook, death arm (shared with Griff's case 28), d4 floor-49 setup / timeline
-(`dungeon4_stage_setup`, `d4_floor49_event`). Unverified: no recording yet.** Shared rules: `boss-floor-common.md`.
+(`dungeon4_stage_setup`, `d4_floor49_event`). Verified: `lapis-41f-50f` identical + save (39,761 ticks; finisher
+state 5 not reached).** Shared rules: `boss-floor-common.md`.
 
 FUN_00498699(0)'s switch falls through (asm 0x4986b1..0x4986cc): pick 0 plays 09ar_01, 02 and 03, pick 1 plays 02
 and 03, pick 2 plays 03. The state-0 finisher trigger does not end the tick: the rest of state 0 (charges, the
@@ -14,11 +15,11 @@ before the anim tail.
 
 ## 1. Where
 
-| place | `dungeon` / `floor` | level → HP (305·(1 + 0.2·lv)) |
+| place | `dungeon` / `floor` | level → HP (250·(1 + 0.2·lv); corrected, see § Lapis 50F) |
 |---|---|---|
-| Lapis Ruins 50F | 4 / 49 | 34 → **2379** |
-| dungeon 5 floor 53 | 5 / 53 | 89 → 5734 |
-| Lapis's Boss Rush, 8th floor | 5 / 53, `0x438b4d0 == 4` | 49 → 3294 |
+| Lapis Ruins 50F | 4 / 49 | 34 → **1950** (observed) |
+| dungeon 5 floor 53 | 5 / 53 | 89 → 4700 |
+| Lapis's Boss Rush, 8th floor | 5 / 53, `0x438b4d0 == 4` | 49 → 2700 |
 
 - d4 setup (`FUN_00450443` default arm, floor 49): `FUN_0044cc80(1)`; if bank+0x2bd13 == 0 or mode 2: party at
   (−40, 0, −52 − 1.3k), Arma = `FUN_0041f903(−40, 0, −34, 41)`, `+0xa54 = 8`; else event stage 7 (no boss).
@@ -38,7 +39,8 @@ d4 floor-49 timeline (`FUN_00450877`, stage `s32(0x438b8a0)`, tick `s32(0x438b8a
 
 ## 2. Stats
 
-Table (baked): HP **305**, EXP 30, AT 20, DF 20, MA 0, MD 10, boss flag 0; rf0 0.6 → radius 1.2, half-height 1.2.
+Table: HP **250**, EXP 25, AT 50, DF 35, MA 40, MD 35 (read live from `0x5c23f0 + 41·0x68`, `lapis-50f`; an earlier "baked"
+reading gave 305 / 30 / 20 / 20 / 0 / 10 — wrong), boss flag 0; rf0 0.6 → radius 1.2, half-height 1.2.
 No `+0xb54`: hits stagger her (40), knock her back and reset `+0xa54 / +0xa58 / +0xa5c` to 0.
 
 ## 3. State machine — `s32(B+0xa54)`, tick `s32(B+0xa58)`
@@ -147,3 +149,41 @@ of a non-fresh hit; never in state 5 (≈ 270 ticks).
 - `FUN_00498699(n)` / the `09ar` voice lines: cosmetic, but their `rand` draws are in the RNG stream (listed per
   state above).
 - `+0xae4` for type 41: no writer in the AI; if the enemylist variant ever sets it the thresholds shift by 30/step.
+
+## Lapis 50F (observed)
+
+Run `lapis-50f` (probe `docs/findings/probes/lapis-41f-50f.md`, scenario `tests/scenarios/lapis-41f-50f`; `rd verify` MATCH headless +
+`--real`, Windows). Louie L44 (ATK 62, DEF 70, MDEF 43, HP 215). `B` = `0x76b970` (slot 0).
+
+**Contradictions with the code-read sections above:**
+
+1. **§2 stats are wrong.** Retail's record at `0x5c23f0 + 41·0x68` (+0x2c..): **HP 250, EXP 25, AT 50, DF 35, MA 40, MD 35**, rf 0.6,
+   1.5, 2.0. Arma on 50F: `+0x42c` = `+0x434` = **1950** (= 250 · 7.8, level `+0xae0` 34, HUD "Lv35") — not 2379. §1's HP column
+   (305·…) is therefore wrong for every row (d5 floor 53 → 4700, Boss Rush → 2700 if the level formulas hold; not run). Player damage
+   observed 22..60 per hit, min 22 = `ftol(62/2 − 35/4)`: DF 35 confirmed.
+2. **§1 / §9 "does the AI run during the stage-0 dialogue":** no. Event 12/6 opened at stage-0 tick 141 (f27732, party moved to
+   (−40, −40.79)); during the dialogue (to f30033) both the event tick and Arma's state-8 tick `+0xa58` held at 141. Afterwards both
+   count together: **state 8 → 0 at f30142 (state tick 250) while the event is still in stage 0 (`lock` 0)**, and she went straight
+   into state 3 at f30147 (the party stands on her x axis 6.8 away). Stage 3 / `lock` −1 came at f30163 (event tick 270). Her first
+   spread therefore fires while the pad is still locked (no hit landed: the 4 shots missed / ended before reaching the party).
+3. **§1 stage 5 order:** `bank+0x2bd13` 0 → 1 at **f36597, stage-5 tick ≈1** (stage 5 began f36596), *before* event 12/7 (`dlg` 1 at
+   f36626 = tick 30). The event holds the stage tick; stage 7 at f37292 = 30 ticks after `dlg` 0 (f37262).
+
+**Timeline seen:** arrival f27591 (state 8, stage 0, `bank+0x2bd13` 0) · `lock` 4 from tick 60 · event 12/6 f27732..30033 · state 8 → 0
+f30142 · stage 3 f30163 · death f36253 (`+0x428` 1 → 2, HP 4 → 0 on a side hit of 30) · stage 4 f36257 (tick 4 after the death) ·
+stage 5 f36596 (≈ tick 340: the 180-tick wait + fade 120 + re-placement, party at (−40, −45)) · flag f36597 · event 12/7
+f36626..37262 · stage 7 f37292 (`gate` 3 → 0, `lock` −1) · Arma freed (`+0x428` 2 → 0) f37312 = stage-7 tick 20 · both portals up:
+next floor (−35, −40) = `ex ez`, **return door (−45, −40)**, entered walking −x (`R`, `p_oct` 6) → "Return to town now?" at f37568.
+
+**States seen (f30163..36253):** 3 spread ×38 (first f30147), 4 fans ×5 (first **f30704**), 2 lob ×9 (first **f30946**), 1 volley ×6
+(first **f31071**); 5 never (the searches avoided it; no lob hit taken, so the finisher was never armed). The spread is by far the
+commonest answer, as §3 predicts. **Hits:** 61 fresh (`+0xb08` 10, `+0x440` 0, e.g. f30214) and ≈19 non-fresh (`+0xb08` 30 with
+`+0x440` 40 counting down, e.g. f30252) — both §4 arms confirmed.
+
+**Kill recipe (§7) as run:** 32 chained `rd search --hold 30 -j 2` steps, goal `a0hp ≤ current − 40`, score `-a0hp`, cell = §7's
+(state, `+0xb08 > 0`, `+0xa64 ≥ 60`, HP/40, relative position), avoid `hp < H − 6 or a0st == 5`, actions = approach / aimed swing /
+back off / two strafes / idle / 8 walks, hold actions idle + back off + both strafes. ≈200 frames and ≈45 s per step, no damage.
+
+**§8 rows exercised:** intro, walk leg, spread, volley, lob, fans, fresh hit, non-fresh hit, death d4 (stage 4 / 5 / 7, freed at
+stage-7 tick 20). Not exercised: finisher side 1 / 2, finisher abort, already-beaten (needs a revisit with `bank+0x2bd13` 1),
+flee heading and the random `want` (not checked).

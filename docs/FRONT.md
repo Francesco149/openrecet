@@ -178,12 +178,16 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - ✅ `lapis-31f-40f` (Lapis 31F..39F, the 35F pumpkin-ghost trio (type 55 ×3, 1,080 HP), the 40F red jellyfish (type 71, first
     recording; ropers 2 then 4), return, day end, Save; end save `1a6b7c4af68d`; 33,528 frames): **identical + save on the first triage**
     (33,828 ticks) — no port change; gate rows added (`gates --only lapis-` 0 failed, 10 rows).
+  - ✅ `lapis-41f-50f` (Lapis 41F..49F incl. the 45F mob floor (34 enemies, `gate` 3), **Arma** on 50F (type 41, 1,950 HP; events
+    12/6 and 12/7, `bank+0x2bd13`), return, Save; end save `26ee88a4793c`; 39,461 frames, subscription driver; was split f9627 on 42F)
+    → **identical + save** (39,761 ticks) in 2 units: Arma's AI FUN_00425c3f (443a77ec) and the turret pumpkin FUN_0042a23c (type 15
+    variant 1: turn, record 30 at 5, cycle 120 / 110). Arma's live stats correct the card (HP 250, not 305). Gate rows added.
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`
        port-identical + save (one bug: record 104's NULL-owner return, `findings/bosses/tielle.md` §7). One subscription subagent at a time.
-    1. ✅ the two open splits (ending, New Game + / Survival) closed 2026-11-13. ◐ Arma (type 41, FUN_00425c3f) ported
-       from IDA + disasm, unverified: `lapis-41f-50f` (Lapis 41F..50F, Arma) being recorded by a driver.
+    1. ✅ the two open splits (ending, New Game + / Survival) closed 2026-11-13; Arma verified (`lapis-41f-50f`). Next on the
+       Lapis line: 51F..60F (55F black-knight pair, 60F rat type 60, event 12/4).
     2. keep the agent rows green: `gates` has 95 rows; **86/86 ok at 10e36b61, Windows, `-j 8`, 571 s**
        (2026-11-10; 36 of them agent-authored), + the 9 rows of five later probes **9/9 ok** in 24 s. Add a scenario's rows when its triage is
        identical.
