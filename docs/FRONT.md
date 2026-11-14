@@ -206,12 +206,19 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     FUN_0049e163's +0x2bd02 arm (event 12/20, item 3408, +0x2bc53) + no map tick under dialogue (95a58070). Gate rows (0d99ace9).
     **Whole `gates` 0 failed (165 rows, -j6, 1330 s, Windows).** Not reached: the long 100F intro (stages 0..3, events 12/8 / 12/9 /
     12/13..15 — needs `+0x2bcff` = 0), the already-cleared stage 24, a hand killed, d5 floor 58.
+  - ✅ `crystal-1f-20f` — **the first Crystal Nightmare (dungeon 5) recording** (crafted lineage; d5 1F..20F, plain random floors L50..L82,
+    the 10F / 20F exit pair: next-floor circle + return portal, CAME BACK ALIVE!, day end, Save; end save `2b9e8df3acad`; 49,539 frames)
+    → **identical + save** (49,839 ticks) after 1 split: f47564 `FUN_00436f97`'s d5 return portal (kind 6) beside the floor 9 / 19 exit was a
+    PORT-DEBT stub (55720c81); gate rows (394c11c0). ☐ triage blind spot: the dungeon object table is not in the per-tick state check, so
+    the missing portal (object 1, wrong kind from f46303) surfaced only at the first RNG difference ~1,260 ticks later — add it to `state_sem`
+    / a portstate preset. Left: `stage_portal_prompt`'s run-end stub (PORT-DEBT `FUN_00442cef`, `g_portal_prompt > 120`), d5 floor 29
+    (rest floor), 30F+ (one boss per floor), Boss Rush.
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`
        port-identical + save (one bug: record 104's NULL-owner return, `findings/bosses/tielle.md` §7). One subscription subagent at a time.
     1. ✅ the two open splits (ending, New Game + / Survival) closed 2026-11-13; Arma verified (`lapis-41f-50f`). 51F..60F identical
-       2026-11-13. 61F..70F identical 2026-11-14. **Lapis Ruins 1F..100F all identical + save (2026-11-14).** Next: Crystal Nightmare (dungeon 5) 1F..10F (driving), then the 100F long intro (crafted `15b20dc3c34e`, task `tools/drive/tasks/lapis-100f-long-intro.md`).
+       2026-11-13. 61F..70F identical 2026-11-14. **Lapis Ruins 1F..100F all identical + save (2026-11-14).** Crystal Nightmare 1F..20F identical (2026-11-14). Next: the 100F long intro (driving; crafted `15b20dc3c34e`, task `tools/drive/tasks/lapis-100f-long-intro.md`), then d5 21F..30F (the floor-29 rest floor), d5 boss floors.
     2. keep the agent rows green: `gates` has 95 rows; **86/86 ok at 10e36b61, Windows, `-j 8`, 571 s**
        (2026-11-10; 36 of them agent-authored), + the 9 rows of five later probes **9/9 ok** in 24 s. Add a scenario's rows when its triage is
        identical.
