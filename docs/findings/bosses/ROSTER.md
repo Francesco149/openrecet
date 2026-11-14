@@ -39,12 +39,12 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 27 Tielle | ティエール | `FUN_00423b58` | ported, unverified |
 | 28 Griff | グリフ | `FUN_00424b42` | ported, verified `obsidian-21f-30f-griff` (identical + save; phase 0 / 1, all five states, the counter) and `obsidian-41f-50f-finale` (floor 49: phase 2, record 23, the kept bats) |
 | 29 lost girl | (placeholder) | `FUN_0042da1d` | ported |
-| 30 Alouette | アルエット | `FUN_0042d676`; floor 99: `FUN_0044f009` (prop) | ported unverified; floor-99 prop ported (unverified) |
+| 30 Alouette | アルエット | `FUN_0042d676`; floor 99: `FUN_0044f009` (prop) | ported unverified; floor-99 prop verified `lapis-91f-100f` (identical + save) |
 | 31 | (placeholder) | `FUN_0042d392` | ported, unverified |
 | 34 wisp | ウィスプ | `FUN_0042ac16` | stub |
 | 35 / 36 moai | モアイ金 / 銀 | `FUN_0042cfd0` | ported (`actor_ai_turret`), 35 variant 0 verified `obsidian-11f-15f-ahrimans`, 36 (golem adds) `obsidian-16f-20f-golem` (identical + save); variant > 0 (octant trio) no recording |
 | 37–40 bombs | ボム* | `FUN_004293f0` | ported |
-| **41 Arma** | アルマ | **`FUN_00425c3f`**; floor 99: `FUN_0044eff5` (prop) | ported (`actor_ai_arma`), verified `lapis-41f-50f` (identical + save); floor-99 prop ported (unverified) |
+| **41 Arma** | アルマ | **`FUN_00425c3f`**; floor 99: `FUN_0044eff5` (prop) | ported (`actor_ai_arma`), verified `lapis-41f-50f` (identical + save); floor-99 prop verified `lapis-91f-100f` (identical + save) |
 | 42 / 43 | ヒドラ / 親父 | `FUN_004284ba` (prop: `+0xb08 = +0xb04 = 1`) | stub |
 | 44–48 knights | *ナイト | `FUN_00427f59` | ported |
 | 49 black knight | ブラックナイト | `FUN_004279cf` | ported, verified `obsidian-41f-50f-finale` (identical + save) |
@@ -58,9 +58,9 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 68 / 69 crabs | カニ / 黒カニ | `FUN_00422092` | ported (68 verified) |
 | **70 / 71 jellyfish** | クラゲ / 赤クラゲ | `+0x3dc = DAT_0438ccc4`, **`FUN_004219f2`** | ported (`actor_ai_jelly`; 4 anim layers `FUN_004218e1`), 70 verified `obsidian-6f-10f-jellyfish` (identical + save; the 2 hit parts in `FUN_0043865e` with it); 71 no recording |
 | 72 hand | 魔王の手 | `FUN_00424641` | ported, verified `obsidian-41f-50f-finale` (d3 floor 49; the d5 release unverified) |
-| **73 / 74 Arma golem body / core** | アルマゴーレム / コア | **`FUN_004205e5`** | ported (`actor_ai_golem_body`), unverified (`lapis-91f-100f` pending) |
-| **75 / 76 Arma golem hands** | アルマゴーレム右手 / 左手 | **`FUN_00420bd0`** | ported (`actor_ai_golem_hand`), unverified |
-| 77 Prime body | プリム本体 | `FUN_0044f01d` (prop) | ported, unverified |
+| **73 / 74 Arma golem body / core** | アルマゴーレム / コア | **`FUN_004205e5`** | ported (`actor_ai_golem_body`), verified `lapis-91f-100f` (identical + save); d5 floor 58 unrecorded |
+| **75 / 76 Arma golem hands** | アルマゴーレム右手 / 左手 | **`FUN_00420bd0`** | ported (`actor_ai_golem_hand`), verified `lapis-91f-100f` (identical + save) (no hand killed) |
+| 77 Prime body | プリム本体 | `FUN_0044f01d` (prop) | ported, verified `lapis-91f-100f` (identical + save) |
 | 78 Prime wing, 26, 32, 33 | プリム羽, 岩とマグロ | default `FUN_00428213` | stub |
 
 ### `FUN_0042f7ad` death arms (`+0xaf0` = death tick)
@@ -72,8 +72,8 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 28, 41 | tick 1 slow-mo 60 + player invulnerable 1200; tick 60 `FUN_0042f746` (no other live one of the type → every live actor → dying); d5: from tick 60 alpha −16 → free; else event stage 5: placed beside the party, stage 7: shrinks, y = event tick·0.25 → free | ported (28 verified `obsidian-21f-30f-griff`; 41 and the d5 fade unverified) |
 | 70 / 71 | tick 60 `FUN_0042f746`; explosions (`FUN_0042f685`) ticks 1..119; from 100 alpha −8 → free; anim 13 | ported, verified `obsidian-6f-10f-jellyfish` (no add alive at tick 60) |
 | 61 / 64 (+ 67, 68 / 69) | same + arms 62 / 63 / 65 / 66 copy alpha and `+0x428`; anim 10 | ported unverified (61 / 64) |
-| 73 | y = 1; d5 only: from tick 60 alpha −4 → free, tick 60 `FUN_0042f746`; explosions 61..239; anim 12 ticks 2..301, then 13. d4: stays dying (the event reads `+0x428 == 2`) | ported, unverified |
-| 74 | y = 1, anim 12; d5: from tick 60 alpha −16 → free | ported, unverified |
+| 73 | y = 1; d5 only: from tick 60 alpha −4 → free, tick 60 `FUN_0042f746`; explosions 61..239; anim 12 ticks 2..301, then 13. d4: stays dying (the event reads `+0x428 == 2`) | ported; d4 verified `lapis-91f-100f` (identical + save) |
+| 74 | y = 1, anim 12; d5: from tick 60 alpha −16 → free | ported; d4 verified `lapis-91f-100f` (identical + save) |
 | 23, 49, 54, 55 | tick 1: slow-mo, explosion, alpha 0, player invulnerable 1200 (60 if another live one of the type); tick 60 `FUN_0042f746`; tick 120 free | 23 / 49 / 54 / 55 in the port's arm (55 verified: `obsidian-3f-5f-pumpkin`, the pair `lapis-1f-10f`; 49: `obsidian-41f-50f-finale`) |
 | 24 / 59 / 60 | rat collapse (500 ticks) | ported |
 | 37–40 | bomb fuse | ported |
@@ -90,7 +90,7 @@ Floor counts = `DAT_005c64c0[d]`·5 = {1, 3, 6, 10, 20, 12}·5. Guild rows: d0..
 | 1 | Jade Way | 15 | 3 + Boss Rush | `FUN_0044d1e4` | `FUN_0044d47d` |
 | 2 | Amber Garden | 30 | 6 + Boss Rush | `FUN_0044d9d3` | inline; 29: `FUN_0044db3c` |
 | 3 | Obsidian Tower | 50 | 10 + Boss Rush | `FUN_0044e08f` | inline in `FUN_004427f1` |
-| 4 | Lapis Ruins | 100 | 20 + Boss Rush | `FUN_00450443` (ported: `dungeon4_stage_setup`), 99: `FUN_0044ecc4` (ported: `d4_floor99_setup`, unverified) | `FUN_00450877` (ported: `dungeon4_event_tick`; floors 4 / 9 verified `lapis-1f-10f`), 99: `FUN_0044f13d` (ported: `d4_floor99_event` + `d4_floor99_ambience`, unverified) |
+| 4 | Lapis Ruins | 100 | 20 + Boss Rush | `FUN_00450443` (ported: `dungeon4_stage_setup`), 99: `FUN_0044ecc4` (ported: `d4_floor99_setup`; short path verified `lapis-91f-100f` (identical + save)) | `FUN_00450877` (ported: `dungeon4_event_tick`; floors 4 / 9 verified `lapis-1f-10f`), 99: `FUN_0044f13d` (ported: `d4_floor99_event` + `d4_floor99_ambience`; stages 4..23 verified `lapis-91f-100f` (identical + save), long intro 0..3 and the cleared stage 24 unrecorded) |
 | 5 | Crystal Nightmare | 60 (30 + 30 boss floors) | 3 + Boss Rush | `FUN_00450ee0` | `FUN_00451546` (37: `FUN_0044db3c(1)`) |
 
 Boss Rush of d = 1..4: `0x438b4c8 = 5`, `0x438b4d0 = d`, start floor 30 / 33 / 38 / 46, 3 / 5 / 8 / 13 floors

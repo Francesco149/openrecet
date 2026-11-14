@@ -3,10 +3,11 @@
 **code-read**: IDA `sub_4205E5` (body + core AI, 0x4205e5), `sub_420BD0` (hands, 0x420bd0), `sub_44F037` (state-8
 descent), `sub_420591` (HP gate, called by `sub_42E791`), `sub_42F7AD` cases 73 / 74, `sub_44ECC4` + `sub_44F13D`
 (Lapis floor 99 setup / timeline), `sub_450EE0` case 58, `sub_445A8C` cases 152 / 164, `sub_43AE20` (record 136,
-IDA 40204..40232), table 0x52b874. **Port: ported, unverified** — `actor_ai_golem_body` / `actor_ai_golem_hand` /
+IDA 40204..40232), table 0x52b874. **Port: ported, verified `lapis-91f-100f` (identical + save; d4 short intro, the fight with 5 breaks, the kill, stages
+13..23, the clear)** — `actor_ai_golem_body` / `actor_ai_golem_hand` /
 `actor_golem_descend` (`src/actor_ai.c`), the 73 / 74 death arms, the floor-99 props, `d4_floor99_setup` /
-`d4_floor99_event` / `d4_floor99_ambience` (`src/dungeon_flow.c`); the HP gate was already in `actor_damage`; no
-recording reaches it yet (`lapis-91f-100f` pending).
+`d4_floor99_event` / `d4_floor99_ambience` (`src/dungeon_flow.c`); the HP gate was already in `actor_damage`. Unreached:
+the 100F long intro (stages 0..3), a hand's death, dungeon 5's floor 58.
 Shared rules: `boss-floor-common.md`. Lapis 100F run live: section "Lapis 100F (observed)" (`lapis-91f-100f`).
 
 ## 1. Where
