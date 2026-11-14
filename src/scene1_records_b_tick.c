@@ -682,10 +682,11 @@ static rec_next_t body_0x1e(int i, int32_t type)
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, owner_read_f(owner, 0x708));
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, owner_read_f(owner, 0x70c));
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, owner_read_f(owner, 0x710));
-        ang = ang_base + ((motion == 0x4b) ? 0.3f : -0.3f);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(ang));
+        ang = motion == 0x4b ? spill32((long double)ang_base + 0.30000001192092896f)
+                             : spill32((long double)ang_base - 0.30000001192092896f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32(x87_crt_sin(ang)));
         slot_set_i(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0);
-        velz = cosf(ang);
+        velz = spill32(x87_crt_cos(ang));
     } else if (motion == 0x48) {
         /* Same joint-slot-1 pose; angle + 0.3. */
         slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 3.0f);

@@ -863,9 +863,34 @@ void actor_dying(actor_t *a)
         if (sxz < 0.0f) AI(a, ACT_INUSE) = 0;
         return;
     }
-    case 73: case 74:
-        /* PORT-DEBT(stub, FUN_0042f7ad): the final boss's death arms (73 / 74:
-         * the burst, FUN_0041f759 12) */
+    case 73:
+        /* Arma Golem's body beaten: held at y 1 (vy 0); the slow-mo (becc 60)
+         * and DAT_056db0f4 1200 at 1; in dungeon 5 from 60 it fades (+0x3dc -
+         * 4, then frees) and at 60 takes the floor down (FUN_0042f746); bursts
+         * 61..239; the death anim 12 from 2, 13 from 302.  Lapis 100F's
+         * timeline frees it (asm 0x42fbcd..0x42fc50) */
+        AF(a, 0x3f4) = k1;
+        AF(a, 0x400) = 0.0f;
+        if (t == 1) {
+            g_dat_0438becc = 60;
+            PW(0x56db0f4u).i = 1200;
+        }
+        if (g_scene1_combat_stage_id == 5 && t >= 60) {
+            if ((AI(a, 0x3dc) -= 4) < 0) AI(a, ACT_INUSE) = 0;
+            if (t == 60) actor_last_of_kind(a);      /* FUN_0042f746 */
+        }
+        if (AI(a, 0xaf0) > 60 && AI(a, 0xaf0) < 240) actor_boss_burst(a);   /* FUN_0042f685 */
+        if (AI(a, 0xaf0) < 2) return;
+        actor_anim_blend(a, AI(a, 0xaf0) < 302 ? 12 : 13);   /* FUN_0041f759 */
+        return;
+    case 74:
+        /* the core: y 1, vy 0, the death anim 12; in dungeon 5 from 60 it fades
+         * (+0x3dc - 16) and frees */
+        AF(a, 0x3f4) = k1;
+        AF(a, 0x400) = 0.0f;
+        actor_anim_blend(a, 12);
+        if (g_scene1_combat_stage_id != 5) return;
+        if (AI(a, 0xaf0) >= 60 && (AI(a, 0x3dc) -= 16) < 0) AI(a, ACT_INUSE) = 0;
         return;
     default:
         break;
@@ -5506,6 +5531,269 @@ static void actor_ai_arma(actor_t *a)
     }
 }
 
+/* FUN_0044f037: the Lapis 100F golem's descent (state 8 outside dungeon 5):
+ * untouchable (+0xb04 / +0xb08), +0xa98 / +0xa00 1, y - 0.1 a tick down to 1 */
+static void actor_golem_descend(actor_t *a)
+{
+    const float y = AF(a, 0x3f4);
+    AI(a, 0xb04) = 1;
+    AI(a, 0xb08) = 1;
+    AI(a, 0xa98) = 1;
+    AI(a, 0xa00) = 1;
+    if (y > k1) AF(a, 0x3f4) = spill32((long double)AF(a, 0x3f4) - k0p1);
+}
+
+/* the effect points of the arena's six movers, DAT_0052b874 (X, Z) */
+static const float k_golem_movers[6][2] = {
+    { 58.0f, -76.0f }, { 115.0f, 24.0f }, { -54.0f, -10.0f },
+    { -54.0f, 55.0f }, { 0.0f, 24.0f }, { -50.0f, -54.0f },
+};
+
+/* FUN_004205e5: Arma Golem's body (73) and core (74) — docs/findings/bosses/
+ * arma-golem.md.  Both: +0xa00 / +0xb54 / +0x9fc 1.  The core copies the
+ * first live 73's position and yaw (actor 0's when none), untouchable.  The
+ * body: state 8 waits 240 ticks in dungeon 5, else descends (FUN_0044f037);
+ * otherwise +0xb04 1, +0xb08 / +0xa98 0, the debug row "ALGO:" +0xa64, and
+ * a break (+0xa60, set by the HP gate FUN_00420591) replaces the states: 330
+ * ticks untouchable at (-40, -25) h 8, mover s = +0xa64 shaking (y 0.2 ·
+ * (rand & 3), 30..209) then sinking (0.5 a tick), the burst at its effect
+ * point at 30 (SE 684), SE 369 at 150; at 330 the mover goes off and s + 1.
+ * State 0 hovers at (player x, max(pz + 7, -57)), h 1 + sin(0.05 t), the
+ * fan (record 152, SE 330) at 120, at 300 a coin flip to 1 / 2; 1 lobs from
+ * (-40, -30) h 5 (record 164, SE 385 at 80; 120); 2 rains from (-40, -40) h
+ * 8 (record 70 at t 80 + 20k around the arena centre, r 4 (u + 1) + k;
+ * 320).  The motion: Δ to the goal capped at 5, v = 0.97 v + 0.0097 Δ, y
+ * toward h at 0.05.  asm 0x4205e5..0x420bcf. */
+static void actor_ai_golem_body(actor_t *a)
+{
+    static const float k7 = 7.0f, km57 = -57.0f, km25 = -25.0f, km30 = -30.0f;
+    static const float k0p2 = 0.20000000298023224f, km0p2 = -0.20000000298023224f;
+    static const float k0p97 = 0.9700000286102295f, k0p0097 = 0.009700000286102295f;
+    AI(a, 0xa00) = 1;
+    AI(a, 0xb54) = 1;
+    AI(a, 0x9fc) = 1;
+    if (AI(a, ACT_TYPE) == 74) {
+        const actor_t *b = &g_actor[0];
+        for (int i = 0; i < ACTOR_COUNT; i++) {
+            if (AI(&g_actor[i], ACT_INUSE) != 0 && AI(&g_actor[i], ACT_TYPE) == 73) {
+                b = &g_actor[i];
+                break;
+            }
+        }
+        AI(a, 0xb04) = 1;
+        AI(a, 0xb08) = 1;
+        AF(a, 0x3f0) = AF(b, 0x3f0);
+        AF(a, 0x3f4) = AF(b, 0x3f4);
+        AF(a, 0x3f8) = AF(b, 0x3f8);
+        AF(a, 0x420) = AF(b, 0x420);
+        return;
+    }
+    if (AI(a, 0xa54) == 8) {
+        if (g_scene1_combat_stage_id == 5) {
+            if (++AI(a, 0xa58) >= 240) {
+                AI(a, 0xa58) = 0;
+                AI(a, 0xa54) = 0;
+            }
+        } else {
+            actor_golem_descend(a);              /* FUN_0044f037 */
+        }
+        return;
+    }
+    AI(a, 0xb04) = 1;
+    AI(a, 0xb08) = 0;
+    AI(a, 0xa98) = 0;
+    /* (the atan2 to the player, 0x503dd0, is discarded) */
+    ++AI(a, 0xa58);
+    char buf[256];
+    snprintf(buf, sizeof buf, "ALGO:%d  ", AI(a, 0xa64));
+    audio_mci_record_command(30, 9, buf);        /* FUN_00451874 (debug row) */
+    float gx, gz, h;
+    if (AI(a, 0xa60) > 0) {
+        AI(a, 0xb08) = 1;
+        gx = km40;
+        gz = km25;
+        h = k8;
+        const int32_t t = AI(a, 0xa58);
+        if (t >= 210) {
+            float *y = &g_mapcol_movers.y[1 + AI(a, 0xa64)];   /* DAT_0438c53c[s] */
+            *y = spill32((long double)*y - k0p5);
+        } else if (t >= 30) {
+            const int32_t r = (int32_t)(rng_next15() & 3);     /* j__rand */
+            const float f = spill32((long double)r);
+            g_mapcol_movers.y[1 + AI(a, 0xa64)] = spill32((long double)f * k0p2);
+        }
+        if (AI(a, 0xa58) == 30) {
+            const int32_t s = AI(a, 0xa64);
+            const float ex = spill32((long double)k_golem_movers[s][0] * km0p2 - k40);
+            const float ez = spill32((long double)k_golem_movers[s][1] * k0p2 - k40);
+            scene1_pfo_table_a_alloc_passthrough(0, ex, 0.0f, ez, 2, 1.0f, -1, 0, 0);   /* FUN_0041331d */
+            audio_play_se_by_id(684);
+        }
+        if (AI(a, 0xa58) == 150) audio_play_se_by_id(369);
+        if (AI(a, 0xa58) >= 330) {
+            const int32_t s = AI(a, 0xa64);
+            AI(a, 0xa54) = 0;
+            AI(a, 0xa58) = 0;
+            AI(a, 0xa60) = 0;
+            g_mapcol_movers.on[1 + s] = 0;       /* DAT_0438c154[s] */
+            AI(a, 0xa64) = s + 1;
+        }
+    } else {
+        const int32_t st = AI(a, 0xa54);
+        if (st == 0) {
+            actor_anim_blend(a, 0);              /* FUN_0041f759 */
+            gx = PX;
+            gz = spill32((long double)PZ + k7);
+            if (!(gz >= km57)) gz = km57;
+            const float ft = spill32((long double)AI(a, 0xa58));
+            const float ang = spill32((long double)ft * k0p05);
+            const float s = spill32(x87_crt_sin(ang));
+            h = spill32((long double)s + k1);
+            if (AI(a, 0xa58) == 300) {
+                AI(a, 0xa58) = 0;
+                AI(a, 0xa54) = (rng_next15() & 1) != 0 ? 2 : 1;   /* j__rand */
+            }
+            if (AI(a, 0xa58) == 120) {
+                scene1_record_b_spawn_npc(a, 152, 1);            /* FUN_00445a8c */
+                audio_play_se_by_id(330);
+            }
+        } else if (st == 1) {
+            gx = km40;
+            gz = km30;
+            h = k5;
+            if (AI(a, 0xa58) == 80) {
+                scene1_record_b_spawn_npc(a, 164, 1);
+                audio_play_se_by_id(385);
+            }
+            if (AI(a, 0xa58) == 120) {
+                AI(a, 0xa58) = 0;
+                AI(a, 0xa54) = 0;
+            }
+        } else if (st == 2) {
+            gx = km40;
+            gz = km40;
+            h = k8;
+            for (int32_t k = 0, t = 80; t != 240; t += 20, k++) {
+                if (AI(a, 0xa58) != t) continue;
+                const float x0 = AF(a, 0x3f0), y0 = AF(a, 0x3f4), z0 = AF(a, 0x3f8);
+                const float an = spill32((long double)rng_next_unit() * k_2pi);   /* FUN_00471089 */
+                const long double u = rng_next_unit();
+                const float fk = spill32((long double)k);
+                const float r = spill32((u + k1) * k4 + fk);
+                const double ad = an;
+                AF(a, 0x3f0) = spill32((long double)spill32(x87_crt_sin(ad)) * r - k40);
+                AF(a, 0x3f4) = 0.0f;
+                AF(a, 0x3f8) = spill32((long double)spill32(x87_crt_cos(ad)) * r - k40);
+                scene1_record_b_spawn_npc(a, 70, 1);
+                AF(a, 0x3f0) = x0;
+                AF(a, 0x3f4) = y0;
+                AF(a, 0x3f8) = z0;
+            }
+            if (AI(a, 0xa58) == 320) {
+                AI(a, 0xa58) = 0;
+                AI(a, 0xa54) = 0;
+            }
+        } else {
+            return;
+        }
+    }
+    float dx = spill32((long double)gx - AF(a, 0x3f0));
+    float dz = spill32((long double)gz - AF(a, 0x3f8));
+    const float d = spill32(crt_sqrt(spill64((long double)dz * dz + (long double)dx * dx)));
+    if (d > k5) {
+        dx = spill32((long double)dx * k5 / d);
+        dz = spill32((long double)dz * k5 / d);
+    }
+    AF(a, 0x3fc) = spill32((long double)AF(a, 0x3fc) * k0p97 + (long double)dx * k0p0097);
+    AF(a, 0x404) = spill32((long double)AF(a, 0x404) * k0p97 + (long double)dz * k0p0097);
+    float e = spill32((long double)AF(a, 0x3f4) - h);
+    if (!(e >= 0.0f)) e = -e;
+    if (!(e >= k0p05)) AF(a, 0x3f4) = h;
+    else if (AF(a, 0x3f4) >= h) AF(a, 0x3f4) = spill32((long double)AF(a, 0x3f4) - k0p05);
+    else AF(a, 0x3f4) = spill32((long double)AF(a, 0x3f4) + k0p05);
+}
+
+/* FUN_00420bd0: Arma Golem's hands (75 right / 76 left).  +0xa00 / +0xb54 1;
+ * state 8 as the body's.  Else +0xa58 / the clock +0xa60 count, +0x9fc 1, y
+ * 1.5, +0xa98 0; while +0xa5c == 0 they patrol x 4 sin(0.02 c) - 20 / -60 - 4
+ * sin(0.02 c), z 4 cos(0.03 c) - 40 (v += 0.1 Δ, capped 0.5); before 150 the
+ * yaw eases to ∓4.084 (swapped on cycles % 8 in 5..7); at 120 the beam
+ * (record 136) on cycle % 5 in {0, 2, 4} (75) / {1, 3, 4} (76); from 180 the
+ * sweep (yaw ± 0.02 · ramp); at 300 the next cycle (+0xa64).
+ * asm 0x420bd0..0x420f4c. */
+static void actor_ai_golem_hand(actor_t *a)
+{
+    static const float k1p5 = 1.5f, km60 = -60.0f, k0p1f = 0.10000000149011612f;
+    static const float k_yaw = 4.084070205688477f, k_pi100 = 0.03141592815518379f;
+    AI(a, 0xa00) = 1;
+    AI(a, 0xb54) = 1;
+    if (AI(a, 0xa54) == 8) {
+        if (g_scene1_combat_stage_id == 5) {
+            if (++AI(a, 0xa58) >= 240) {
+                AI(a, 0xa58) = 0;
+                AI(a, 0xa54) = 0;
+            }
+        } else {
+            actor_golem_descend(a);              /* FUN_0044f037 */
+        }
+        return;
+    }
+    ++AI(a, 0xa58);
+    const int32_t c = ++AI(a, 0xa60);
+    AI(a, 0x9fc) = 1;
+    AF(a, 0x3f4) = k1p5;
+    AI(a, 0xa98) = 0;
+    if (AI(a, 0xa5c) != 0) return;
+    const int swap = AI(a, 0xa64) % 8 > 4;
+    const int right = AI(a, ACT_TYPE) == 75;
+    const float fc = spill32((long double)c);
+    const float sa = spill32(x87_crt_sin(spill32((long double)fc * k0p02)));
+    const float gx = right ? spill32((long double)sa * k4 - k20) : spill32((long double)km60 - (long double)sa * k4);
+    const float fc2 = spill32((long double)AI(a, 0xa60));
+    const float ca = spill32(x87_crt_cos(spill32((long double)fc2 * k0p03)));
+    const float gz = spill32((long double)ca * k4 - k40);
+    const float ax = spill32(((long double)gx - AF(a, 0x3f0)) * k0p1f);
+    const float az = spill32(((long double)gz - AF(a, 0x3f8)) * k0p1f);
+    const float vx = spill32((long double)ax + AF(a, 0x3fc));
+    AF(a, 0x3fc) = vx;
+    const float vz = spill32((long double)az + AF(a, 0x404));
+    AF(a, 0x404) = vz;
+    const float s2 = spill32((long double)vz * vz + (long double)vx * vx);
+    const float sp = spill32(crt_sqrt(s2));
+    if (sp > k0p5) {
+        AF(a, 0x3fc) = spill32((long double)AF(a, 0x3fc) * k0p5 / sp);
+        AF(a, 0x404) = spill32((long double)AF(a, 0x404) * k0p5 / sp);
+    }
+    const int32_t t0 = AI(a, 0xa58);
+    if (t0 >= 0 && t0 < 150) {
+        const float to = (swap ? AI(a, ACT_TYPE) == 76 : right) ? -k_yaw : k_yaw;
+        AF(a, 0x420) = angle_ease(AF(a, 0x420), to, k_pi100);   /* FUN_00482ae7 */
+    }
+    if (AI(a, 0xa58) == 120) {
+        const int32_t m = AI(a, 0xa64) % 5;
+        int fire = 0;
+        if (AI(a, ACT_TYPE) == 75 && (m == 0 || m == 2 || m == 4)) fire = 1;
+        if (AI(a, ACT_TYPE) == 76 && (m == 1 || m == 3 || m == 4)) fire = 1;
+        if (fire) scene1_record_b_spawn_npc(a, 136, 1);         /* FUN_00445a8c */
+    }
+    const int32_t t = AI(a, 0xa58);
+    if (t >= 180) {
+        float r = spill32((long double)spill32((long double)(t - 180)) * k0p1f);
+        if (r > k1) r = 1.0f;
+        if (t >= 255) {
+            const float q = spill32((long double)(t - 255));
+            r = spill32((long double)r - (long double)q * k0p1f);
+        }
+        if (!(r >= 0.0f)) r = 0.0f;
+        if (AI(a, ACT_TYPE) == 75) AF(a, 0x420) = spill32((long double)r * k0p02 + AF(a, 0x420));
+        else AF(a, 0x420) = spill32((long double)AF(a, 0x420) - (long double)r * k0p02);
+    }
+    if (t == 300) {
+        AI(a, 0xa58) = 0;
+        ++AI(a, 0xa64);
+    }
+}
+
 void actor_ai_alive(actor_t *a)
 {
     if (AI(a, 0xb40) == 1) {
@@ -5545,7 +5833,15 @@ void actor_ai_alive(actor_t *a)
         } else if (type == 29) {
             actor_ai_t29(a);                     /* FUN_0042da1d */
         } else if (type == 30 && stage_gate_get_next() != 99) {
-            actor_ai_t30(a);                     /* FUN_0042d676 (99: FUN_0044f009, stub) */
+            actor_ai_t30(a);                     /* FUN_0042d676 */
+        } else if (type == 41 && stage_gate_get_next() != 99) {
+            actor_ai_arma(a);                    /* FUN_00425c3f */
+        } else if (type == 30 || type == 41 || type == 77) {
+            /* Lapis 100F's props — FUN_0044f009 (Alouette 30), FUN_0044eff5 (Arma
+             * 41), FUN_0044f01d (Prime 77, also +0xa00): untouchable */
+            AI(a, 0xb04) = 1;
+            AI(a, 0xb08) = 1;
+            if (type == 77) AI(a, 0xa00) = 1;
         } else if (type == 27) {
             actor_ai_t27(a);                     /* FUN_00423b58 */
         } else if (type == 31) {
@@ -5584,10 +5880,10 @@ void actor_ai_alive(actor_t *a)
             actor_ai_golem(a);                   /* FUN_00420f4d */
         } else if (type == 28) {
             actor_ai_griff(a);                   /* FUN_00424b42 */
-        } else if (type == 41 && stage_gate_get_next() != 99) {
-            actor_ai_arma(a);                    /* FUN_00425c3f */
-        } else if (type == 41) {
-            /* PORT-DEBT(stub, FUN_0044eff5): Arma as the floor-99 prop */
+        } else if (type == 73 || type == 74) {
+            actor_ai_golem_body(a);              /* FUN_004205e5 */
+        } else if (type == 75 || type == 76) {
+            actor_ai_golem_hand(a);              /* FUN_00420bd0 */
         } else if (type == 50 || type == 51) {
             if (AI(a, 0xb8c) != 0) {             /* a fresh skeleton revives twice */
                 AI(a, 0xb8c) = 0;
@@ -5599,9 +5895,7 @@ void actor_ai_alive(actor_t *a)
             actor_ai_skeleton(a);                /* FUN_0042f28c default: FUN_00428213 */
         } else {
             /* PORT-DEBT(stub, FUN_0042f28c): the arms not yet ported (
-             * FUN_004262b7, FUN_0042ac16, FUN_004284ba,
-             * FUN_004205e5, FUN_00420bd0, FUN_0044f01d,
-             * FUN_0044f009) */
+             * FUN_004262b7, FUN_0042ac16, FUN_004284ba) */
         }
     }
     if (AI(a, 0xa00) != 0) {

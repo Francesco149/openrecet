@@ -2,9 +2,9 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 55,
+  "total": 50,
   "by_kind": {
-   "stub": 32,
+   "stub": 27,
    "synthetic-data": 0,
    "simplified": 7,
    "hardcode": 1,
@@ -22,7 +22,7 @@
    "semantic-collision": 1,
    "structure": 1
   },
-  "retiring_engine_fns": 47,
+  "retiring_engine_fns": 42,
   "by_engine_fn": {
    "FUN_00473c15": 3,
    "FUN_00474d92": 3,
@@ -41,7 +41,6 @@
    "FUN_0042e1a6": 1,
    "FUN_0042e791": 1,
    "FUN_0042f28c": 1,
-   "FUN_0042f7ad": 1,
    "FUN_00432e50": 1,
    "FUN_00435dcd": 1,
    "FUN_00436f97": 1,
@@ -49,10 +48,6 @@
    "FUN_00442cef": 1,
    "FUN_0044b219": 1,
    "FUN_0044e08f": 1,
-   "FUN_0044ecc4": 1,
-   "FUN_0044eff5": 1,
-   "FUN_0044f078": 1,
-   "FUN_0044f13d": 1,
    "FUN_00452809": 1,
    "FUN_004536cb": 1,
    "FUN_00457714": 1,
@@ -127,7 +122,7 @@
    "engine_fn": "0x43e...",
    "desc": "types >= 64 read past DAT_005c23f0 into",
    "file": "src/scene1_records_b_tick.c",
-   "line": 3240,
+   "line": 3241,
    "kind_known": false
   },
   {
@@ -151,7 +146,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the",
    "file": "src/dungeon_flow.c",
-   "line": 2029,
+   "line": 2643,
    "kind_known": false
   },
   {
@@ -303,7 +298,7 @@
    "engine_fn": "FUN_0042e1a6",
    "desc": "the death (EXP, drops, the kill count)",
    "file": "src/actor_ai.c",
-   "line": 6049,
+   "line": 6343,
    "kind_known": true
   },
   {
@@ -311,7 +306,7 @@
    "engine_fn": "FUN_0042e791",
    "desc": "the poison tick (ftol(p), 4)",
    "file": "src/actor_ai.c",
-   "line": 6006,
+   "line": 6300,
    "kind_known": true
   },
   {
@@ -319,15 +314,7 @@
    "engine_fn": "FUN_0042f28c",
    "desc": "the arms not yet ported (",
    "file": "src/actor_ai.c",
-   "line": 5601,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_0042f7ad",
-   "desc": "the final boss's death arms (73 / 74:",
-   "file": "src/actor_ai.c",
-   "line": 867,
+   "line": 5897,
    "kind_known": true
   },
   {
@@ -367,7 +354,7 @@
    "engine_fn": "FUN_004427f1",
    "desc": "the +0x2bce2 story beat (the curtain",
    "file": "src/dungeon_flow.c",
-   "line": 1421,
+   "line": 1425,
    "kind_known": true
   },
   {
@@ -399,39 +386,7 @@
    "engine_fn": "FUN_0044e08f",
    "desc": "the +0x2bce2 story beat's setup (the",
    "file": "src/dungeon_flow.c",
-   "line": 1147,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_0044ecc4",
-   "desc": "Lapis 100F's setup \u2014 no recording reaches it",
-   "file": "src/dungeon_flow.c",
-   "line": 1741,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_0044eff5",
-   "desc": "Arma as the floor-99 prop",
-   "file": "src/actor_ai.c",
-   "line": 5590,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_0044f078",
-   "desc": "dungeon 4 floor 99's event helper",
-   "file": "src/dungeon_party.c",
-   "line": 653,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_0044f13d",
-   "desc": "Lapis 100F's events \u2014 no recording reaches it",
-   "file": "src/dungeon_flow.c",
-   "line": 1992,
+   "line": 1151,
    "kind_known": true
   },
   {
@@ -455,7 +410,7 @@
    "engine_fn": "FUN_004708f7",
    "desc": "the event-window pair (chars 0x2f / 0x30)",
    "file": "src/dungeon_party.c",
-   "line": 658,
+   "line": 659,
    "kind_known": true
   },
   {
@@ -487,7 +442,7 @@
    "engine_fn": "FUN_00485c74",
    "desc": "the party damage (HP bar +",
    "file": "src/dungeon_flow.c",
-   "line": 191,
+   "line": 195,
    "kind_known": true
   },
   {
@@ -503,7 +458,7 @@
    "engine_fn": "FUN_0048b850 da1bc",
    "desc": "the attack lunge (da1bc 1..ccb8)",
    "file": "src/dungeon_party.c",
-   "line": 3197,
+   "line": 3198,
    "kind_known": true
   },
   {
