@@ -689,7 +689,8 @@ void sim_step_a(void)
                                              scene_worldmap_return_pending());
         hud_xp_shake_money_tick();       /* FUN_00406584: XP, shake, money roll */
         scene1_particles_tick();
-        scene_worldmap_sim();
+        if (!scene1_intro_dialogue_busy())   /* LABEL_106: only while DAT_0438b1c8 == 0 (event 12/20) */
+            scene_worldmap_sim();
         break;
 
     case 6:    /* Merchant's Guild / Market (engine FUN_00490e24 → FUN_004922c0) */

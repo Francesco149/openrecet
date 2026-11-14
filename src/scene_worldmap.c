@@ -33,6 +33,9 @@
 #include "event_probe.h"       /* FUN_0045de68 */
 #include "scene1_day_close.h"   /* day_close_clear — DAT_0438b4e0 = 0 */
 #include "scene1_tutorial_dispatch.h" /* scene1_beat_set_flag — DAT_0438b928 */
+#include "scene1_intro_dialogue.h" /* FUN_0044ba2c */
+#include "scene1_display_menu.h"  /* FUN_00468d22 */
+#include <string.h>
 
 #define WORK_SEAT_AT_DOOR (0x2cdf4 / 4)   /* work dword 45949 — FUN_00436f97's seat pick */
 
@@ -391,7 +394,7 @@ static void scene_worldmap_exit_to_dest(void)
  * toward the nav slide target) and the particle tick (FUN_0040fb3a). See
  * docs/findings/town-map-RE.md §3.
  *
- *   Block A — pending-delivery early-out (PORT-DEBT, see below).
+ *   Block A — the Lapis clear's return (event 12/20, +0x2bd02).
  *   Block B — entry-timer cursor snap (timer < 3): pin the destination
  *             pointer to the selected marker while the map eases in.
  *   Block C — input: once timer > 10, Z-up → cursor nav (the 3×5 grid walk);
@@ -412,14 +415,29 @@ void scene_worldmap_sim(void)
     CALL_TRACE_U32("held",  g_sim_buttons[0].held);             /* DAT_073dddd6 */
     CALL_TRACE_END();
 
-    /* ── Block A — pending-delivery early-out (all.c:103035) ──────────────
-     * PORT-DEBT(worldmap-delivery-return): when the player returns to the
-     * shop with an undelivered order pending (DAT_0450f49a[slot] != 0), the
-     * engine kicks a delivery-return scene load (FUN_0044ba2c → scene
-     * 0xc/0x14) + inventory return (FUN_00468d22) and early-returns (no
-     * timer++). The delivery/event subsystem is unported; the flag is
-     * BSS-zero on a tutorial Continue (the town-map-load recording), so this
-     * path is never taken there. Deferred — retire with the delivery arc. */
+    /* ── Block A — the Lapis clear's return (asm 0x49e179..0x49e28f) ──────
+     * bank +0x2bd02 (set by the 100F clear, FUN_0044f13d stage 23): story mode
+     * 2 just clears it; else FUN_0044ba2c(12, 20, 0) — when it starts (no
+     * dialogue armed, DAT_0438b1c8 == 0) the flag clears, item 0x35400 enters
+     * the bag (FUN_00468d22), +0x2bc53 (dungeon 5 opens) and the cursor hides
+     * (FUN_00435612); the tick ends there (no timer++). */
+    {
+        uint8_t *bk = save_work_bank_at(save_work_active_slot());
+        if (bk != NULL && bk[0x2bd02] != 0) {
+            int32_t mode;
+            memcpy(&mode, bk + 0x2dd64, 4);
+            if (mode == 2) {
+                bk[0x2bd02] = 0;
+            } else if (!scene1_intro_dialogue_busy()) {
+                scene1_intro_dialogue_start_single(12, 20);            /* FUN_0044ba2c(12, 20, 0) */
+                bk[0x2bd02] = 0;
+                display_menu_inventory_return(save_work_dwords_at(save_work_active_slot()), 0x35400);   /* FUN_00468d22 */
+                bk[0x2bc53] = 1;
+                title_save_dialog_cursor_set_visible(0);               /* FUN_00435612 */
+                return;
+            }
+        }
+    }
 
     /* ── Block B — entry-timer cursor snap (all.c:103050) ─────────────────
      * For the first 3 sim frames after the map loads, keep the shared cursor
