@@ -82,7 +82,7 @@ cover things nobody has recorded yet, such as boss fights, rare menus and late
 dungeon floors. When the port splits from retail, the first frame where it
 differs points at the function to fix. Each fix is committed with its evidence.
 
-Today the gate suite is **153 checks over 106 scenarios** (tick-identical runs
+Today the gate suite is **165 checks over 112 scenarios** (tick-identical runs
 and byte-identical saves), and every one has to stay green. Other tools:
 
 - Direct3D 8 command-stream capture and replay for visual checks;
