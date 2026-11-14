@@ -320,8 +320,32 @@ static void postload_dungeon_arm(void)
         const float sc5[3] = { k0p5, k0p5, k0p5 };
         dobj_spawn(ex, sc5, 0.0f, 8);
         if (g_scene1_combat_stage_id == 5 && (stage_gate_get_next() == 9 || stage_gate_get_next() == 19)) {
-            /* PORT-DEBT(stub, FUN_00436f97): dungeon 5's return portal 6 beside
-             * the exit (floors 9 / 19) */
+            /* dungeon 5's return portal (kind 6, scale 0.35) beside the exit
+             * (floors 9 / 19): the first of 4 points 6 away (k·2π/4) with
+             * ground within 0.5 of y; the portal goes 5 away on that bearing,
+             * none if no point qualifies (asm 0x437eb8..0x438014) */
+            static const float k_quad = 4.0f, k2pi = 6.2831854820251465f, k6 = 6.0f, k5 = 5.0f;
+            for (int32_t k = 0; k < 4; k++) {
+                const float a = spill32((long double)spill32((long double)k) * k2pi / k_quad);
+                const double ad = a;
+                float t = spill32(x87_crt_sin(ad));
+                const float px = spill32((long double)t * k6 + ex[0]);
+                t = spill32(x87_crt_cos(ad));
+                const float pz = spill32((long double)t * k6 + ex[2]);
+                mapcol_hit_t hit;
+                if (mapcol_ground(px, spill32((long double)ex[1] + k0p5), pz, &hit) != 1 ||
+                    !(spill32(fabsl((long double)hit.height)) < k0p5))
+                    continue;
+                float rp[3];
+                t = spill32(x87_crt_sin(ad));
+                rp[0] = spill32((long double)t * k5 + ex[0]);
+                rp[1] = ex[1];
+                t = spill32(x87_crt_cos(ad));
+                rp[2] = spill32((long double)t * k5 + ex[2]);
+                const float sc6[3] = { k0p35, k0p35, k0p35 };
+                dobj_spawn(rp, sc6, 0.0f, 6);    /* FUN_0044ad81 */
+                break;
+            }
         }
         /* the marked cells' objects, 4 / 5 alternating */
         for (int32_t k = 0; k < g_floor_extra_n; k++) {

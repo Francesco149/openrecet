@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **49**
-- distinct retiring engine functions: **41**
+- total open debts: **48**
+- distinct retiring engine functions: **40**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 26 | wired call boundary, body incomplete |
+| stub | 25 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 7 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -49,7 +49,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0042f28c | 1 |
 | FUN_00432e50 | 1 |
 | FUN_00435dcd | 1 |
-| FUN_00436f97 | 1 |
 | FUN_004427f1 | 1 |
 | FUN_00442cef | 1 |
 | FUN_0044b219 | 1 |
@@ -72,7 +71,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (26)
+## stub (25)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -87,10 +86,9 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00434ceb | src/scene_guild.c:21 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:472 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
-| FUN_00436f97 | src/scene1_postload.c:323 | dungeon 5's return portal 6 beside |
 | FUN_004427f1 | src/dungeon_flow.c:1423 | the +0x2bce2 story beat (the curtain |
 | FUN_00442cef | src/scene1_sim.c:373 | the run's end (FUN_00442c86, |
-| FUN_0044b219 | src/scene1_postload.c:360 | the camera shake reset, DAT_073de3a0 = 45 |
+| FUN_0044b219 | src/scene1_postload.c:384 | the camera shake reset, DAT_073de3a0 = 45 |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:398 | its b924 == 0x276 consumer, scene0/sub8), |
 | FUN_0044e08f | src/dungeon_flow.c:1149 | the +0x2bce2 story beat's setup (the |
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
