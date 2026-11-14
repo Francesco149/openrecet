@@ -242,3 +242,9 @@ rd eval R "actors(T == 10)" a0hp --at-frame 40650                               
 - Do not kill processes by name; `rd stop R` ends your session. Do not touch `C:\orc-rhost` or
   other projects' runners.
 - Do not commit; report instead.
+- **Do not end your turn to wait.** Every time you stop with background work still running, your parent gets a
+  notification, and short waits flood the owner with pings (a dozen an hour on the boss-rush runs). Wait INSIDE one
+  command instead: run searches / play loops in the foreground with a long Bash timeout (up to 600000 ms), or start them
+  in the background and block in a single foreground poll on their output file (`until grep -q DONE out.log; do sleep 30;
+  done` under `timeout 590`), then repeat that poll until the work finishes. Stop your turn only to deliver the final
+  answer or a blocker. Never `pkill` a background helper: record its PID and kill that.
