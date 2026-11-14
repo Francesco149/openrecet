@@ -4,7 +4,7 @@ start: save:b4766a99d74b
 steps:
   - on Lapis 60F: floor == 59
   - event 12/4 playing: sid == 12004 and dlg == 1
-  - back in the shop with control: scene == 1 and dlg == 0
+  - back in the shop with control: scene == 1 and dlg == 0 and stage < 4
 forbid:
   - game over: scene == 2
 ---

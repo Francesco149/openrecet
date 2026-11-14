@@ -139,7 +139,7 @@ Extra d3 state: first trip to row 0 runs a stage-type-20 cutscene (event 7/6); f
 | 44 | 45 | none (red mob list) | — | generic | — |
 | 49 | 50 | 41 Arma (250·7.8 = 1950, observed) | — | own: default arm + `FUN_00450877` | `arma.md` |
 | 54 | 55 | 49 ×2 (15·8.0 = 120; **live 100·8.0 = 800 each**, `lapis-51f-60f`) | 44..48, kept at 5 (2 spawned per tick: both BKs run the test) | generic | `black-knight.md` § 11 |
-| 59 | 60 | 60 rat (150·8.2 = 1230; live 1230) | 13 / 14 | generic; after: event 12/4 once (+0x2bcf7; flag already set in the `lapis-51f-60f` lineage: skipped, `estage` stays 1) | `mushroom-king.md` § 9 |
+| 59 | 60 | 60 rat (150·8.2 = 1230; live 1230) | 13 / 14 | generic; after: event 12/4 once (+0x2bcf7; flag already set in the `lapis-51f-60f` lineage: skipped, `estage` stays 1; played in `lapis-60f-event-12-4` (crafted save): `lock` 0 from the floor open, dialogue at etick 120, flag set that tick, no stage change, party not moved) | `mushroom-king.md` § 9 |
 | 64 | 65 | none: mob floor, 50 ×10 + 51 ×10 (126), 52 ×10 (168), 53 ×9 (126) at L37; skeletons revive twice; exit hidden until all freed (`lapis-61f-70f`) | — | generic | — |
 | 69 | 70 | 64 + 65 + 66 dark golem (150·8.6 = 1290 each; live 1290, `lapis-61f-70f`) | 35, 9 over the fight (live: cap reached) | own: case 69 | `golem.md` |
 | 74 | 75 | none (yellow mob list) | — | generic | — |
