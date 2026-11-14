@@ -196,12 +196,15 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     events 12/10 → auto-walk → 12/11 → 12/12 at distance 4, portals; return, the Week #4 debt taken at the morning, Save; end save
     `8767348923a8`; 47,087 frames): **identical + save on the first triage** (47,387 ticks) — case 79 + `FUN_004284ba` verified,
     no port change; gate rows added. `+0x2bd14` (80F seen) never set by the run: ☐ who sets it (a second 80F visit replays?).
+  - ✅ `lapis-81f-90f` (crafted lineage; Lapis 81F..89F incl. the 85F mob floor (30), the 90F black crab type 69 (1,410 HP; bomb
+    blasts flip it AND damage it, ~800 HP of the kill), return, Save; end save `6809401b79a9`; 27,175 frames): **identical + save on
+    the first triage** (27,475 ticks), no port change; gate rows added. Not reached: crab spray (state 4), state 7, its hits on the player.
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`
        port-identical + save (one bug: record 104's NULL-owner return, `findings/bosses/tielle.md` §7). One subscription subagent at a time.
     1. ✅ the two open splits (ending, New Game + / Survival) closed 2026-11-13; Arma verified (`lapis-41f-50f`). 51F..60F identical
-       2026-11-13. 61F..70F identical 2026-11-14. 71F..80F identical 2026-11-14. Next on the Lapis line: 81F..90F (85F roper list, 90F black crab type 69).
+       2026-11-13. 61F..70F identical 2026-11-14. 81F..90F identical 2026-11-14. Next on the Lapis line: 91F..100F (100F: `FUN_0044ecc4` / `FUN_0044f13d`, PORT-DEBT stubs → expect a split).
     2. keep the agent rows green: `gates` has 95 rows; **86/86 ok at 10e36b61, Windows, `-j 8`, 571 s**
        (2026-11-10; 36 of them agent-authored), + the 9 rows of five later probes **9/9 ok** in 24 s. Add a scenario's rows when its triage is
        identical.
