@@ -38,6 +38,10 @@
 #include "scene.h"               /* g_scene_state (DAT_0438b1c0) */
 #include "scene_adv_guild.h"     /* FUN_0045bcea */
 #include "x87.h"
+#include "scene1_overlay.h"        /* FUN_004147d5 */
+#include "scene1_records.h"        /* table C (DAT_06956cb0) */
+#include "scene1_records_c_spawn.h" /* FUN_0044af50 */
+#include "table_c.h"               /* DAT_0076b968 */
 #include "worker_load.h"           /* FUN_00452cde */
 
 int32_t g_floor_intro;
@@ -1707,9 +1711,619 @@ static void d4_spent_portals(void)
     dobj_spawn_special(1, 6, p2, sc2, 0.0f);
 }
 
+/* ---- Lapis 100F (dungeon 4, floor 99) -------------------------------------- */
+
+static actor_t *g_dat_06a470a4;    /* DAT_06a470a4: floor 99's Arma prop (type 41) */
+static actor_t *g_dat_06a470ac;    /* DAT_06a470ac: floor 99's Prime (type 77) */
+static actor_t *g_dat_06a470b0;    /* DAT_06a470b0: the golem's left hand (76) */
+static actor_t *g_dat_06a470b4;    /* DAT_06a470b4: the golem's right hand (75) */
+static actor_t *g_dat_06a470bc;    /* DAT_06a470bc: the golem's core (74) */
+static int32_t  s_f99_clock;       /* DAT_06a470c0: FUN_0044f078's tick count */
+
+/* floor 99's props (Alouette 30, Arma 41): alive, state 8, facing `yaw` */
+static actor_t *d4_f99_prop(float x, float z, int32_t type, float yaw)
+{
+    actor_t *a = stage5_spawn(x, 0.0f, z, type);   /* FUN_0041f903 */
+    if (a != NULL) {
+        act_seti(a, ACT_INUSE, 1);
+        act_seti(a, 0xa54, 8);
+        act_setf(a, ACT_YAW, yaw);
+    }
+    return a;
+}
+
+/* FUN_0044ecc4: Lapis 100F's setup.  06a470c0 = 0; story mode 2 sets
+ * +0x2bcff.  Six movers at (-40, 0, -40) (on, kind 100, slot i, f6c8 1 — the
+ * 6th 0.5).  Cleared (+0x2bd00, not mode 2): the town portal (kind 6, (-40, 0,
+ * -45), 0.35), stage 24, mover 6 off.  Else +0x2bcff set (not mode 2): stage 4
+ * at 130 (the golem spawns on the first event tick), mover 6 off, Alouette
+ * (30) at (-38, 0, -46) facing -π/2, Tear hidden (56da1c8 1, scale 0).  Else
+ * the party at (-40 + i, 0, -73 - i), Alouette, Arma (41) at (-42, 0, -46)
+ * facing π/2, and 400 resting orbs (table C, kind rand & 3) in a ring of
+ * radius (u + 0.2) · 14 around (-40, -46).  asm 0x44ecc4..0x44eff4. */
+static void d4_floor99_setup(uint8_t *rec, int32_t mode)
+{
+    static const float km40 = -40.0f, km45 = -45.0f, k0p35 = 0.3499999940395355f, k0p5 = 0.5f;
+    static const float km38 = -38.0f, km46 = -46.0f, km42 = -42.0f, km73 = -73.0f, k40 = 40.0f;
+    static const float k46 = 46.0f, k14 = 14.0f, k0p2 = 0.20000000298023224f;
+    static const float k_2pi = 6.2831854820251465f;
+    static const float k_pi2 = 1.5707963705062866f, km_pi2 = -1.5707963705062866f;
+    s_f99_clock = 0;
+    if (mode == 2 && rec != NULL) rec[0x2bcff] = 1;
+    g_mapcol_movers.on[0] = 6;
+    for (int32_t i = 1; i <= 6; i++) {
+        g_mapcol_movers.x[i] = km40;
+        g_mapcol_movers.y[i] = 0.0f;
+        g_mapcol_movers.z[i] = km40;
+        g_mapcol_movers.on[i] = 1;
+        g_mapcol_movers.on[50 + i] = 100;        /* DAT_0438c218[i] */
+        g_mapcol_movers.slot[50 + i] = 0;        /* DAT_0438c3a8[i] */
+        g_mapcol_movers.slot[i] = i;
+        g_mapcol_movers.f6c8[i] = 1.0f;
+        g_mapcol_movers.f790[i] = 0.0f;
+    }
+    g_mapcol_movers.f6c8[6] = k0p5;              /* DAT_0438c6e0 */
+    const int cleared = rec != NULL && rec[0x2bd00] != 0;
+    const int seen = rec != NULL && rec[0x2bcff] != 0;
+    if (cleared && mode != 2) {
+        const float p[3] = { km40, 0.0f, km45 };
+        const float sc[3] = { k0p35, k0p35, k0p35 };
+        dobj_spawn_special(1, 6, p, sc, 0.0f);   /* FUN_0044b257 */
+        g_event_stage = 24;
+        g_mapcol_movers.on[6] = 0;               /* DAT_0438c168 */
+        return;
+    }
+    if (seen && mode != 2) {
+        g_event_stage = 4;
+        g_event_tick = 130;
+        g_mapcol_movers.on[6] = 0;
+        g_dat_06a470a8 = d4_f99_prop(km38, km46, 30, km_pi2);
+        PW(0x56da1c8u).i = 1;
+        g_party.scale_xz[2] = 0.0f;              /* DAT_056dae20 */
+        return;
+    }
+    for (int i = 0; i < 3; i++) {
+        const float fi = spill32((long double)i);
+        g_party.pos[i][0] = spill32((long double)fi - k40);
+        g_party.pos[i][1] = 0.0f;
+        g_party.pos[i][2] = spill32((long double)km73 - fi);
+        party_anim_set(g_party.rec[i], 0);       /* FUN_00482a51 */
+        g_party.rec[i][6] = 0;
+        PW(0x56db05cu).f = 0.0f;
+    }
+    g_dat_06a470a8 = d4_f99_prop(km38, km46, 30, km_pi2);
+    g_dat_06a470a4 = d4_f99_prop(km42, km46, 41, k_pi2);
+    for (int32_t k = 400; k != 0; k--) {
+        const float r = spill32(((long double)rng_next_unit() + k0p2) * k14);   /* FUN_00471089 */
+        const float an = spill32((long double)rng_next_unit() * k_2pi);
+        const double ad = an;
+        const float x = spill32((long double)spill32(x87_crt_sin(ad)) * r - k40);
+        const float z = spill32((long double)spill32(x87_crt_cos(ad)) * r - k46);
+        const int32_t kind = (int32_t)(rng_next15() & 3);                       /* j__rand */
+        scene1_records_c_spawn_world_drop((int)(intptr_t)&g_party, x, 0.0f, z, kind,
+                                          1, 1.0f, 0, 2, 1, 0);                 /* FUN_0044af50 */
+    }
+}
+
+/* FUN_0044f078: floor 99's ambience, from the event tick (FUN_0044f13d) and
+ * from the dialogue frames' FUN_0048407f.  Stage 3: SE 368 at 30; past 45 SE
+ * 342 every 10th call and the glow (overlay 62 at mover 6, y 5, z - 1, 1.5)
+ * every 15th; stage 4 before 60: the glow.  Mover 6's f790 += 0.025.
+ * asm 0x44f078..0x44f13c. */
+void d4_floor99_ambience(void)
+{
+    static const float k5 = 5.0f, k1p5 = 1.5f, k1 = 1.0f, k0p025 = 0.02500000037252903f;
+    int glow = 0;
+    if (g_event_stage == 3) {
+        if (g_event_tick == 30) audio_play_se_by_id(368);
+        if (g_event_tick > 45) {
+            if (s_f99_clock % 10 == 0) audio_play_se_by_id(342);
+            glow = 1;
+        }
+    } else if (g_event_stage == 4 && g_event_tick < 60) {
+        glow = 1;
+    }
+    if (glow && s_f99_clock % 15 == 0)
+        scene1_overlay_spawn(NULL, g_mapcol_movers.x[6], k5,
+                             spill32((long double)g_mapcol_movers.z[6] - k1),
+                             62, k1p5, -1, 0, 0, 0);                            /* FUN_004147d5 */
+    ++s_f99_clock;
+    g_mapcol_movers.f790[6] = spill32((long double)g_mapcol_movers.f790[6] + k0p025);   /* DAT_0438c7a8 */
+}
+
+/* FUN_0044f13d's stage 3: the resting orbs (table C, frozen, kind != -1) fly
+ * into mover 6 — vy held 0 for 3 ticks, pos += vel · scale, drag (0.97, 0.95,
+ * 0.97), y clamped 0..5; from age 1 steered (+0.2 · Δ, speed capped 0.5) and
+ * gone within 1.  asm 0x44f504..0x44f6b1. */
+static void d4_f99_orbs_home(void)
+{
+    static const float k0p97 = 0.9700000286102295f, k0p95 = 0.949999988079071f;
+    static const float k5 = 5.0f, k1 = 1.0f, k0p2 = 0.20000000298023224f, k0p5 = 0.5f;
+    for (int32_t k = 0; k != g_table_c_bound; k++) {          /* DAT_0076b968 */
+        int32_t *ri = &g_scene1_records_c[k * SCENE1_RECORDS_C_STRIDE];
+        float *r = (float *)ri;
+        if (ri[10] == -1 || ri[36] != 1) continue;
+        if (ri[11] < 3) r[4] = 0.0f;
+        r[0] = spill32((long double)r[3] * r[12] + r[0]);
+        r[1] = spill32((long double)r[4] * r[12] + r[1]);
+        r[2] = spill32((long double)r[5] * r[12] + r[2]);
+        r[3] = spill32((long double)r[3] * k0p97);
+        r[4] = spill32((long double)r[4] * k0p95);
+        r[5] = spill32((long double)r[5] * k0p97);
+        if (r[1] > k5) r[1] = k5;
+        if (r[1] < 0.0f) r[1] = 0.0f;
+        if (ri[11] > 0) {
+            float dx = spill32((long double)g_mapcol_movers.x[6] - r[0]);
+            float dz = spill32((long double)g_mapcol_movers.z[6] - r[2]);
+            const float d = spill32(sqrt(spill64((long double)dz * dz + (long double)dx * dx)));
+            if (d < k1) {
+                ri[10] = -1;
+            } else {
+                r[3] = spill32((long double)dx * k0p2 + r[3]);
+                dz = spill32((long double)dz * k0p2 + r[5]);
+                r[5] = dz;
+                dx = r[3];
+                const float s2 = spill32((long double)dz * dz + (long double)dx * dx);
+                if (s2 > 0.0f) {
+                    const float s = spill32(sqrt(s2));
+                    if (s > k0p5) {
+                        r[3] = spill32((long double)r[3] * k0p5 / s);
+                        r[5] = spill32((long double)r[5] * k0p5 / s);
+                    }
+                }
+            }
+        }
+        ++ri[11];
+    }
+}
+
+/* Alouette (the floor-99 prop) stands in Tear's place (party slot 2) */
+static void d4_f99_alouette_on_tear(void)
+{
+    actor_t *a = g_dat_06a470a8;
+    if (a == NULL) return;                       /* retail does not check */
+    act_setf(a, 0x3f0, g_party.pos[2][0]);
+    act_setf(a, 0x3f8, g_party.pos[2][2]);
+    act_seti(a, 0x18, g_party.rec[2][6]);
+}
+
+/* FUN_0044f13d: Lapis 100F's events (FUN_00450877's floor-99 arm; the
+ * caller counts b8a4).  Every tick: FUN_0044f078, the floor origin (-40, 0,
+ * -60), six movers, below stage 10 the player held in the corridor (x -41..-39,
+ * z >= -78), mover 6 sunk (y -5), b8b0 0.
+ *   0 (free): pz past -67 → iv12_8 → 1;
+ *   1: b4e8 1; the camera drifts back (lookat / eye z + 0.2 to 100); iv12_9 at
+ *     120 (mode 2: the tick ends there); at 200 → 2;
+ *   2 (pad mask 4): the partner / Tear walk at the player's sides, 2 behind;
+ *     pz past -55 → iv12_13 (unless mode 2 — retail compares the mode with the
+ *     stage, 2), the player's velocity 0 → 3;
+ *   3: the camera lowers to 60; past 20 the props face 0 and Tear walks into
+ *     mover 6 and vanishes (to 120); 31..119 4 orbs a tick spawn; past 30 the
+ *     orbs fly in; at 200 iv12_14 → 4;
+ *   4: the fade at 10; at 130 every type 41 freed, 09643128 1, the golem (73 at
+ *     (-40, 15, -40) alive state 8, 74 there, 75 / 76 at x -32 / -48 state 8),
+ *     the fade-in (first time or mode 2), mover 6 off, b4e8 1, the camera, the
+ *     party at (-40 + 0.9i, 0, -50 - i); from 130 Alouette on Tear's spot; first
+ *     time (+0x2bcff clear) iv12_15 at 350, +0x2bcff → 8; else at 131 → 8;
+ *   8 (locked): the banner at 30; at 240 the adventurer's line; from 240 the
+ *     partner pinned to (-40, 0, -73), the golem's four parts to state 0, Tear
+ *     back (56da1c8 0), b4e8 3 → 10;
+ *   10 (free): Alouette on Tear's spot; past 60 the body dying → 13;
+ *   13: the fade at 120; at 240 the fade-in, 09643128 0, the body at (-40, 0,
+ *     -50) facing π, the hands freed, the party re-placed, Alouette beside the
+ *     partner, the camera; at 360 → 20;
+ *   20: at 1 the shake, SE 696, 8 overlays 63; at 30 iv12_16 → 21;
+ *   21: at 1 the wobble (40); at 20 the fade (not mode 2); the camera to 60;
+ *     at 60 iv12_17 (fade 1) → 22;
+ *   22: SE 368 at 1, the fade at 200; the body and core rise (61..319) shedding
+ *     overlays 64 (even ticks) and SE 342 (every 10th); at 320 both freed, the
+ *     fade-in; at 440 Tear back at (-40, 20, -45) and Prime (77) beside her,
+ *     both sinking to 5; at 710 iv12_18 → 23;
+ *   23: Prime / Tear down to 1.5; the camera to 60; the partner (and Alouette)
+ *     walk to z -47 (pad mask 4); at 200 Arma (41) at (-45, 0, -46.5); at 205
+ *     all face -π/2; iv12_19 at 250 (mode 2: the tick ends there); at 300 the
+ *     clear: be9c 120, bea8 1, be98 3, +0x2bd00 (first time +0x2bd02), the
+ *     deepest floor and best time;
+ *   24 (free): the town portal rises.
+ * asm 0x44f13d..0x450442. */
+static void d4_floor99_event(uint8_t *rec, int32_t mode)
+{
+    static const float km40 = -40.0f, km60 = -60.0f, km41 = -41.0f, km39 = -39.0f, km78 = -78.0f;
+    static const float km5 = -5.0f, km67 = -67.0f, km55 = -55.0f, k1 = 1.0f, k2 = 2.0f;
+    static const float k0p2 = 0.20000000298023224f, k0p04 = 0.03999999910593033f;
+    static const float k0p6 = 0.6000000238418579f, k10 = 10.0f, k15 = 15.0f;
+    static const float km32 = -32.0f, km48 = -48.0f, k3p5 = 3.5f, km45 = -45.0f, k12 = 12.0f;
+    static const float km70 = -70.0f, k0p9 = 0.8999999761581421f, km50 = -50.0f, k40 = 40.0f;
+    static const float km73 = -73.0f, k_pi = 3.1415927410125732f, k1p5 = 1.5f, k42 = 42.0f;
+    static const float k57 = 57.0f, k8p5 = 8.5f, k6 = 6.0f, km75 = -75.0f, k20 = 20.0f;
+    static const float k0p1 = 0.10000000149011612f, k0p5 = 0.5f, k20p8 = 20.799999237060547f;
+    static const float k0p08 = 0.07999999821186066f, k5 = 5.0f, k0p05 = 0.05000000074505806f;
+    static const float km38 = -38.0f, km47 = -47.0f, k0p005 = 0.004999999888241291f;
+    static const float k0p15 = 0.15000000596046448f, km46p5 = -46.5f, k46 = 46.0f;
+    static const float k_2pi = 6.2831854820251465f;
+    static const float k_pi2 = 1.5707963705062866f, km_pi2 = -1.5707963705062866f;
+    float *eye = scene1_camera_eye(), *look = scene1_camera_lookat();   /* DAT_0438cc38.. / cc50.. */
+    float *dp = g_scene1_stage_player_default_pos;                      /* DAT_0438b1ec / f0 / f4 */
+    d4_floor99_ambience();                                              /* FUN_0044f078 */
+    dp[0] = km40;
+    dp[1] = 0.0f;
+    g_mapcol_movers.on[0] = 6;
+    dp[2] = km60;
+    if (g_event_stage < 10) {
+        if (g_party.pos[0][0] < km41) g_party.pos[0][0] = km41;
+        if (g_party.pos[0][0] > km39) g_party.pos[0][0] = km39;
+        if (g_party.pos[0][2] < km78) g_party.pos[0][2] = km78;
+    }
+    g_mapcol_movers.y[6] = km5;                                         /* DAT_0438c550 */
+    g_ctrl_lock = 0;
+    switch (g_event_stage) {
+    case 0:
+        g_ctrl_lock = -1;
+        if (!(g_party.pos[0][2] > km67)) return;
+        if (mode != 2) scene1_intro_dialogue_start_single(12, 8);       /* FUN_0044ba2c(12, 8, 0) */
+        g_event_stage = 1;
+        g_event_tick = 0;
+        return;
+    case 1:
+        g_scene1_camera_stage_class = 1;                                /* DAT_0438b4e8 */
+        g_ctrl_lock = 0;
+        if (g_event_tick < 100) {
+            look[2] = spill32((long double)look[2] + k0p2);
+            eye[2] = spill32((long double)eye[2] + k0p2);
+        }
+        if (g_event_tick == 120) {
+            if (mode == 2) return;
+            scene1_intro_dialogue_start_single(12, 9);
+        }
+        if (g_event_tick == 200) {
+            g_event_tick = 0;
+            g_event_stage = 2;
+        }
+        return;
+    case 2: {
+        g_ctrl_lock = 4;
+        g_party.rec[1][6] = 0;
+        g_party.rec[2][6] = 0;
+        g_party.pos[1][0] = spill32((long double)g_party.pos[0][0] - k1);
+        const float z = spill32((long double)g_party.pos[0][2] + k2);
+        g_party.pos[1][2] = z;
+        g_party.pos[2][0] = spill32((long double)g_party.pos[0][0] + k1);
+        g_party.pos[2][2] = z;
+        if (!(g_party.pos[0][2] > km55)) return;
+        if (mode != 2) scene1_intro_dialogue_start_single(12, 13);      /* asm: cmp [mode], ecx (= 2) */
+        g_event_stage = 3;
+        g_event_tick = 0;
+        g_party.vel[0][0] = 0.0f;                                       /* DAT_056daabc.. */
+        g_party.vel[0][1] = 0.0f;
+        g_party.vel[0][2] = 0.0f;
+        return;
+    }
+    case 3: {
+        const int32_t t = g_event_tick;
+        if (t < 60) {
+            look[1] = spill32((long double)look[1] + k0p04);
+            eye[1] = spill32((long double)eye[1] - k0p2);
+            look[2] = spill32((long double)look[2] - k0p04);
+            eye[2] = spill32((long double)eye[2] - k0p04);
+        }
+        g_party.rec[1][6] = 0;
+        if (t > 20) {
+            act_setf(g_dat_06a470a8, ACT_YAW, 0.0f);
+            act_setf(g_dat_06a470a4, ACT_YAW, 0.0f);
+            if (t < 120) {
+                PW(0x56da1c8u).i = 1;
+                g_party.pos[2][2] = spill32((long double)g_party.pos[2][2] + k0p2);
+                if (g_party.pos[2][2] > g_mapcol_movers.z[6]) {
+                    g_party.pos[2][2] = g_mapcol_movers.z[6];
+                    g_party.scale_xz[2] = 0.0f;
+                }
+            }
+        }
+        if (t > 30) {
+            if (t < 120) {
+                for (int32_t k = 4; k != 0; k--) {
+                    const float r = spill32(((long double)rng_next_unit() + k0p6) * k10);
+                    const float an = spill32((long double)rng_next_unit() * k_2pi);
+                    const double ad = an;
+                    const float x = spill32((long double)spill32(x87_crt_sin(ad)) * r - k40);
+                    const float z = spill32((long double)spill32(x87_crt_cos(ad)) * r - k46);
+                    const int32_t kind = (int32_t)(rng_next15() & 3);
+                    scene1_records_c_spawn_world_drop((int)(intptr_t)&g_party, x, 0.0f, z, kind,
+                                                      1, 1.0f, 0, 0, 1, 0);   /* FUN_0044af50 */
+                }
+            }
+            d4_f99_orbs_home();
+        }
+        if (g_event_tick != 200) return;
+        if (mode != 2) scene1_intro_dialogue_start_single(12, 14);
+        g_event_stage = 4;
+        g_event_tick = 0;
+        return;
+    }
+    case 4:
+        if (g_event_tick == 10) fade_phase1_start(1, 120);              /* FUN_004526f5 */
+        if (g_event_tick == 130) {
+            for (int i = 0; i < ACTOR_COUNT; i++) {
+                actor_t *o = &g_actor[i];
+                if (act_geti(o, ACT_INUSE) != 0 && act_geti(o, ACT_TYPE) == 41)
+                    act_seti(o, ACT_INUSE, 0);
+            }
+            g_dat_09643128 = 1;
+            g_dat_06a470b8 = stage5_spawn(km40, k15, km40, 73);
+            if (g_dat_06a470b8 != NULL) {
+                act_seti(g_dat_06a470b8, ACT_INUSE, 1);
+                act_seti(g_dat_06a470b8, 0xa54, 8);
+            }
+            g_dat_06a470bc = stage5_spawn(km40, k15, km40, 74);
+            g_dat_06a470b4 = stage5_spawn(km32, k15, km40, 75);
+            if (g_dat_06a470b4 != NULL) act_seti(g_dat_06a470b4, 0xa54, 8);
+            g_dat_06a470b0 = stage5_spawn(km48, k15, km40, 76);
+            if (g_dat_06a470b0 != NULL) act_seti(g_dat_06a470b0, 0xa54, 8);
+            if ((rec != NULL && rec[0x2bcff] == 0) || mode == 2)
+                fade_phase_out_start(1, 120);                           /* FUN_0045281c */
+            g_mapcol_movers.on[6] = 0;
+            g_scene1_camera_stage_class = 1;
+            g_scene1_camera_yaw = 0.0f;                                 /* DAT_073de39c */
+            look[0] = km40;
+            look[1] = k3p5;
+            look[2] = km45;
+            eye[0] = km40;
+            eye[1] = k12;
+            eye[2] = km70;
+            for (int i = 0; i < 3; i++) {
+                const float fi = spill32((long double)i);
+                g_party.pos[i][0] = spill32((long double)fi * k0p9 - k40);
+                g_party.pos[i][1] = 0.0f;
+                g_party.pos[i][2] = spill32((long double)km50 - fi);
+                party_anim_set(g_party.rec[i], 0);
+                g_party.rec[i][6] = 0;
+                PW(0x56db05cu).f = 0.0f;
+            }
+        }
+        if (g_event_tick >= 130) {
+            d4_f99_alouette_on_tear();
+            act_setf(g_dat_06a470a8, ACT_YAW, 0.0f);
+            actor_anim_set(g_dat_06a470a8, 0);                          /* FUN_00482a51 */
+        }
+        if (rec == NULL || rec[0x2bcff] == 0) {
+            if (g_event_tick == 350) {
+                if (mode != 2) scene1_intro_dialogue_start_single(12, 15);
+                g_event_stage = 8;
+                g_event_tick = 0;
+                if (rec != NULL) rec[0x2bcff] = 1;
+            }
+            return;
+        }
+        if (g_event_tick != 131) return;
+        g_event_stage = 8;
+        g_event_tick = 0;
+        return;
+    case 8:
+        if (g_event_tick == 30) dungeon_title_banner_open(180, 0);     /* FUN_00406551 */
+        g_ctrl_lock = 0;
+        if (g_event_tick == 240) boss_intro_voice();                    /* FUN_0044cbe4 */
+        if (g_event_tick < 240) return;
+        g_cut_follow = 1;                                               /* DAT_0438b788 */
+        g_cut_follow_x = km40;
+        act_seti(g_dat_06a470b8, 0xa54, 0);
+        act_seti(g_dat_06a470bc, 0xa54, 0);
+        g_cut_follow_y = 0.0f;
+        act_seti(g_dat_06a470b0, 0xa54, 0);
+        g_cut_follow_z = km73;
+        PW(0x56da1c8u).i = 0;
+        g_scene1_camera_stage_class = 3;
+        g_event_stage = 10;
+        g_event_tick = 0;
+        act_seti(g_dat_06a470b4, 0xa54, 0);
+        return;
+    case 10:
+        g_ctrl_lock = -1;
+        if (g_event_tick >= 0) d4_f99_alouette_on_tear();
+        if (g_event_tick <= 60) return;
+        if (act_geti(g_dat_06a470b8, ACT_INUSE) != 2) return;
+        g_event_stage = 13;
+        g_event_tick = 0;
+        return;
+    case 13:
+        if (g_event_tick == 120) fade_phase1_start(1, 120);
+        if (g_event_tick == 240) {
+            fade_phase_out_start(1, 120);
+            actor_t *b = g_dat_06a470b8;
+            g_dat_09643128 = 0;
+            act_setf(b, 0x3f0, km40);
+            act_setf(b, 0x3f4, 0.0f);
+            act_setf(b, 0x3f8, km50);
+            act_setf(b, ACT_YAW, k_pi);
+            act_seti(g_dat_06a470b0, ACT_INUSE, 0);
+            act_seti(g_dat_06a470b4, ACT_INUSE, 0);
+            for (int i = 0; i < 3; i++) {
+                const float f = spill32((long double)spill32((long double)i) * k1p5);
+                g_party.pos[i][0] = spill32((long double)f - k42);
+                g_party.pos[i][1] = 0.0f;
+                g_party.pos[i][2] = spill32((long double)f - k57);
+                party_anim_set(g_party.rec[i], 0);
+                g_party.rec[i][6] = 0;
+                PW(0x56db05cu).f = 0.0f;
+            }
+            actor_t *al = g_dat_06a470a8;
+            g_cut_follow = 0;
+            act_setf(al, 0x3f0, spill32((long double)g_party.pos[1][0] + k2));
+            act_setf(al, 0x3f8, g_party.pos[1][2]);
+            act_setf(al, ACT_YAW, 0.0f);
+            look[0] = km40;
+            PW(0x56da1c8u).i = 1;
+            g_scene1_camera_stage_class = 1;
+            look[1] = k8p5;
+            look[2] = km50;
+            eye[0] = km40;
+            eye[1] = k6;
+            eye[2] = km75;
+        }
+        if (g_event_tick == 360) {
+            g_event_tick = 0;
+            g_event_stage = 20;
+        }
+        return;
+    case 20:
+        if (g_event_tick == 1) {
+            camera_shake(10, 16, 16, k1);                               /* FUN_0044b219 */
+            audio_play_se_by_id(696);
+            for (int k = 0; k != 8; k++)
+                scene1_overlay_spawn(NULL, km40, k20, km50, 63, k1, -1, 0, 0, 0);   /* FUN_004147d5 */
+        }
+        if (g_event_tick != 30) return;
+        if (mode != 2) scene1_intro_dialogue_start_single(12, 16);
+        g_event_stage = 21;
+        g_event_tick = 0;
+        return;
+    case 21:
+        if (g_event_tick == 1) sim_screen_wobble(40);                  /* FUN_004532bc */
+        if (mode != 2 && g_event_tick == 20) fade_phase1_start(1, 20);
+        if (g_event_tick < 60) {
+            look[1] = spill32((long double)look[1] - k0p1);
+            eye[1] = spill32((long double)eye[1] + k0p1);
+            look[2] = spill32((long double)look[2] + k1);
+            eye[2] = spill32((long double)eye[2] + k0p5);
+        }
+        if (g_event_tick != 60) return;
+        if (mode != 2) scene1_intro_dialogue_start(12, 17, 1);         /* FUN_0044ba2c(12, 17, 1) */
+        g_event_stage = 22;
+        g_event_tick = 0;
+        look[2] = km50;
+        eye[2] = km75;
+        return;
+    case 22: {
+        int32_t t = g_event_tick;
+        if (t == 1) {
+            audio_play_se_by_id(368);
+            t = g_event_tick;
+        }
+        if (t == 200) {
+            fade_phase1_start(1, 120);
+            t = g_event_tick;
+        }
+        actor_t *b = g_dat_06a470b8;
+        if (t == 320) {
+            look[1] = spill32((long double)look[1] - k20p8);
+            fade_phase_out_start(1, 120);
+            act_seti(b, ACT_INUSE, 0);
+            t = g_event_tick;
+            act_seti(g_dat_06a470bc, ACT_INUSE, 0);
+        }
+        if (t > 60 && t < 320) {
+            const float f = spill32((long double)(t - 60));
+            const float y = spill32((long double)f * k0p1 + k1);
+            act_setf(b, 0x3f4, y);
+            act_setf(g_dat_06a470bc, 0x3f4, y);
+            look[1] = spill32((long double)look[1] + k0p08);
+        }
+        if (t > 0 && t < 320) {
+            if (t % 2 == 0) {
+                const float z = spill32((long double)act_getf(b, 0x3f8) - k1);
+                const float y = spill32((long double)rng_next_unit() * k10 + act_getf(g_dat_06a470b8, 0x3f4));
+                scene1_overlay_spawn(NULL, act_getf(g_dat_06a470b8, 0x3f0), y, z, 64, k1p5, -1, 0, 0, 0);
+                t = g_event_tick;
+            }
+            if (t % 10 == 0) {
+                audio_play_se_by_id(342);
+                t = g_event_tick;
+            }
+        }
+        if (t == 440) {
+            g_party.pos[2][0] = km40;
+            g_party.rec[2][6] = 4;
+            g_party.pos[2][1] = k20;
+            g_party.pos[2][2] = km45;
+            g_party.scale_xz[2] = 1.0f;
+            g_dat_06a470ac = stage5_spawn(km38, k20, km45, 77);
+            t = g_event_tick;
+        }
+        if (t >= 440 && g_party.pos[2][1] > k5) {
+            g_party.pos[2][1] = spill32((long double)g_party.pos[2][1] - k0p05);
+            act_setf(g_dat_06a470ac, 0x3f4, g_party.pos[2][1]);
+        }
+        if (t != 710) return;
+        if (mode != 2) scene1_intro_dialogue_start_single(12, 18);
+        g_event_stage = 23;
+        g_event_tick = 0;
+        return;
+    }
+    case 24:
+        g_ctrl_lock = -1;
+        dobj_raise_special(0);                                          /* FUN_0044b2e6(0) */
+        return;
+    case 23: {
+        if (g_party.pos[2][1] > k1p5) {
+            g_party.pos[2][1] = spill32((long double)g_party.pos[2][1] - k0p05);
+            act_setf(g_dat_06a470ac, 0x3f4, g_party.pos[2][1]);
+        }
+        if (g_event_tick < 60) {
+            look[1] = spill32((long double)look[1] - k0p1);
+            eye[1] = spill32((long double)eye[1] + k0p1);
+            look[2] = spill32((long double)look[2] + k0p2);
+            eye[2] = spill32((long double)eye[2] + k0p2);
+        }
+        if (g_party.pos[1][2] < km47) {
+            g_party.vel[0][2] = k0p005;                                 /* DAT_056daac4 */
+            g_party.pos[1][2] = spill32((long double)g_party.pos[1][2] + k0p15);
+            act_setf(g_dat_06a470a8, 0x3f8, g_party.pos[1][2]);
+            party_anim_set(g_party.rec[1], 1);
+            actor_anim_set(g_dat_06a470a8, 1);
+            g_ctrl_lock = 4;
+        } else {
+            party_anim_set(g_party.rec[0], 0);
+            party_anim_set(g_party.rec[1], 0);
+            actor_anim_set(g_dat_06a470a8, 0);
+        }
+        const int32_t t = g_event_tick;
+        if (t == 205) {
+            actor_t *al = g_dat_06a470a8, *pr = g_dat_06a470ac;
+            g_party.rec[0][6] = 6;
+            PW(0x56db05cu).f = km_pi2;
+            act_seti(al, 0x18, 6);
+            g_party.rec[1][6] = 6;
+            act_setf(al, ACT_YAW, km_pi2);
+            g_party.rec[2][6] = 6;
+            act_seti(pr, 0x18, 6);
+            act_setf(pr, ACT_YAW, km_pi2);
+        }
+        if (t == 200) {
+            g_dat_06a470a4 = stage5_spawn(km45, 0.0f, km46p5, 41);
+            if (g_dat_06a470a4 != NULL) {
+                act_seti(g_dat_06a470a4, ACT_INUSE, 1);
+                act_seti(g_dat_06a470a4, 0xa54, 8);
+                act_setf(g_dat_06a470a4, ACT_YAW, k_pi2);
+            }
+        }
+        if (g_event_tick == 250) {
+            if (mode == 2) return;
+            scene1_intro_dialogue_start_single(12, 19);
+        }
+        if (g_event_tick == 300 && rec != NULL) {
+            g_portal_prompt = 120;                                      /* DAT_0438be9c */
+            g_portal_return = 1;                                        /* DAT_0438bea8 */
+            g_floor_end_kind = 3;                                       /* DAT_0438be98 */
+            if (rec[0x2bd00] == 0) rec[0x2bd02] = 1;
+            rec[0x2bd00] = 1;
+            const int32_t d = g_scene1_combat_stage_id, fl = stage_gate_get_next();
+            int32_t v;
+            memcpy(&v, rec + 0x2c404 + 4 * d, 4);
+            if (v < fl) memcpy(rec + 0x2c404 + 4 * d, &fl, 4);
+            uint8_t *slot = rec + 0x2c42c + 4 * (fl / 5 + 20 * d);
+            uint32_t bt;
+            memcpy(&bt, slot, 4);
+            if (bt == 0 || bt > (uint32_t)g_floor_time) memcpy(slot, &g_floor_time, 4);   /* DAT_0438b1e8 */
+        }
+        return;
+    }
+    default:
+        return;
+    }
+}
+
 /* FUN_00450443: dungeon 4's floor setup (FUN_00436f97's dungeon-4 arm).
  * 09643128 / b4e8 / b8a4 = 0; story mode 2 sets +0x2bcf4 / +0x2bcf5.
- *   99: FUN_0044ecc4 (PORT-DEBT);
+ *   99: FUN_0044ecc4 (d4_floor99_setup);
  *   69: the golem parts 64..66 at (-40, -12, -35), state 8 (2nd / 3rd +0xa04 0),
  *       then the arena FUN_0044cc80(1);
  *   79: first time (+0x2bd14 clear, not mode 2): b4e8 0, the party column 15
@@ -1738,7 +2352,7 @@ void dungeon4_stage_setup(void)
     }
     switch (floor) {
     case 99:
-        /* PORT-DEBT(stub, FUN_0044ecc4): Lapis 100F's setup — no recording reaches it */
+        d4_floor99_setup(rec, mode);             /* FUN_0044ecc4 */
         break;
     case 69:
         for (int32_t i = 0; i != 3; i++) {
@@ -1974,7 +2588,7 @@ static void d4_floor79_event(void)
 }
 
 /* FUN_00450877: dungeon 4's events (FUN_004427f1's dungeon-4 arm).  b8b0 -1
- * unless a stage locks it.  99: FUN_0044f13d (PORT-DEBT); 79 / 49: their
+ * unless a stage locks it.  99: FUN_0044f13d (d4_floor99_event); 79 / 49: their
  * timelines; +0x2bcfe set: at stage 0 from 60 both portals rise, the flag
  * clears → 2; a checkpoint floor: FUN_0044d0a4 (raise 0 on 10F / 30F outside
  * story mode 2, else 1), then (not mode 2) stage 1: b4e8 0; 60F: the first
@@ -1989,7 +2603,7 @@ static void dungeon4_event_tick(void)
     const int32_t floor = stage_gate_get_next();
     g_ctrl_lock = -1;
     if (floor == 99) {
-        /* PORT-DEBT(stub, FUN_0044f13d): Lapis 100F's events — no recording reaches it */
+        d4_floor99_event(rec, mode);             /* FUN_0044f13d */
     } else if (floor == 79) {
         d4_floor79_event();
     } else if (rec != NULL && rec[0x2bcfe] != 0) {

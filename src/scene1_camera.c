@@ -525,6 +525,9 @@ void scene1_camera_set_lookat(const float look[3])
     for (int k = 0; k < 3; k++) g_smooth_lookat[k] = look[k];
 }
 
+float *scene1_camera_eye(void) { return g_smooth_eye; }
+float *scene1_camera_lookat(void) { return g_smooth_lookat; }
+
 /* Reset to the free-roam player-follow camera (stage_class 0) — called from the
  * cc08==1 free-roam arm so the camera resumes tracking after customer service. */
 void scene1_camera_set_freeroam_class(void)

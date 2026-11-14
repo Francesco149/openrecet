@@ -650,7 +650,8 @@ void dungeon_event_actor_tick(void)
         if (i != 0) party_anim_set(g_party.rec[i], 0);
         else if (PW(0x56db048u).i != 1) party_anim_set(g_party.rec[0], 0);
     }
-    /* PORT-DEBT(stub, FUN_0044f078): dungeon 4 floor 99's event helper */
+    if (g_scene1_combat_stage_id == 4 && stage_gate_get_next() == 99)
+        d4_floor99_ambience();                   /* FUN_0044f078 */
     for (int i = 0; i < 3; i++)
         if (g_party.chr[i] != -1)
             chr_anim_tick(g_party.rec[i], g_party.chr[i], 1.0f);

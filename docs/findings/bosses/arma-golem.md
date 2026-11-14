@@ -3,7 +3,10 @@
 **code-read**: IDA `sub_4205E5` (body + core AI, 0x4205e5), `sub_420BD0` (hands, 0x420bd0), `sub_44F037` (state-8
 descent), `sub_420591` (HP gate, called by `sub_42E791`), `sub_42F7AD` cases 73 / 74, `sub_44ECC4` + `sub_44F13D`
 (Lapis floor 99 setup / timeline), `sub_450EE0` case 58, `sub_445A8C` cases 152 / 164, `sub_43AE20` (record 136,
-IDA 40204..40232), table 0x52b874. **Port: everything here is stub** (dungeon 5's case-58 placement is ported).
+IDA 40204..40232), table 0x52b874. **Port: ported, unverified** — `actor_ai_golem_body` / `actor_ai_golem_hand` /
+`actor_golem_descend` (`src/actor_ai.c`), the 73 / 74 death arms, the floor-99 props, `d4_floor99_setup` /
+`d4_floor99_event` / `d4_floor99_ambience` (`src/dungeon_flow.c`); the HP gate was already in `actor_damage`; no
+recording reaches it yet (`lapis-91f-100f` pending).
 Shared rules: `boss-floor-common.md`. Nothing run.
 
 ## 1. Where

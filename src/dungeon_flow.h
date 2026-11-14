@@ -56,6 +56,7 @@ void dungeon2_stage_setup(void);      /* FUN_0044d9d3 (FUN_00436f97's dungeon-2 
 void dungeon3_stage_setup(void);      /* FUN_0044e08f (FUN_00436f97's dungeon-3 arm) */
 void dungeon4_stage_setup(void);      /* FUN_00450443 (FUN_00436f97's dungeon-4 arm) */
 void dungeon5_stage_setup(void);      /* FUN_00450ee0 (dungeon 5 + the boss runs) */
+void d4_floor99_ambience(void);       /* FUN_0044f078 (Lapis 100F; also from FUN_0048407f) */
 extern int32_t g_dat_0438bebc;       /* > 0: FUN_0044b635 owns the tick */
 extern int32_t g_dat_0438becc;       /* > 0: the tick runs every third frame */
 extern int32_t g_dat_0438b8d4;       /* the HP-check voice countdown (FUN_0048b3f6) */

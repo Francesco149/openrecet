@@ -112,6 +112,8 @@ void scene1_camera_set_freeroam_class(void);
 void scene1_camera_set_targets(const float eye[3], const float look[3]);
 void scene1_camera_set_eye(const float eye[3]);      /* DAT_0438cc38..40 alone */
 void scene1_camera_set_lookat(const float look[3]);  /* DAT_0438cc50..58 alone */
+float *scene1_camera_eye(void);      /* &DAT_0438cc38 (an event's drift writes it in place) */
+float *scene1_camera_lookat(void);   /* &DAT_0438cc50 */
 
 /* Z-roll constant (engine: `_DAT_006051c4`).  Cc.0 verified this lands
  * in BSS-zero in the unpacked exe.  Tests can set a non-zero value to
