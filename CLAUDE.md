@@ -177,9 +177,9 @@ replayed from captured D3D8 streams. rhost records retail's stream with
 
 ## Storage on maximus (2026-11-06)
 
-- **On cold, not local:** `rhost-runs/202610*` (the October batches, ~211 GB) and `rhost-wine/runs/` (~26 GB).
-  November batches and everything else under `/mnt/ephemeral/openrecet/` (staged_retail, decompiled-ida,
-  goldens, triage, prefixes, traces) stay local.
+- **On cold, not local:** every `rhost-runs/` batch through 2026-11-14 midday (~400 GB incl. October), `bunker-runs/`,
+  `rhost-wine/runs/` — parked after the rootfs hit 99% (2026-11-14). Local: goldens, triage, staged_retail,
+  decompiled-ida, prefixes, traces, `drive/runs` (~13 GB). rhost batches grow ~30 GB/day under agent probing: park weekly.
 - `/mnt/ephemeral/recettear-decomp/` is parked whole (incl. `build/funmatch.json`, the default input of
   `tools/oracle/coverage_join.py`): `offload fetch /mnt/ephemeral/recettear-decomp/build` first.
 - **Park run output aggressively:** once a batch is no longer needed day to day (the work it was evidence for is committed), `offload park --fast <batch dirs>` — the copy in and out of cold is cheap (~100–250 MB/s), local disk is not.
