@@ -19,7 +19,8 @@ port matches, quirks included); hit parts / flip / angle gate in port `src/recor
 
 ## 2. Stats, parts
 
-- Table: HP 150, AT 20, DF 30, MA 0, MD 10 (both types).
+- Table: HP 150, AT 20, DF 30, MA 0, MD 10 (code-read, "both types"). **Live type 69 row (`0x5c23f0 + 69·0x68`): HP 150, +0x30 25, AT 40, DF 30, MA 20, MD 30** (`lapis-81f-90f`); type 68 not re-read.
+- d4 f89 (Lapis 90F): level 42 → **HP 1410** (live), jab ≈ `ftol(40·9.4/2 − DF/4)` ≈ 167 vs Louie DEF 84.
 - d2 f19: level 12 → **HP 510**, AT·mul 44. Rush f35: level 16 → HP 630, AT·mul 52.
 - **`+0xab8 = 5.0` every tick outside state 8 → DF_eff = 30·25 = 750**; state 6 sets 1.0 → DF_eff 30.
 - `+0xb54 = 1`: no knock-back, no stagger, state never reset by a hit.
@@ -76,7 +77,7 @@ Records:
   2 ticks each. Physical: `ftol(AT·mul/2 − DF/4)`, knock-down 70.
 - 38 (spray), 43 (bubbles: random direction, speed 0.1 (69: 0.15), lobbed, pop on landing): "magic" → 1–2.
 
-Bombs (types 37..40; table HP 15, DF 20; level 12 → 51 HP): `+0xb98 = 1`. Killed → `+0x428 = 2` and the fuse
+Bombs (types 37..40; table HP 15, DF 20 — live type-37 row: HP 15, AT 16, **DF 16**, MA 18, MD 10; level 12 → 51 HP, level 42 → 141): `+0xb98 = 1`. Killed → `+0x428 = 2` and the fuse
 `+0xaf0` starts at 240 (red 37, yellow 40) / 360 (green 39) / 480 (blue 38) and **blows at 540** (300 / 180 / 60
 ticks later). A dying bomb can still be hit and pushed; moving faster than 0.01 it blows at once within 1.5 of another
 live actor or on a wall ahead. Blast = record 18, flag 3 (hits actors and the player), reach 4, one tick:
@@ -142,3 +143,23 @@ Port: AI, parts, flip, bombs ported; no PORT-DEBT tag. State 6's splash read (20
 mirrors retail's .data VA 0x52b72c..0x52baeb (240 dwords, `k_drop_bits` in `actor_ai.c`; dword 120 = the table) so
 `flt_52B90C[2c]`, c = −60..59, is in bounds and retail-valued — every IDA xref into that range is a read; unverified
 by recording for c outside 0..3. Death arm unverified by recording, matches IDA.
+
+## 7. Live: Lapis 90F (`lapis-81f-90f`, 2026-11-14)
+
+Louie L46 (ATK 64, DEF 84, HP 224); fight f21572..25309; **0 damage taken**. Full timeline in the probe.
+- Intro: state 8 → 0 at etick 240 (arrival + 241). The bomb clock `+0xa64` was 0 (not −60) on the first state-0 tick → the first bomb
+  came at state-0 tick 60.
+- Bombs: 39, 39, 37, 38, 40, 40 (all four), never more than 2 alive (crab + 2 = the cap 3). Fuses matched the card: green ≈ 185, blue
+  65, yellow ≈ 343 from the kill. A red blew 186 ticks after the kill (pushed into contact), and its blast lit the blue next to it.
+- **Blasts damage the crab** (not in § 3/§ 4): flips in states 1 / 2 (jabs) did 0 damage; flips in states 0 / 5 did −179 / −290; a blast
+  on the already flipped crab (state 6, sub 1) did −210 and later −119+ (the kill), with no re-flip. 4 blasts ≈ 800 of 1410 HP. Not
+  yet read in code (record 18 vs the body volume's damage path).
+- Flip timing: launch (sub 0, `unhit` 1) 58 ticks; on its back (sub 1) 150..200 ticks; get-up (sub 2, `unhit` 1) 95 ticks; `+0xa5c`
+  stays 2 in the following state 0.
+- Sword while flipped: front 31–32, side 36–38, back 45–49. Normal states: front arc 1–2, outside 0. One hit on the first state-0 tick
+  after the get-up did 27 (DF scale still 1 that tick).
+- Arms seen: walk, decide at tick 60 / 120, jab 6 ×4, jab 7 ×2, jab chain 1 → 2, turn + slam ×3, bubbles ×3, flip ×4, death (slot
+  freed 175 ticks after HP 0 → `estage` 1). **Not seen:** spray (4), state 7, any attack landing on the player, blast on the player.
+- Search recipe that worked: flip goal = `st == 6` and within 8 of the crab (score: bomb lit, bomb-to-crab distance, flipped bonus
+  minus distance); damage goal = −130 HP with `--apply-best` (never "or sub 2": waiting satisfies it); get-up goal = `st != 6`, score
+  = distance to a point 9 behind the crab. `--avoid "hp < H − 6"`, `-j 2`, 60–120 s each, 13 searches.

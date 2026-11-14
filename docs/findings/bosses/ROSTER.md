@@ -144,8 +144,8 @@ Extra d3 state: first trip to row 0 runs a stage-type-20 cutscene (event 7/6); f
 | 69 | 70 | 64 + 65 + 66 dark golem (150·8.6 = 1290 each; live 1290, `lapis-61f-70f`) | 35, 9 over the fight (live: cap reached) | own: case 69 | `golem.md` |
 | 74 | 75 | none: mob floor (yellow list), 3 ×6 (220), 6 ×5, 10 ×4 (44), 20 ×5, 35 ×4, 40 ×6 (yellow bombs), 46 ×5 (158), 51 ×4 at L39 (132 unless noted); exit hidden until all freed (object-0 `gate` reads 0 here); portals = special objects 20 / 21 at (−36.5 / −43.5, −40), the start room (`lapis-71f-80f`) | — | generic | — |
 | 79 | 80 | no fight: 42 ヒドラ + 43 親父 props (HP 135, `unhit` 1, never move), events 12/10..12/12 — live (`lapis-71f-80f`): props at etick 1, iv12_10 at etick 120, `lock` 4 auto-walk (+z) for etick 30..89, iv12_11 at 110, then the 42 freed + control, iv12_12 within 4 of the 43, portals from etick 10; seen bytes `+0x2d67a..c` set at each dialogue's end; `+0x2bd14` not set by the trip | — | own: case 79 + `FUN_00450877` | — (prop AI `FUN_004284ba`) |
-| 84 | 85 | none (roper list) | — | generic | — |
-| 89 | 90 | 69 black crab (150·9.4 = 1410) | 37..40 | generic | other author |
+| 84 | 85 | none: mob floor (roper list), 19 ×11, 20 ×6, 21 ×5 (230), 18 ×4, 17 ×4 at L41 (138 unless noted); exit hidden until all freed; portals = special objects at (−76.5 / −83.5, −120), the start row (`lapis-81f-90f`) | — | generic | — |
+| 89 | 90 | 69 black crab (150·9.4 = 1410; live 1410, table AT 40 / DF 30 / MA 20 / MD 30, `lapis-81f-90f`) | 37..40 (all four seen; ≤ 2 at once) | generic | `crabs.md` § 7 (live: 4 blast flips, blasts damage it, zero damage taken) |
 | 94 | 95 | none (knight list) | — | generic | — |
 | 99 | 100 | 73 body (1·9.8), 74 core (9.8), 75 / 76 hands (150·9.8 = 1470); props 30, 41, 77 | — | `FUN_0044ecc4` + `FUN_0044f13d` | `arma-golem.md` |
 
