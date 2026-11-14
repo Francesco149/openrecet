@@ -1155,7 +1155,7 @@ class Run:
         return s
 
     # ---- acting
-    def play(self, spec, until=None, avoid=None, watch=(), every=0, quiet=False, rows=40, undo=True):
+    def play(self, spec, until=None, avoid=None, watch=(), every=0, quiet=False, rows=40, undo=True, changes=False):
         lv = self.attach()
         segs, escs, total = spec_to_run(parse_spec(spec), lambda e: lv.prog(self.vars.compile(e)))
         if not total:
@@ -1216,6 +1216,13 @@ class Run:
                 print(f"  … {len(sparse) - 60} more events")
             if watch:
                 print("  frame  " + "  ".join(watch))
+                if changes:                         # only the rows whose watched values differ from the row before
+                    kept, prev = [], None
+                    for f, vals in out["rows"]:
+                        if vals != prev:
+                            kept.append((f, vals))
+                        prev = vals
+                    out["rows"] = kept
                 if len(out["rows"]) > rows:
                     print(f"  … {len(out['rows']) - rows} earlier rows not shown (--rows N)")
                 for f, vals in out["rows"][-rows:]:
@@ -1449,7 +1456,7 @@ def cmd_new(a):
 
 def cmd_play(a):
     r = Run(a.run)
-    r.play(a.spec, until=a.until, avoid=a.avoid, watch=split_top(a.watch), every=a.every, rows=a.rows)
+    r.play(a.spec, until=a.until, avoid=a.avoid, watch=split_top(a.watch), every=a.every, rows=a.rows, changes=a.changes)
     r.close()
 
 
@@ -2381,7 +2388,9 @@ def main():
     p = sp.add_parser("new"); p.add_argument("run"); p.add_argument("--from", dest="src", required=True); p.add_argument("--force", action="store_true"); p.set_defaults(fn=cmd_new)
     p = sp.add_parser("play"); p.add_argument("run"); p.add_argument("spec"); p.add_argument("--until"); p.add_argument("--avoid")
     p.add_argument("--watch", help="EXPR,EXPR..: print these per sampled tick"); p.add_argument("--every", type=int, default=0)
-    p.add_argument("--rows", type=int, default=40, help="watch rows shown (the last N)"); p.set_defaults(fn=cmd_play)
+    p.add_argument("--rows", type=int, default=40, help="watch rows shown (the last N)")
+    p.add_argument("--changes", action="store_true", help="--watch rows only where a watched value changed")
+    p.set_defaults(fn=cmd_play)
     p = sp.add_parser("tap"); p.add_argument("run"); p.add_argument("spec"); p.add_argument("--n", type=int, default=40); p.add_argument("--gap", type=int, default=8)
     p.add_argument("--until"); p.add_argument("--avoid")
     p.add_argument("--text", action="store_true", help="a transcript: print the text on screen before each press (rows new since the last one)")

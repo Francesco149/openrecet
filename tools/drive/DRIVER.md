@@ -217,7 +217,8 @@ rd eval R "actors(T == 10)" a0hp --at-frame 40650                               
   (read the grid with `rd ram R dwords 0x73dfd08 N`), then one scored search per 40-unit leg: `--score "-dist"` to the
   next cell centre, `--cell "(int(px/2), int(pz/2))"`, actions = an aimed 12-tick walk + the 8 plain ones,
   `--avoid "hp < H"` (H = the HP now), `-j 2`. Wait for `ticker == 0` first (the floor banner freezes play although
-  `lock == -1`). Floor routing: take the exit CELL from `exitcx` / `exitcz` — `ex ez` / `exitd` / `gate` read dungeon
+  `lock == -1`). Floor routing: take the exit CELL from `exitcx` / `exitcz`; on a two-portal exit (Crystal Nightmare 10F / 20F) pick the return one with
+  `portal > 0 and pkind == 6` (8 = next-floor circle) — `ex ez` / `exitd` / `gate` read dungeon
   object 0, which is not always the exit (71F: another object; `lapis-71f-80f`). Mob floors (45F / 65F / 75F) hide the
   exit until every actor is gone; bombs (types 37..40) read "dying" when lit — use "slot free". Boss floors: the exit is not object 0 — use `estage == 1`, then the portal / door (`portal > 0`; the return
   door opens only after a sword hit on it — `doorst` 1 = open (`doorx doorz` its place); walking into it before that does nothing;
