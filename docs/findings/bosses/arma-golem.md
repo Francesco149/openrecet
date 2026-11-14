@@ -20,22 +20,26 @@ Shared rules: `boss-floor-common.md`. Lapis 100F run live: section "Lapis 100F (
 
 ### Lapis floor 99 (`FUN_0044ecc4`, `FUN_0044f13d`; stage `s32(0x438b8a0)`, tick `s32(0x438b8a4)`)
 
+Both entries now run live: short path `lapis-91f-100f` (`+0x2bcff` 1), long path `lapis-100f-long-intro` (`+0x2bcff` 0, crafted
+save; frames / text / ram diffs in `docs/findings/probes/lapis-100f-long-intro.md`). The stage table below matched live play; the
+notes marked "Live" are additions from it. Seen bytes: bank `+0x2d670 + event id` (12/8 → `+0x2d678` … 12/15 → `+0x2d67f`).
+
 Setup: 6 movers (`DAT_0438c150 = 6`, all at (−40, 0, −40)); then by save bytes (mode 2 = all bytes ignored):
 
 | bank+0x2bd00 | bank+0x2bcff | start |
 |---|---|---|
 | 1 | — | stage 24: a return portal at (−40, 0, −45), nothing else |
-| 0 | 0 | stage 0: party at (−40 + k, 0, −73 − k); props Alouette 30 at (−38, 0, −46), Arma 41 at (−42, 0, −46); 400 particles |
+| 0 | 0 | stage 0: party at (−40 + k, 0, −73 − k); props Alouette 30 at (−38, 0, −46), Arma 41 at (−42, 0, −46); 400 particles (live: `lapis-100f-long-intro`, props in slots 0 / 1 at exactly these points) |
 | 0 | 1 | **stage 4, tick 130** (the golem spawns on the first event tick); prop Alouette only |
 
 | stage | what |
 |---|---|
-| 0 | free walk in a corridor (x clamped −41..−39, z ≥ −78 while stage < 10); `pz > −67` → event 12/8 → 1 |
-| 1 | camera drift; tick 120: event 12/9; tick 200 → 2 |
-| 2 | `lock = 4` (scripted walk); `pz > −55` → event 12/13 → 3 |
-| 3 | particle swirl ticks 31..119; tick 200: event 12/14 → 4 |
-| 4 | tick 10: fade out. **tick 130: every type-41 actor freed; `0x9643128 = 1`; spawn 73 at (−40, 15, −40) (`+0x428 = 1`, `+0xa54 = 8`), 74 at the same point, 75 at (−32, 15, −40) (`+0xa54 = 8`), 76 at (−48, 15, −40) (`+0xa54 = 8`)**; party at (−40 + 0.9k, 0, −50 − k); fade in when 0x2bcff == 0. 0x2bcff == 0: tick 350 event 12/15, 0x2bcff = 1 → 8. Else tick 131 → 8 |
-| 8 | tick 30: banner. tick 240: adventurer's line. **tick ≥ 240: `+0xa54 = 0` on body, core, both hands; camera class 3 → stage 10** |
+| 0 | free walk in a corridor (x clamped −41..−39, z ≥ −78 while stage < 10); `pz > −67` → event 12/8 → 1. Live: load f20987 at (−40, −73), 12/8 on the tick pz reads −66.95 (f21082) |
+| 1 | camera drift; tick 120: event 12/9 (`lock` 0, `0x438b4e8` 1); tick 200 → 2. **The stage tick does not advance while an event's dialogue runs** (it read 1 through 12/8 and 121 through 12/9): stage 1 = 200 ticks of free time + both dialogues |
+| 2 | `lock = 4` (scripted walk: no input needed, +z at 0.175/tick); `pz > −55` → event 12/13 → 3 (live: 66 ticks after stage 2, pz −54.85). `lock` stays 4 through 12/13 and drops to 0 the tick after it closes |
+| 3 | particle swirl ticks 31..119; tick 200: event 12/14 → 4 (same tick) |
+| 4 | tick 10: fade out. **tick 130: every type-41 actor freed; `0x9643128 = 1`; spawn 73 at (−40, 15, −40) (`+0x428 = 1`, `+0xa54 = 8`), 74 at the same point, 75 at (−32, 15, −40) (`+0xa54 = 8`), 76 at (−48, 15, −40) (`+0xa54 = 8`)**; party at (−40 + 0.9k, 0, −50 − k); fade in when 0x2bcff == 0. 0x2bcff == 0: tick 350 event 12/15, 0x2bcff = 1 → 8. Else tick 131 → 8. Live (long path): the spawn reads at tick 131 after the tick (rd reads post-tick), the party moves (−40, −54.3) → (−40, −50) the same tick, Arma 41 freed; 12/15 + `+0x2bcff` 1 + stage 8 on one tick. **12/15 has no dialogue box**: centred caption lines over the golem (not seen by `rd text`) |
+| 8 | tick 30: banner. tick 240: adventurer's line. **tick ≥ 240: `+0xa54 = 0` on body, core, both hands; camera class 3 → stage 10**. Live: 240 ticks after 12/15 closes (f27010 → 27250); long and short path enter stage 10 with the same placement (party (−40, −50), Alouette (−38.2, −52)) |
 | 10 | **the fight** (`lock = −1`). tick > 60 and body `+0x428 == 2` → 13 |
 | 13 | tick 120 fade out; tick 240: body to (−40, 0, −50), hands freed, party re-placed, fade in; tick 360 → 20 |
 | 20..23 | events 12/16 (20, tick 30), 12/17 (21, tick 60), body + core freed (22, tick 320), Prime 77 spawned (22, tick 440), 12/18 (22, tick 710), Arma prop (23, tick 200), 12/19 (23, tick 250); **23 tick 300: bank+0x2bd00 = 1 (first time also 0x2bd02 = 1), `deepest[4]`, best time, floor end kind 3** |
@@ -123,7 +127,7 @@ Active only while `s32(H+0xa5c) == 0` (no writer found: always). Per tick:
    score `s32(B+0xa64)*100 - f32(B+0x42c)`; goal `s32(B+0x428) == 2`; avoid `hp <= 0`.
 5. Six scoring moments: breaks at segment 0..4, then the kill. Between them: body states 1 (lob from (−40, −30)) and
    2 (rain) are waiting time; dodge the beams (hand cycle % 5: 0, 2 right; 1, 3 left; 4 both), or kill the hands
-   first (980 HP each on d4, live; the body has 2940). Live: hand contact (142) and the beam (133) were the only hits seen; a 6-segment kill took ~100 sword hits (27,315 frames).
+   first (980 HP each on d4, live; the body has 2940). Live: hand contact (142) and the beam (133) were the only hits seen; a 6-segment kill took ~100 sword hits (27,315 frames). `lapis-100f-long-intro`: a third one — **the hover landing**: in state 0 the body sinks to y ≈ 0.05 near its tick 220 and at tick ≈ 237..239 hits anything within ~7 of its centre for **142** (no hand near; standing still, distance 6.93..7.0). Do not end a hit near the body at hover tick ≥ ~190; that kill took ~120 hits (34,213 frames).
 6. Done: `s32(B+0x428) == 2`. d4 → event stage 13 after tick 60; d5 → portals when the table is empty.
 
 ## 8. Arms checklist
