@@ -250,7 +250,7 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        scenario (done: crown slime, mushroom king, Charme; open: boss ahriman `dungeon3-floors@181969`, Ohm / crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`). Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`
        port-identical + save (one bug: record 104's NULL-owner return, `findings/bosses/tielle.md` §7). One subscription subagent at a time.
     1. ✅ the two open splits (ending, New Game + / Survival) closed 2026-11-13; Arma verified (`lapis-41f-50f`). 51F..60F identical
-       2026-11-13. 61F..70F identical 2026-11-14. **Lapis Ruins 1F..100F all identical + save (2026-11-14).** Next: Crystal Nightmare (dungeon 5) 1F..10F (driving), the 100F long intro (craft `+0x2bcff` = 0).
+       2026-11-13. 61F..70F identical 2026-11-14. **Lapis Ruins 1F..100F all identical + save (2026-11-14).** Next: Crystal Nightmare (dungeon 5) 1F..10F (driving), then the 100F long intro (crafted `15b20dc3c34e`, task `tools/drive/tasks/lapis-100f-long-intro.md`).
     2. keep the agent rows green: `gates` has 95 rows; **86/86 ok at 10e36b61, Windows, `-j 8`, 571 s**
        (2026-11-10; 36 of them agent-authored), + the 9 rows of five later probes **9/9 ok** in 24 s. Add a scenario's rows when its triage is
        identical.
