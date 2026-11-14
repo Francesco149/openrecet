@@ -1508,8 +1508,27 @@ def screen_text(lv):
 
 def cmd_text(a):
     r = Run(a.run)
-    rows = screen_text(r.attach())
-    print(f"frame {r.movie.frame}: {len(rows)} text draws (x, y: screen px of 1024x768; draw order)" + ("" if rows else " — none this tick (step a tick: rd play R .)"))
+    if a.at_frame is not None:
+        # an earlier frame: a fresh side session replays the run's movie to it (the run does not move); ~30 s on Windows
+        fr = a.at_frame
+        if not 0 <= fr <= r.movie.frame:
+            raise SystemExit(f"frame {fr} is outside the movie (0..{r.movie.frame})")
+        h = spawn_live(f"{r.name}-text", r.movie.truncated(fr), upto=fr, idle=300)
+        try:
+            lv = Live(h["port"])
+            try:
+                lv.cmd("ping")                          # answers once the replay to FR is done
+                rows = screen_text(lv)
+            finally:
+                lv.close()
+        finally:
+            kill_session(h)
+        print(f"(a side session at frame {fr} on {h['host']}; the run stays at frame {r.movie.frame})")
+        shown_frame = fr
+    else:
+        rows = screen_text(r.attach())
+        shown_frame = r.movie.frame
+    print(f"frame {shown_frame}: {len(rows)} text draws (x, y: screen px of 1024x768; draw order)" + ("" if rows else " — none this tick (step a tick: rd play R .)"))
     for x, y, col, bud, txt in rows:
         shown = txt if bud < 0 else txt[:bud] + ("▏" + txt[bud:] if bud < len(txt) else "")
         print(f"  {x:5d} {y:4d}  {col:08x}  {shown!r}")
@@ -2368,7 +2387,9 @@ def main():
     p.add_argument("--text", action="store_true", help="a transcript: print the text on screen before each press (rows new since the last one)")
     p.set_defaults(fn=cmd_tap)
     p = sp.add_parser("status"); p.add_argument("run"); p.set_defaults(fn=cmd_status)
-    p = sp.add_parser("text"); p.add_argument("run"); p.set_defaults(fn=cmd_text)
+    p = sp.add_parser("text"); p.add_argument("run")
+    p.add_argument("--at-frame", type=int, help="the text at an earlier frame of the movie (a fresh side session; the run stays)")
+    p.set_defaults(fn=cmd_text)
     p = sp.add_parser("endsave"); p.add_argument("run"); p.set_defaults(fn=cmd_endsave)
     p = sp.add_parser("eval"); p.add_argument("run"); p.add_argument("exprs", nargs="+")
     p.add_argument("--at", help="evaluate at this checkpoint's state; the run does not move (no savestate: by replay)")

@@ -1419,5 +1419,32 @@
  "a11rel": {
   "expr": "(abs(atan2(sin(atan2(a11x - rx, a11z - rz) - a11yaw + pi), cos(atan2(a11x - rx, a11z - rz) - a11yaw + pi))))",
   "note": "hit-label angle on actor 11: < pi/4 front, pi/4..3pi/4 side x1.2, > 3pi/4 back x1.5"
+ },
+ "exitcx": {
+  "addr": "0x438b43c",
+  "type": "s32",
+  "note": "dungeon: the exit CELL's x index (BFS target; ex / ez read object 0, which is not always the exit: lapis-71f-80f)"
+ },
+ "exitcz": {
+  "addr": "0x438b440",
+  "type": "s32",
+  "note": "dungeon: the exit CELL's z index"
+ },
+ "doorobj": {
+  "addr": "0x6a47058",
+  "type": "s32",
+  "note": "dungeon: the return door's object index (0x6a47054 = the next-floor portal's); objects at 0x695ef78 + i*0x2a0"
+ },
+ "doorst": {
+  "expr": "s32(0x695ef78 + doorobj * 0x2a0 + 0x268)",
+  "note": "dungeon: the return door's state: 0 shut, 1 open (a sword hit opens it; walking into it before does nothing). Verified lapis-71f-80f f44300 \u2192 f44330"
+ },
+ "doorx": {
+  "expr": "f32(0x695ef78 + doorobj * 0x2a0)",
+  "note": "dungeon: the return door's x"
+ },
+ "doorz": {
+  "expr": "f32(0x695ef78 + doorobj * 0x2a0 + 8)",
+  "note": "dungeon: the return door's z"
  }
 }
