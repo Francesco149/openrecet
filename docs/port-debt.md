@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **50**
-- distinct retiring engine functions: **42**
+- total open debts: **49**
+- distinct retiring engine functions: **41**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 27 | wired call boundary, body incomplete |
+| stub | 26 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 7 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -62,7 +62,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0046c9a2 | 1 |
 | FUN_004708f7 | 1 |
 | FUN_00473c03 | 1 |
-| FUN_00485c74 | 1 |
 | FUN_00485f8c | 1 |
 | FUN_0048a383 | 1 |
 | FUN_0048b850 da1bc | 1 |
@@ -73,14 +72,14 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (27)
+## stub (26)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_00405b1a | src/scene1_render.c:338 | unported, with the sun sprite FUN_00405d70 |
 | FUN_0040a765 | src/scene1_hud.c:412 | the pages of entries 8 (news summary) and |
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
-| FUN_0041ee24 | src/sim.c:774 | mode 3's callee |
+| FUN_0041ee24 | src/sim.c:775 | mode 3's callee |
 | FUN_0042df55 | src/actor_ai.c:125 | stages >= 20 index past the dungeon |
 | FUN_0042e1a6 | src/actor_ai.c:6343 | the death (EXP, drops, the kill count) |
 | FUN_0042e791 | src/actor_ai.c:6300 | the poison tick (ftol(p), 4) |
@@ -89,18 +88,17 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00434ceb | src/scene_guild.c:472 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
 | FUN_00436f97 | src/scene1_postload.c:323 | dungeon 5's return portal 6 beside |
-| FUN_004427f1 | src/dungeon_flow.c:1425 | the +0x2bce2 story beat (the curtain |
+| FUN_004427f1 | src/dungeon_flow.c:1423 | the +0x2bce2 story beat (the curtain |
 | FUN_00442cef | src/scene1_sim.c:373 | the run's end (FUN_00442c86, |
 | FUN_0044b219 | src/scene1_postload.c:360 | the camera shake reset, DAT_073de3a0 = 45 |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:398 | its b924 == 0x276 consumer, scene0/sub8), |
-| FUN_0044e08f | src/dungeon_flow.c:1151 | the +0x2bce2 story beat's setup (the |
+| FUN_0044e08f | src/dungeon_flow.c:1149 | the +0x2bce2 story beat's setup (the |
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
 | FUN_00468ddc | src/customer_service.c:1263 | an index < -1 or >= 32 with its mod-32 bit |
 | FUN_004708f7 | src/dungeon_party.c:659 | the event-window pair (chars 0x2f / 0x30) |
 | FUN_00473c15 | src/scene1_preload.c:329 | the floor's render assets (see |
 | FUN_00473c15 | src/scene1_preload.c:375 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
-| FUN_00485c74 | src/dungeon_flow.c:195 | the party damage (HP bar + |
 | FUN_0048a383 | src/record_hit.c:261 | the level-up of s_easydisp |
 | FUN_0048b850 da1bc | src/dungeon_party.c:3198 | the attack lunge (da1bc 1..ccb8) |
 | FUN_0048e49c | src/scene_day_end.c:169 | the |
@@ -147,7 +145,7 @@ _none_
 | oob | 0x43e... | src/scene1_records_b_tick.c:3241 | types >= 64 read past DAT_005c23f0 into |
 | render-coupled | FUN_00409925 | src/scene1_player_ctrl.c:1739 | the menu, note, lecture and |
 | render-coupled | FUN_00457714 | src/scene1_walker_pass_init.c:520 | the movers (DAT_0438c150, |
-| render-coupled | FUN_00474d92 | src/dungeon_flow.c:2643 | the |
+| render-coupled | FUN_00474d92 | src/dungeon_flow.c:2641 | the |
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |
 | render-coupled | FUN_00485f8c | src/scene1_player_ctrl.c:1415 | the carried table's items (drawn |
 | render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:2321 | the eye / lookat writes); the |

@@ -192,9 +192,7 @@ void dungeon_fall_tick(void)
                     dmg = x87_ftol((long double)max_hp * 0.20000000298023224f);
                 if (g_floor_end_timer > 0 || g_portal_prompt > 0) dmg = 0;
                 if (PW(0x56db0f4u).i > 0) dmg = 0;
-                /* PORT-DEBT(stub, FUN_00485c74): the party damage (HP bar +
-                 * the hurt voice FUN_00485979) — HP drops by `dmg` here. */
-                stage_post_load_set_dat_056db0bc(spill32((long double)stage_post_load_get_dat_056db0bc() - dmg));
+                party_take_damage(dmg);                  /* FUN_00485c74 */
                 if (stage_post_load_get_dat_056db0bc() <= 0.0f)
                     stage_post_load_set_dat_056db0bc(0.0f);
                 g_fall_timer = 60;

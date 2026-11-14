@@ -15,7 +15,7 @@
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 14,
-  "port_debt": 63,
+  "port_debt": 62,
   "verified": 81,
   "stubbed": 10,
   "ported": 760,
@@ -5779,6 +5779,7 @@
     "src/scene_guild.c",
     "src/scene_pause.c",
     "src/scene_title.c",
+    "src/scene_worldmap.c",
     "src/skip_event.c",
     "src/title_save_dialog.c",
     "src/title_save_dialog.h"
@@ -8002,7 +8003,8 @@
    "src": [
     "src/dungeon_flow.c",
     "src/scene1_postload.h",
-    "src/scene1_preload.c"
+    "src/scene1_preload.c",
+    "src/scene_worldmap.c"
    ],
    "status": "ported"
   },
@@ -17939,7 +17941,6 @@
    },
    "quality_flags": [],
    "src": [
-    "src/dungeon_flow.c",
     "src/dungeon_party.c",
     "src/record_hit.c",
     "src/record_hit.h",
