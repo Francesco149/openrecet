@@ -27,6 +27,7 @@ probe report says which it used. Played saves from the owner's free-play capture
 | `352c146ab865` | `2afe7fb42617` | `--set 0xb100=16` (HUD 17) | item-storage-l17 |
 | `b4766a99d74b` | `78c391141547` | `--set 0xaf3d=0x00010101` (bank byte `+0x2bcf7` = 0: event 12/4 not yet seen) | lapis-60f-event-12-4 |
 | `15b20dc3c34e` | `6809401b79a9` | `--set 0xaf3f=0` (bank byte `+0x2bcff` = 0: Lapis 100F's long intro not yet seen) | lapis-100f-long-intro |
+| `2f2f2203a65d` | `2e4388a2cfe2` | `--gold 1000000` (the day-35 final payment can be paid → the ending → Endless) | bossrush-obsidian |
 | `67e22cc643bf` | `89190665bb8f` | `--gold 900000` | ending-week5-paid |
 
 ## Made by probes (replay the scenario to the frame after the in-game Save, `rd endsave`)
