@@ -1447,13 +1447,9 @@
   "expr": "f32(0x695ef78 + doorobj * 0x2a0 + 8)",
   "note": "dungeon: the return door's z"
  },
- "pkind": {
-  "expr": "s32(0x695ef78 + pobj * 0x2a0 + 0x8c)",
-  "note": "dungeon: that object's kind: 8 = next-floor circle, 6 = d5 return portal (\"Return to town\" goal: portal > 0 and pkind == 6). Read it only while portal > 0 (pobj is stale otherwise)"
- },
- "pobj": {
+ "pret": {
   "addr": "0x438bea8",
   "type": "s32",
-  "note": "dungeon: the object index of the portal under the party (objects at 0x695ef78 + i*0x2a0). Verified crystal-1f-20f f47670: 1 on the d5 return portal"
+  "note": "dungeon: 1 = the portal object within 3 units of the party is a return portal / door (kind 6), 0 = a next-floor circle (IDA 44683: dword_438BEA8 = *i == 6). \"Return to town\" goal: portal > 0 and pret == 1. Verified crystal-1f-20f f47670 (object 1) and crystal-21f-30f 30F (object 0)"
  }
 }
