@@ -2054,12 +2054,30 @@ def shots(r, frames, target=None, tag="look"):
     return got
 
 
-def win_up(timeout=4):
+def _ssh_ok(alias, timeout):
     try:
-        return subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={timeout}", RH.WIN, "echo ok"], capture_output=True,
+        return subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={timeout}", alias, "echo ok"], capture_output=True,
                               text=True, timeout=timeout + 8).stdout.strip().endswith("ok")
     except (subprocess.TimeoutExpired, OSError):
         return False
+
+
+def win_up(timeout=4):
+    """does the Windows box answer? Without RHOST_WIN set, a dead default alias falls back to RHOST_WIN_FALLBACK (default
+    win-wifi: the box on wifi) — that alias is then used for the rest of this process and its children (a missing export
+    sent rd look / strip to wine on maximus: bossrush-jade-amber)"""
+    if _ssh_ok(RH.WIN, timeout):
+        return True
+    if "RHOST_WIN" in os.environ:
+        return False
+    for alt in os.environ.get("RHOST_WIN_FALLBACK", "win-wifi").split(","):
+        alt = alt.strip()
+        if alt and alt != RH.WIN and _ssh_ok(alt, timeout):
+            print(f"[the Windows box answers as {alt!r}, not {RH.WIN!r}: using it (export RHOST_WIN={alt} to skip this probe)]",
+                  file=sys.stderr)
+            RH.WIN = os.environ["RHOST_WIN"] = alt
+            return True
+    return False
 
 
 def sheet(paths, out, cols=4, scale=0.375, labels=None):
