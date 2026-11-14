@@ -48,6 +48,9 @@ without limit. With two black knights both run the test (same count), so still 5
 
 ## 5. Attacks
 
+**[obs `bossrush-obsidian-ending`]** live table row of type 49: HP 100, AT **35**, DF 20, MA 0, MD 20 — the "AT 2" below is not the
+retail table (44F rush L34: HP 780; one 20-HP hit taken, source not isolated).
+
 | attack | record | notes |
 |---|---|---|
 | throw | 81 ×5, speed 0.5 | physical, **AT 2**·mul → `ftol(2·mul/2 − DF/4)` ≤ 0 for any DF ≥ 4·mul → 1 damage (+0/1) |

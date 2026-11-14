@@ -110,16 +110,16 @@ authors.
 
 | floor | list `f:` | boss (HP = table·mult) | adds the AI spawns | setup / event | card |
 |---|---|---|---|---|---|
-| 4 | 5 | 55 ×1 (15·4.4 = 66) | 52 / 53 / 15, cap 4 | generic | `pumpkin-ghost.md` |
+| 4 | 5 | 55 ×1 (**150**·4.4 = 660; table HP 150 live) | 52 / 53 / 15, cap 4 | generic | `pumpkin-ghost.md` |
 | 9 | 10 | 70 (100·4.6 = 460, live) | 17 ×(phase+1) per cycle | generic (placed z −40) | `jellyfish.md` |
-| 14 | 15 | 54 ×2 (15·4.8 = 72 each) | 6 / 7 / 8 | generic | other author |
+| 14 | 15 | 54 ×2 (**100**·4.8 = 480 each; table HP 100 live) | 6 / 7 / 8 | generic | other author |
 | 19 | 20 | 61 + 62 + 63 (150·5.0 = 750 each) | 36, ≤ 4 over the fight | own: `FUN_0044e08f` case 19 | `golem.md` |
 | 24 | 25 | none (green mob list) | — | generic, no boss | — |
-| 29 | 30 | 28 Griff (150·5.6 = 840) | 6 ×48 per summon | own: case 29 + inline timeline | `griff.md` |
+| 29 | 30 | 28 Griff (**200**·5.6 = 1120, obs) | 6 ×48 per summon | own: case 29 + inline timeline | `griff.md` |
 | 34 | 35 | none (slime list) | — | generic | — |
 | 39 | 40 | 67 ×2 (150·6.0 = 900 each) | 10 | generic | other author |
-| 44 | 45 | 49 (15·6.4 = 96) | 44..48, kept at 3 | generic | `black-knight.md` |
-| 49 | 50 | 28 Griff (150·6.6 = 990) + 72 hand (990, takes 0 damage) | 6 | own: case 49 + inline timeline | `griff.md`, `demon-hand.md` |
+| 44 | 45 | 49 (**100**·6.4 = 640; table HP 100 / AT 35 live) | 44..48, kept at 3 | generic | `black-knight.md` |
+| 49 | 50 | 28 Griff (**200**·6.6 = 1320) + 72 hand (100·6.6 = 660 obs, takes 0 damage) | 6 | own: case 49 + inline timeline | `griff.md`, `demon-hand.md` |
 
 Extra d3 state: first trip to row 0 runs a stage-type-20 cutscene (event 7/6); floor-49 clear → stage 20 again
 (event 7/14) and out. See `UNLOCKS.md`.
@@ -166,14 +166,14 @@ next-floor circle; `FUN_00450ee0` case 29), floors 30..58 one boss floor each (B
 | 30 / 31 / 32 | 23 / 24 / 25 | generic (`FUN_0044cc80(2)`) | = d1's Boss Rush; live L4 / 7 / 9 → HP 180 / 360 / 280 (`bossrush-jade-amber`); 32's return = a shut kind-6 door (object 8, (−40, −40), sword hit) |
 | 33 / 34 / 35 / 36 | 54 / 67 / 68 / 23 ×2 | generic | d2's Boss Rush starts at 33; live L12 / 14 / 16 / 17 → HP 340 / 570 / 714 (68 table HP 170) / 440 ×2 |
 | 37 | 27 Tielle | own (default arm tail), event `FUN_0044db3c(1)` | live L19 HP 480; no dialogues, 3 block phases as the story; end door (−45, 65) shut until a sword hit |
-| 38 | 55 | generic | d3's Boss Rush starts at 38 |
-| 39 | 70 | generic | |
-| 40 | 54 ×2 | generic | |
-| 41 | 61 + 62 + 63 | own: case 41 | |
-| 42 | 28 Griff | generic (list first line) | Griff's phase rule: 1 below 30 % HP |
-| 43 | 67 ×2 | generic | |
-| 44 | 49 | generic | |
-| 45 | 28 Griff + 72 hand | generic + case 45 spawns the hand at (−35, 20, −25) | Griff's floor-49 rule does NOT apply (floor ≠ 49) |
+| 38 | 55 | generic | d3's Boss Rush starts at 38; live L27 HP 960 (table HP **150**) (`bossrush-obsidian-ending`) |
+| 39 | 70 | generic | live L28 HP 660 |
+| 40 | 54 ×2 | generic | live L29 HP 680 each (table HP **100**) |
+| 41 | 61 + 62 + 63 | own: case 41 | live L31 HP 1080 each (body killed; arms freed with it) |
+| 42 | 28 Griff | generic (list first line) | Griff's phase rule: 1 below 30 % HP; live L32 HP 1480 (table HP **200**) |
+| 43 | 67 ×2 | generic | live L33 HP 1140 each; bee cap 8 |
+| 44 | 49 | generic | live L34 HP 780 (table HP **100**, AT **35**) |
+| 45 | 28 Griff + 72 hand | generic + case 45 spawns the hand at (−35, 20, −25) | Griff's floor-49 rule does NOT apply (floor ≠ 49); live: hand slot 0 L36 HP 820, Griff slot 1 L36 HP 1640; Griff's kill freed the hand; return = shut kind-6 door, object 0 at (−40, −40), sword hit |
 | 46 | 55 ×2 | generic | d4's Boss Rush starts at 46 |
 | 47 | 59 | generic | |
 | 48 | 54 ×3 | generic | |

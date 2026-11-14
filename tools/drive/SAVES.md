@@ -50,6 +50,7 @@ probe report says which it used. Played saves from the owner's free-play capture
 | `435d876bf8c8` | the same after revert + selling the machine | vender-revert-sell (end) |
 | `dea37b7a7519` | level 16, Barrel tables, Wooden + Legendary in the bag | change-tables-l16 (end) |
 | `cbb3056eeb1e` | level 17 (25-slot dungeon bag), week 3 | item-storage-l17 (end) |
+| `1aa94b103208` | Endless Mode, first shop control (day dword 36, 495,350 pix, slot 020 = the ending's Endless save; crafted lineage `2f2f2203a65d`) | bossrush-obsidian-ending (end) |
 
 Check a lineage: the bank is `HEADER 0x0b10 + slot·0x2dfc8` in the unpacked save, the newest slot in header dword
 7; gold dword 3, day 0xb0fb, `stime` 0xb0fc, merchant level 0xb100, checksum 0xb7f1 (`tools/save_arena_map.json`).

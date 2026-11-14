@@ -41,14 +41,14 @@ FUN_00451546 (port `:1252`, IDA :52823), level FUN_0041f319 (port `src/actor_tab
 | 35 | crab (68) | 16 | 714 [obs; table HP 170] | `crabs.md` |
 | 36 | crown slime (23) × 2 | 17 | 440 each [obs] | `crown-slime.md` |
 | 37 | Tielle (27), own setup + timeline | 19 | 480 [obs] | `tielle.md` |
-| 38 | pumpkin ghost (55) | | | — |
-| 39 | jellyfish (70) | | | — |
-| 40 | boss ahriman (54) × 2 | | | `boss-ahriman.md` |
-| 41 | golem (61 + parts 62 / 63), own setup | | | — |
-| 42 | griffon (28) | | | — |
-| 43 | Ohm (67) × 2 | | | `ohm.md` |
-| 44 | black knight (49) | | | — |
-| 45 | griffon (28) + demon lord's hand (72, own setup) | | | — |
+| 38 | pumpkin ghost (55) | 27 | 960 [obs `bossrush-obsidian-ending`; table HP 150] | `pumpkin-ghost.md` |
+| 39 | jellyfish (70) | 28 | 660 [obs] | `jellyfish.md` |
+| 40 | boss ahriman (54) × 2 | 29 | 680 each [obs] | `boss-ahriman.md` |
+| 41 | golem (61 + parts 62 / 63), own setup | 31 | 1080 each part [obs] | `golem.md` |
+| 42 | griffon (28) | 32 | 1480 [obs; table HP 200] | `griff.md` |
+| 43 | Ohm (67) × 2 | 33 | 1140 each [obs] | `ohm.md` |
+| 44 | black knight (49) | 34 | 780 [obs; table HP 100, AT 35] | `black-knight.md` |
+| 45 | griffon (28) + demon lord's hand (72, own setup) | 36 | Griff 1640 (slot 1), hand 820 (slot 0) [obs] | `griff.md`, `demon-hand.md` |
 | 46 | pumpkin ghost × 2 | | | — |
 | 47 | ねずみハリセン (59) | | | `mushroom-king.md` |
 | 48 | boss ahriman × 3 | | | `boss-ahriman.md` |
@@ -85,6 +85,19 @@ FUN_00451546 (port `:1252`, IDA :52823), level FUN_0041f319 (port `src/actor_tab
   `s32(0x438b1e8)` (Jade 4736 replaced 10387; Amber 13326 replaced 0).
 - `0x9643128` (no-exit) stays 1 on cleared non-last floors, 0 from the last floor's clear.
 - Louie L47 (ATK 65 / DEF 85): lowest HP 126 / 228 (the crab); food from the pause menu between hits.
+
+## 3c. Observed, mode 3 (`probes/bossrush-obsidian-ending.md`, Obsidian Boss Rush played live)
+
+- Departure: plate cursor 3 (Obsidian), row cursor 10 = "Boss Rush" (`--:--:--` before; d3 best dword **0xb151** = `0xb10b + 60 + 10`);
+  `dungeon` 5, `0x438b4d0` 3, `floor` 38; fee 4,650.
+- Levels = the code-read formula `f/4 + 16` on `f = 5·floor − 145`: 27, 28, 29, 31, 32, 33, 34, 36 for floors 38..45.
+- Floor 45 (last, run stage 7): the return is a shut kind-6 door, **object 0** at (−40, −40) (`doorobj` 0); one sword hit from (−40, −42.5)
+  facing +z opened it (f29018), "Return to town now?" at f29048. Griff's kill (slot 1) took the hand (slot 0) with it; `estage` 1 f28796.
+- Best time 21,915 ticks (6:05) into 0xb151 at the prompt (was 0). No results / reward again.
+- The pause menu does not open for ~125 ticks after `estage` 1 (ESC posted earlier is dropped).
+- Louie L47 → level-up at the golem clear (f12711: max HP 228 → 232, SP 51 → 52, refilled). Lowest HP 151 (39F); Griff ×2 floors
+  without damage. Danger floor = 43 (Ohm pair + bee cap 8): searches that stop on an arrival often sit 10..60 ticks before a committed
+  charge / sting (43–65 damage); plain `--apply` with `--hold 100` and an undo on a failed search got through without loss.
 
 ## 4. Recipe (mode 1: floors 30..32)
 
