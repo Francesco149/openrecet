@@ -149,7 +149,11 @@ Extra d3 state: first trip to row 0 runs a stage-type-20 cutscene (event 7/6); f
 | 94 | 95 | none: mob floor (knight list), 48 ×11 (144), 45 ×6 (134), 46 ×5 (173), 44 ×4 (115), 47 ×4 (336) at L43; exit hidden until all freed (`estage` 1 / `gate` 0 at f19941); the exit circle is object 0 at the exit cell (1, 1) = (−40, −40), `portal` read 2 there (`lapis-91f-100f`) | — | generic | — |
 | 99 | 100 | 73 body (300·9.8 = 2940; live table HP 300 / AT 50 / DF 35 / MA 50 / MD 35), 74 core (100·9.8 = 980), 75 / 76 hands (100·9.8 = 980); props 30, 41, 77. Live (`lapis-91f-100f`, short path `+0x2bcff` 1): fight f32640..59955, 5 breaks at 490-HP steps, events 12/16..12/19 after, clear f66445; event 12/21 at the 99F exit, 12/20 on the town map | — | `FUN_0044ecc4` + `FUN_0044f13d` | `arma-golem.md` § Lapis 100F (observed) |
 
-**d5 Crystal Nightmare** — floors 0..28 mob lists (`f:1-5` … `f:26-29`), floor 29 a rest floor (return portal +
+**d5 Crystal Nightmare** — floors 0..28 plain random floors from the lists `f:1-5` … `f:26-29` (live, `crystal-1f-20f`: no setup /
+event arm, exit visible from the start; 1F–5F list 1 = 0..4, 6, 8, 10, 11, 13, 15..18, 22, 35, 37, 44, 50, 52 (+29); 6F–15F list 2 =
+6, 8, 10..13, 15..19, 22, 35, 37, 38, 44, 45, 50..52 (+29); 16F–20F list 3 = 8, 9, 10..12, 14..20, 22, 36, 38, 39, 44..47, 50, 51, 53;
+levels 50..82 live; floors 9 / 19: the exit cell holds the next-floor circle (kind 8) AND a return portal (kind 6) at z + 5 — the
+prompt writes the row time `bank+181692 + 4·(floor/10)`), floor 29 a rest floor (return portal +
 1..3 warp plates by start floor; `FUN_00450ee0` case 29), floors 30..58 one boss floor each, floor 59 the end floor
 (case 59; no enemies). Level on floors ≥ 30: `ftol((floor − 30)·1.7 + 50)` = 50..97.
 
