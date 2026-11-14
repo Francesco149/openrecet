@@ -33,14 +33,14 @@ FUN_00451546 (port `:1252`, IDA :52823), level FUN_0041f319 (port `src/actor_tab
 
 | `floor` | boss (type) | lv | HP each | card |
 |---|---|---|---|---|
-| **30** | crown slime (23) | 4 | — | `crown-slime.md` |
-| **31** | **ねずみバール = the mushroom king (24)** — "the rat boss" | 7 | 360 | `mushroom-king.md` |
-| **32** | Charme (25) | 9 | 420 | `charme.md` |
-| 33 | boss ahriman (54) | 12 | 51 | `boss-ahriman.md` |
-| 34 | Ohm (67) | 14 | 570 | `ohm.md` |
-| 35 | crab (68) | 16 | 630 | `crabs.md` |
-| 36 | crown slime (23) × 2 | 17 | — | `crown-slime.md` |
-| 37 | Tielle (27), own setup + timeline | 19 | 720 | `tielle.md` |
+| **30** | crown slime (23) | 4 | 180 [obs] | `crown-slime.md` |
+| **31** | **ねずみバール = the mushroom king (24)** — "the rat boss" | 7 | 360 [obs] | `mushroom-king.md` |
+| **32** | Charme (25) | 9 | 280 [obs `bossrush-jade-amber`] | `charme.md` |
+| 33 | boss ahriman (54) | 12 | 340 [obs] | `boss-ahriman.md` |
+| 34 | Ohm (67) | 14 | 570 [obs] | `ohm.md` |
+| 35 | crab (68) | 16 | 714 [obs; table HP 170] | `crabs.md` |
+| 36 | crown slime (23) × 2 | 17 | 440 each [obs] | `crown-slime.md` |
+| 37 | Tielle (27), own setup + timeline | 19 | 480 [obs] | `tielle.md` |
 | 38 | pumpkin ghost (55) | | | — |
 | 39 | jellyfish (70) | | | — |
 | 40 | boss ahriman (54) × 2 | | | `boss-ahriman.md` |
@@ -75,13 +75,24 @@ FUN_00451546 (port `:1252`, IDA :52823), level FUN_0041f319 (port `src/actor_tab
 | Tielle | FUN_0044db3c(1): no dialogues, bank flags untouched; her portal (−45, 0, 65) is the run's return portal |
 | ×2 / ×3 floors | the death arms of 23 / 49 / 54 / 55 give the player 60 invulnerable ticks, not 1200, while another of the type lives; the "last of its kind" sweep (FUN_0042f746) fires only for the last |
 
+## 3b. Observed (`probes/bossrush-jade-amber.md`, modes 1 and 2 played live)
+
+- Floor → floor: `estage` 1, the pad ignored ~120 ticks, then the kind-8 portal (object 0) at (−40, −40): "Go to the next floor?".
+- **Last floor: the return portal is a SHUT kind-6 door** (floor 32: object 8 at (−40, −40); floor 37: Tielle's door (−45, 65)); a
+  walk into it stops 1.4 out, **a sword hit opens it** (state 1), then "Return to town now?" (`pret` 1).
+- After it: the ordinary "CAME BACK ALIVE!" bag screen → town map; **no results screen, no reward, no rush-specific drop**.
+- **Best time:** on the first tick of the return prompt, dword `0xb10b + 20·d + cap[d]` (d1: 0xb122, d2: 0xb139) = the trip counter
+  `s32(0x438b1e8)` (Jade 4736 replaced 10387; Amber 13326 replaced 0).
+- `0x9643128` (no-exit) stays 1 on cleared non-last floors, 0 from the last floor's clear.
+- Louie L47 (ATK 65 / DEF 85): lowest HP 126 / 228 (the crab); food from the pause menu between hits.
+
 ## 4. Recipe (mode 1: floors 30..32)
 
 1. Per floor: `--until "lock == -1"` (240 ticks), run the boss's card, then
    `--until "s32(0x438b8a0) == 1"`, walk to (−40, −40), `portal` → `A`.
 2. Progress predicates: `floor == 31`, `floor == 32`, `s32(0x438b4d4) == 1 / 2`.
 3. HP / SP carry across floors; no exit before the last floor (`s32(0x9643128) == 1`).
-4. Last floor: the portal is the return portal (kind 6) → results.
+4. Last floor: the portal is the return door (kind 6): sword hit, then walk in → "Return to town now?" → bag screen (no results).
 
 ## 5. Arms checklist
 

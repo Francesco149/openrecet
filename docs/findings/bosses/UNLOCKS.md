@@ -44,6 +44,11 @@ cleared; written by the checkpoint-clear code with `0x438b4c8` as index, so Boss
   (`bank+181700`). The boss floors 30..58 open only through the "Boss Rush" row (start floor 30).
 - Depart (`FUN_0045c051`, IDA 59955..59990): d5 → floor 10·row; row < cap → floor 5·row; row == cap → dungeon 5,
   `0x438b4d0 = d`, floor 30 / 33 / 38 / 46.
+- Boss Rush live (`probes/bossrush-jade-amber.md`, d1 and d2): the row's best time is dword `0xb10b + 20·d + cap[d]` (d1 0xb122, d2
+  0xb139), written on the first tick of the last floor's "Return to town now?" prompt with the trip counter `s32(0x438b1e8)` (d1 4736
+  replaced 10387 = the old 00:02:53; d2 13326 replaced 0). No results screen / reward. Guild cursors live: plate `s32(0x6a49b50)`,
+  row `s32(0x6a49b54)` (0 on entering the rows). A crafted save with d2 0xb103 = 29 and 0xb138 = 1 shows Amber's rows
+  "1～5".."21～25" `--:--:--`, "26～30" 00:00:00 and the Boss Rush row (row 6) — enough to depart on it.
 
 | goal | dword | value | base 64d4 / a23d |
 |---|---|---|---|

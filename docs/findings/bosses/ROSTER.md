@@ -163,9 +163,9 @@ next-floor circle; `FUN_00450ee0` case 29), floors 30..58 one boss floor each (B
 
 | floor | boss | setup | note |
 |---|---|---|---|
-| 30 / 31 / 32 | 23 / 24 / 25 | generic (`FUN_0044cc80(2)`) | = d1's Boss Rush |
-| 33 / 34 / 35 / 36 | 54 / 67 / 68 / 23 ×2 | generic | d2's Boss Rush starts at 33 |
-| 37 | 27 Tielle | own (default arm tail), event `FUN_0044db3c(1)` | |
+| 30 / 31 / 32 | 23 / 24 / 25 | generic (`FUN_0044cc80(2)`) | = d1's Boss Rush; live L4 / 7 / 9 → HP 180 / 360 / 280 (`bossrush-jade-amber`); 32's return = a shut kind-6 door (object 8, (−40, −40), sword hit) |
+| 33 / 34 / 35 / 36 | 54 / 67 / 68 / 23 ×2 | generic | d2's Boss Rush starts at 33; live L12 / 14 / 16 / 17 → HP 340 / 570 / 714 (68 table HP 170) / 440 ×2 |
+| 37 | 27 Tielle | own (default arm tail), event `FUN_0044db3c(1)` | live L19 HP 480; no dialogues, 3 block phases as the story; end door (−45, 65) shut until a sword hit |
 | 38 | 55 | generic | d3's Boss Rush starts at 38 |
 | 39 | 70 | generic | |
 | 40 | 54 ×2 | generic | |

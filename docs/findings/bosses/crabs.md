@@ -19,9 +19,9 @@ port matches, quirks included); hit parts / flip / angle gate in port `src/recor
 
 ## 2. Stats, parts
 
-- Table: HP 150, AT 20, DF 30, MA 0, MD 10 (code-read, "both types"). **Live type 69 row (`0x5c23f0 + 69·0x68`): HP 150, +0x30 25, AT 40, DF 30, MA 20, MD 30** (`lapis-81f-90f`); type 68 not re-read.
+- Table: HP 150, AT 20, DF 30, MA 0, MD 10 (code-read, "both types"). **Live type 69 row (`0x5c23f0 + 69·0x68`): HP 150, +0x30 25, AT 40, DF 30, MA 20, MD 30** (`lapis-81f-90f`); **live type 68 row: HP 170, AT 30, DF 30, MA 20, MD 30** (`bossrush-jade-amber`: rush f35 L16 → HP 714).
 - d4 f89 (Lapis 90F): level 42 → **HP 1410** (live), jab ≈ `ftol(40·9.4/2 − DF/4)` ≈ 167 vs Louie DEF 84.
-- d2 f19: level 12 → **HP 510**, AT·mul 44. Rush f35: level 16 → HP 630, AT·mul 52.
+- d2 f19: level 12 → **HP 510**, AT·mul 44. Rush f35: level 16 → ~~HP 630~~ **HP 714 [obs]** (table HP 170), AT·mul 78.
 - **`+0xab8 = 5.0` every tick outside state 8 → DF_eff = 30·25 = 750**; state 6 sets 1.0 → DF_eff 30.
 - `+0xb54 = 1`: no knock-back, no stagger, state never reset by a hit.
 - Seven hit volumes (FUN_0043865e, table DAT_005c5314 = {−1, 0, 1, 2, 3, 6, 7}), tested in this order:
