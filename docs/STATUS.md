@@ -258,7 +258,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        port-identical + save (one bug: record 104's NULL-owner return, `findings/bosses/tielle.md` §7). One subscription subagent at a time.
     1. ✅ the two open splits (ending, New Game + / Survival) closed 2026-11-13; Arma verified (`lapis-41f-50f`). 51F..60F identical
        2026-11-13. 61F..70F identical 2026-11-14. **Lapis Ruins 1F..100F all identical + save (2026-11-14).** Crystal Nightmare 1F..20F identical (2026-11-14). 100F long intro (`lapis-100f-long-intro`, crafted `15b20dc3c34e`, events 12/8 / 12/9 / 12/13..15, 76,913 frames) identical + save on the
-       first triage, no port change; gate rows. Next: d5 21F..30F (the floor-29 rest floor; craft gold first — the lineage can't pay day 35), d5 boss floors.
+       first triage, no port change; gate rows. Crystal Nightmare 21F..30F (`crystal-21f-30f`: L84..L97, the 30F rest floor = a chest + a sword-opened return door, no
+       warp plates) identical + save on the first triage, no port change; gate rows. **Crystal Nightmare's 30 regular floors all verified.**
+       Next: d5 boss floors (reached only via its Boss Rush row: 29 bosses at L~100+, needs a stronger party / crafted levels).
     2. keep the agent rows green: `gates` has 95 rows; **86/86 ok at 10e36b61, Windows, `-j 8`, 571 s**
        (2026-11-10; 36 of them agent-authored), + the 9 rows of five later probes **9/9 ok** in 24 s. Add a scenario's rows when its triage is
        identical.
