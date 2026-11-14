@@ -217,7 +217,9 @@ rd eval R "actors(T == 10)" a0hp --at-frame 40650                               
   (read the grid with `rd ram R dwords 0x73dfd08 N`), then one scored search per 40-unit leg: `--score "-dist"` to the
   next cell centre, `--cell "(int(px/2), int(pz/2))"`, actions = an aimed 12-tick walk + the 8 plain ones,
   `--avoid "hp < H"` (H = the HP now), `-j 2`. Wait for `ticker == 0` first (the floor banner freezes play although
-  `lock == -1`). Boss floors: the exit is not object 0 — use `estage == 1`, then the portal / door (`portal > 0`; the return
+  `lock == -1`). Floor routing: take the exit CELL from `s32(0x438b43c)` / `s32(0x438b440)` — `ex ez` / `exitd` / `gate` read dungeon
+  object 0, which is not always the exit (71F: another object; `lapis-71f-80f`). Mob floors (45F / 65F / 75F) hide the
+  exit until every actor is gone; bombs (types 37..40) read "dying" when lit — use "slot free". Boss floors: the exit is not object 0 — use `estage == 1`, then the portal / door (`portal > 0`; the return
   door opens only after a sword hit on it — `s32(0x695f218+0x268)` 1 = open; walking into it before that does nothing;
   `lapis-61f-70f`); the pad is dead ~120 ticks after a clear.
 - Enemy stats live at `0x5c23f0 + type*0x68` (+0x2c HP, +0x34 AT, +0x38 DF, +0x3c MA, +0x40 MD): read them, the cards'

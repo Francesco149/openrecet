@@ -142,8 +142,8 @@ Extra d3 state: first trip to row 0 runs a stage-type-20 cutscene (event 7/6); f
 | 59 | 60 | 60 rat (150·8.2 = 1230; live 1230) | 13 / 14 | generic; after: event 12/4 once (+0x2bcf7; flag already set in the `lapis-51f-60f` lineage: skipped, `estage` stays 1; played in `lapis-60f-event-12-4` (crafted save): `lock` 0 from the floor open, dialogue at etick 120, flag set that tick, no stage change, party not moved) | `mushroom-king.md` § 9 |
 | 64 | 65 | none: mob floor, 50 ×10 + 51 ×10 (126), 52 ×10 (168), 53 ×9 (126) at L37; skeletons revive twice; exit hidden until all freed (`lapis-61f-70f`) | — | generic | — |
 | 69 | 70 | 64 + 65 + 66 dark golem (150·8.6 = 1290 each; live 1290, `lapis-61f-70f`) | 35, 9 over the fight (live: cap reached) | own: case 69 | `golem.md` |
-| 74 | 75 | none (yellow mob list) | — | generic | — |
-| 79 | 80 | no fight: 42 ヒドラ + 43 親父 props, events 12/10..12/12 | — | own: case 79 + `FUN_00450877` | — (prop AI `FUN_004284ba`) |
+| 74 | 75 | none: mob floor (yellow list), 3 ×6 (220), 6 ×5, 10 ×4 (44), 20 ×5, 35 ×4, 40 ×6 (yellow bombs), 46 ×5 (158), 51 ×4 at L39 (132 unless noted); exit hidden until all freed (object-0 `gate` reads 0 here); portals = special objects 20 / 21 at (−36.5 / −43.5, −40), the start room (`lapis-71f-80f`) | — | generic | — |
+| 79 | 80 | no fight: 42 ヒドラ + 43 親父 props (HP 135, `unhit` 1, never move), events 12/10..12/12 — live (`lapis-71f-80f`): props at etick 1, iv12_10 at etick 120, `lock` 4 auto-walk (+z) for etick 30..89, iv12_11 at 110, then the 42 freed + control, iv12_12 within 4 of the 43, portals from etick 10; seen bytes `+0x2d67a..c` set at each dialogue's end; `+0x2bd14` not set by the trip | — | own: case 79 + `FUN_00450877` | — (prop AI `FUN_004284ba`) |
 | 84 | 85 | none (roper list) | — | generic | — |
 | 89 | 90 | 69 black crab (150·9.4 = 1410) | 37..40 | generic | other author |
 | 94 | 95 | none (knight list) | — | generic | — |
