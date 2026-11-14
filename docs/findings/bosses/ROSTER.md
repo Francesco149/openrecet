@@ -152,9 +152,13 @@ Extra d3 state: first trip to row 0 runs a stage-type-20 cutscene (event 7/6); f
 **d5 Crystal Nightmare** — floors 0..28 plain random floors from the lists `f:1-5` … `f:26-29` (live, `crystal-1f-20f`: no setup /
 event arm, exit visible from the start; 1F–5F list 1 = 0..4, 6, 8, 10, 11, 13, 15..18, 22, 35, 37, 44, 50, 52 (+29); 6F–15F list 2 =
 6, 8, 10..13, 15..19, 22, 35, 37, 38, 44, 45, 50..52 (+29); 16F–20F list 3 = 8, 9, 10..12, 14..20, 22, 36, 38, 39, 44..47, 50, 51, 53;
-levels 50..82 live; floors 9 / 19: the exit cell holds the next-floor circle (kind 8) AND a return portal (kind 6) at z + 5 — the
-prompt writes the row time `bank+181692 + 4·(floor/10)`), floor 29 a rest floor (return portal +
-1..3 warp plates by start floor; `FUN_00450ee0` case 29), floors 30..58 one boss floor each, floor 59 the end floor
+21F–25F list 3 + 40, 26F–29F list 4 = 5, 12, 14, 16..20, 35, 36, 40, 46, 48, 51, 53 (`crystal-21f-30f`; 27F banner "Consumables now half
+as effective!"); levels 50..97 live; floors 9 / 19: the exit cell holds the next-floor circle (kind 8) AND a return portal (kind 6) at z + 5 — the
+prompt writes the row time `bank+181692 + 4·(floor/10)`), floor 29 a rest floor (live `crystal-21f-30f`: grid 3 × 3, one cell (1, 1),
+no actors, no banner, no event, `lock` 0 for a 371-tick camera swing (`FUN_00451546` case 29); object 0 = kind 6 **return door** at
+(−48, −42), shut until a sword hit (`doorst` 1), then "Return to town now?" and the row-2 time; then 1..3 **treasure chests** (kind 4,
+opened by a sword hit) by start floor — 3 from 1F, 2 from 11F, 1 from 21F (party + 10 z, (−53, −35), (−27, −35)); no warp plates, no
+next-floor circle; `FUN_00450ee0` case 29), floors 30..58 one boss floor each (Boss Rush row only), floor 59 the end floor
 (case 59; no enemies). Level on floors ≥ 30: `ftol((floor − 30)·1.7 + 50)` = 50..97.
 
 | floor | boss | setup | note |

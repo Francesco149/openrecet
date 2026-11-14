@@ -39,6 +39,9 @@ cleared; written by the checkpoint-clear code with `0x438b4c8` as index, so Boss
   is "Boss Rush". (Below the cap the test reads the best time of the first group not yet reached; 0 in a played save.)
 - d = 5: `min(rows, 4)`; row r starts at floor 10·r (rows 0..2 "Floor 1～10 / 11～20 / 21～30", row 3 "Boss Rush" =
   floor 30, the 29 boss floors + the end floor).
+- d5 row "Floor 21～30" ends on floor 29 = the 30F rest floor (live `crystal-21f-30f`): a return door (sword hit opens it) + 1..3
+  treasure chests by start floor (3 / 2 / 1 from 1F / 11F / 21F) — no warp plates; the return prompt writes row 2's time
+  (`bank+181700`). The boss floors 30..58 open only through the "Boss Rush" row (start floor 30).
 - Depart (`FUN_0045c051`, IDA 59955..59990): d5 → floor 10·row; row < cap → floor 5·row; row == cap → dungeon 5,
   `0x438b4d0 = d`, floor 30 / 33 / 38 / 46.
 
