@@ -261,8 +261,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        first triage, no port change; gate rows. Crystal Nightmare 21F..30F (`crystal-21f-30f`: L84..L97, the 30F rest floor = a chest + a sword-opened return door, no
        warp plates) identical + save on the first triage, no port change; gate rows. **Crystal Nightmare's 30 regular floors all verified.**
        **Boss Rush** (`bossrush-jade-amber`: Jade Way + Amber Garden rushes = d5 boss floors 30..37, 8 bosses) identical + save on the first
-       triage, no port change; gate rows. Next: the Obsidian (8) + Lapis (13) rushes — the lineage hits the unpayable day-35 night, so craft
-       gold and let the payment / ending / Endless save play (natural progression); then d5's own boss floors.
+       triage, no port change; gate rows. `bossrush-obsidian-ending` (crafted +1,000,000 pix: the Obsidian rush = d5 floors 38..45, 8 bosses,
+       the final payment, the ending, the Endless save, Endless control; 57,365 frames) identical + save on the first triage, no port change;
+       gate rows. Next (from the Endless save `1aa94b103208`): the Lapis rush (13 floors), then d5's own boss floors 30..58.
     2. keep the agent rows green: `gates` has 95 rows; **86/86 ok at 10e36b61, Windows, `-j 8`, 571 s**
        (2026-11-10; 36 of them agent-authored), + the 9 rows of five later probes **9/9 ok** in 24 s. Add a scenario's rows when its triage is
        identical.
