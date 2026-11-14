@@ -7,15 +7,15 @@ IDA 40204..40232), table 0x52b874. **Port: ported, unverified** — `actor_ai_go
 `actor_golem_descend` (`src/actor_ai.c`), the 73 / 74 death arms, the floor-99 props, `d4_floor99_setup` /
 `d4_floor99_event` / `d4_floor99_ambience` (`src/dungeon_flow.c`); the HP gate was already in `actor_damage`; no
 recording reaches it yet (`lapis-91f-100f` pending).
-Shared rules: `boss-floor-common.md`. Nothing run.
+Shared rules: `boss-floor-common.md`. Lapis 100F run live: section "Lapis 100F (observed)" (`lapis-91f-100f`).
 
 ## 1. Where
 
 | place | `dungeon` / `floor` | level → body HP / hand HP |
 |---|---|---|
-| Lapis Ruins 100F | 4 / 99 | 44 (×9.8) → **9.8** / 1470 |
-| dungeon 5 floor 58 | 5 / 58 | 97 (×20.4) → 20.4 / 3060 |
-| Lapis's Boss Rush, 13th (last) floor | 5 / 58, `0x438b4d0 == 4` | 54 (×11.8) → 11.8 / 1770 |
+| Lapis Ruins 100F | 4 / 99 | 44 (×9.8) → **2940** / 980 (live, `lapis-91f-100f`; HUD "LV45") |
+| dungeon 5 floor 58 | 5 / 58 | 97 (×20.4) → 6120 / 2040 (from the live table row) |
+| Lapis's Boss Rush, 13th (last) floor | 5 / 58, `0x438b4d0 == 4` | 54 (×11.8) → 3540 / 1180 (from the live table row) |
 
 ### Lapis floor 99 (`FUN_0044ecc4`, `FUN_0044f13d`; stage `s32(0x438b8a0)`, tick `s32(0x438b8a4)`)
 
@@ -52,14 +52,14 @@ applies).
 
 | part | table HP / AT / DF | volume (radius 4.5·1.1, half-height 3.0·1.1) | flags each AI tick |
 |---|---|---|---|
-| 73 body | **1** / 20 / 30, EXP 0 | 4.95 / 3.3 | `+0xa00 = 1` (floats), `+0xb54 = 1`, `+0x9fc = 1`, `+0xb04 = 1`; `+0xb08 = 0` except during a break |
-| 74 core | 1 / **0** / 30 | — | copies the first live 73's position and yaw; `+0xb04 = +0xb08 = 1` → **never hittable** |
-| 75 / 76 hands | 150 / 20 / 30 | 4.95 / 3.3 | `+0xa00 = 1`, `+0xb54 = 1`, `+0x9fc = 1`, y fixed 1.5; hittable (`+0xb08` never set after state 8) |
+| 73 body | **300** / 50 / 35 (live table: HP 300, +0x30 25, AT 50, DF 35, MA 50, MD 35; the code-read "1 / 20 / 30" was wrong), EXP 0 | 4.95 / 3.3 | `+0xa00 = 1` (floats), `+0xb54 = 1`, `+0x9fc = 1`, `+0xb04 = 1`; `+0xb08 = 0` except during a break |
+| 74 core | 100 / 20 / 30, MA **0**, MD 30 (live table; live HP 980) | — | copies the first live 73's position and yaw; `+0xb04 = +0xb08 = 1` → **never hittable** |
+| 75 / 76 hands | **100** / 20 / 30, MA 0, MD 30 (live table; the code-read 150 was wrong) | 4.95 / 3.3 | `+0xa00 = 1`, `+0xb54 = 1`, `+0x9fc = 1`, y fixed 1.5; hittable (`+0xb08` never set after state 8) |
 
 **The body's HP gate** (`sub_420591`, on every damage application): segment `s = s32(B+0xa64)` (0..5),
 `floor = max − max/6·(s + 1)`. If HP < floor: HP = floor, `+0xa58 = 0`, **`+0xa60 = 1` (a break starts)**. So the
-body dies on the 6th segment: 5 breaks, then HP can reach 0. On Lapis 100F a segment is 1.63 HP; every landed hit
-does ≥ 1.
+body dies on the 6th segment: 5 breaks, then HP can reach 0. On Lapis 100F a segment is **490 HP** (live: clamps at
+2450, 1960, 1470, 980, 490, then 0); a front sword hit at ATK 64..65 does 23..26.
 
 Killing a hand: default death arm (freed at death tick 2). The body does not need the hands dead (d4: the
 timeline frees them; d5: the body's death tick 60 kills every live actor).
@@ -122,7 +122,7 @@ Active only while `s32(H+0xa5c) == 0` (no writer found: always). Per tick:
    score `s32(B+0xa64)*100 - f32(B+0x42c)`; goal `s32(B+0x428) == 2`; avoid `hp <= 0`.
 5. Six scoring moments: breaks at segment 0..4, then the kill. Between them: body states 1 (lob from (−40, −30)) and
    2 (rain) are waiting time; dodge the beams (hand cycle % 5: 0, 2 right; 1, 3 left; 4 both), or kill the hands
-   first (1470 HP each on d4 — far more than the body's whole fight).
+   first (980 HP each on d4, live; the body has 2940). Live: hand contact (142) and the beam (133) were the only hits seen; a 6-segment kill took ~100 sword hits (27,315 frames).
 6. Done: `s32(B+0x428) == 2`. d4 → event stage 13 after tick 60; d5 → portals when the table is empty.
 
 ## 8. Arms checklist
@@ -143,6 +143,35 @@ Active only while `s32(H+0xa5c) == 0` (no writer found: always). Per tick:
 | death d4 (stays dying; anim 12 → 13) / d5 (alpha −4 from tick 60) | `s32(B+0x428) == 2`, `s32(B+0xaf0)` |
 | 100F intro long / short | bank+0x2bcff 0 → stages 0..4 with events; 1 → stage 4 tick 130 at load |
 | 100F already cleared | bank+0x2bd00 = 1 → stage 24, no type 73 |
+
+## Lapis 100F (observed) — `lapis-91f-100f` (2026-11-14)
+
+Crafted-save lineage (`+0x2bcf7` cleared upstream). Louie L47 (ATK 64..65, DEF 84 with gear), Windows native. Zero damage
+taken in the filed movie. Full table: `docs/findings/probes/lapis-91f-100f.md`.
+
+- **Entry:** bank `+0x2bcff` was already **1** on this lineage, so the SHORT path ran: floor load f32398 (stage 4), stage 8
+  from f32400, no events 12/8 / 12/9 / 12/13 / 12/14 / 12/15. The long intro is not covered. Instead **event 12/21** played
+  at the 99F exit (`FUN_00442cef`: floor 98, `+0x2bd01 == 0` → event, `+0x2bd01 = 1`, `be9c = 119`), before the 100F load:
+  Alouette / Avall (through Prime) / Arma, f30958..32381.
+- **Stage 8:** 240 ticks (f32400..32640), `lock` 0, no dialogue box (`dlg` 0). Stage 10 = fight from f32640, `lock` −1.
+- **Live HP:** body 2940, core 980, hands 980 each (table × 9.8). The hands were never killed (cycles 0..89 over the fight).
+- **Breaks (HP gate, `+0xa60` 0 → 1):** f35746 (→ 2450), 40040 (1960), 46150 (1470), 51378 (980), 55062 (490); each break
+  lasts **334** ticks to `+0xa64` + 1 (card: 330). The kill hit at **f59955** clamps to 0 and also sets `+0xa60` 1;
+  `+0x428` 2 the same tick; stage 13 at f59959 (stage tick was already > 60).
+- **Body states seen:** hover 0 ×48, lob 1 ×23, rain 2 ×24 (state entries over f32640..59955). Hits landed in hover and
+  while it sat low; nothing landed during a break.
+- **Damage to the player (abandoned branches, not in the filed movie):** hand beam (hit record type **136**, the
+  hand-attached one) **133**; body contact with a patrolling hand (no hit record) **142**. Both from a full 228 —
+  two of either kill Louie. The hands patrol x ≈ −20 / −60, z ≈ −36..−40: standing in their lane is the trap.
+- **After the kill:** stage 13 f59959..60358; stage 20 → **12/16** f60389..61027 (barrier fading; Recette / Alouette);
+  stage 21 → **12/17** (flag 1) f61087..62818 (inside the crystal: Prime, Tear; calls from outside); stage 22: Prime
+  77 spawned (slot 2, y 20 → 5); **12/18** f63528..64560 (Prime / Tear freed); stage 23 → **12/19** f64810..66396 (Arma
+  seals the Lapis Core, cuts her dungeon-control links). **Stage 23 tick 300 = f66445:** `be9c` 120, `bea8` 1, `be98` 3,
+  bank `+0x2bd00` 0 → 1, `+0x2bd02` 0 → 1; f66449 `scene` 9 "CLEAR!" + bag list. No credits.
+- **Town:** results → town map f67069 (`stime` 1 → 3); **event 12/20 on the town map** f67077..71142 (`FUN_0049e163`:
+  `+0x2bd02` → 0, `+0x2bc53` = 1, `FUN_00468d22(218112)`; Alouette / Prime leave, Arma gives Recette an Adventurer's
+  Guild card, Tear stays). Then control on the night town map.
+- Seen bytes: `+0x2d680..+0x2d683` = 12/16..12/19, `+0x2d684` = 12/20, `+0x2d685` = 12/21 (base `+0x2d670` + event id).
 
 ## 9. Unresolved
 
