@@ -229,6 +229,9 @@ Add a port function = one wrapper + one table row.
 - Sibling projects run the same architecture in parallel (OpenSummoners `C:\oss-rhost`,
   DioramaEngine `C:\de-rhost`, OpenLords2 `C:\ol2-rhost`, OpenMare `C:\om-rhost`), each with its
   own runner; never kill by process name.
+- Windows Defender excludes all five roots (`Add-MpPreference -ExclusionPath C:\orc-rhost`, same for the
+  siblings; 2026-11-15): real-time scanning of run output took ~72% CPU during long `rd` drives.
+  On a rebuilt box, add them again.
 - `state_sem` / `state_full` hash retail memory that holds a few rhost-image pointers (e.g.
   `0x964d330`): compare hashes within one rhost build only; across builds compare behaviour
   (RNG, saves, anchors).
