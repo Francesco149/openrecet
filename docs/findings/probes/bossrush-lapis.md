@@ -96,3 +96,48 @@ Levels `f/5 + 25`, f = 5·floor − 145. Table = live `0x5c23f0 + type·0x68` s3
 3. Each `-j 2` search replays the whole movie in the worker (~20 s at 120k frames); `-j 1` was faster late in the run.
 4. Long single-floor fights (≈ 100+ hits) are too slow for chained per-hit searches; a dedicated scripted dodge macro for the golem
    (beam clock + hover-landing timing) would be needed.
+
+## Loadout run `bossrush-lapis-r` (2026-11-15, STOPPED on 58F)
+
+- **Start: CRAFTED state** `save:efa3dcf87875` = `1aa94b103208` + `--loadout rush` (Louie L47 / L48 in the guild, own gear Holy Sword,
+  Legendary Armor, Superarm Band, Legendary Helm, Iron Sandals: ATK / DEF 181 / 278, food in the inventory). Windows native
+  (`RD_HOST=win`), nothing under wine. Not filed / not verified / no end save (stopped by the 90-min-per-boss rule).
+- **Status:** 46..57 cleared; **58F golem body 3540 → 1491** (segments 0..2 broken, next clamp 1180) at **f53041, checkpoint `stop58`**,
+  Louie 232 / 237, SP 53, food left: Curry ×2, Ham Sandwich ×4, Walnut Bread, Melon ×2, Taiyaki ×2, Baked Yam ×4, Mont Blanc ×2.
+- **Before:** load 020 f137..2599 (Endless card, `A` taps); door search → map f2952; `D R` → `wm_cur` 6 → guild f3047; hire `A`, help `A`,
+  `A` enters slot 1; `R` ×13 → Food (Apple ×12, Apple+3, Cherry, Melon ×2, Walnut Bread, Ham Sandwich ×4, Curry ×5, Taiyaki ×2, Baked Yam ×4,
+  Mont Blanc ×2). Packed from the bottom of the list (cursor clamps to the new last row as rows empty): Mont Blanc ×2, Baked Yam ×4,
+  Taiyaki ×2, Curry ×5, Ham Sandwich ×4, Walnut Bread, Melon ×2 (20/20); no Market visit. Depart → `R` (Lapis) → `D` ×20 → Boss Rush
+  (00:04:19) → `A` f4890: gold 495,350 → 490,600. "Equip items in bag?" f5320 answered No (`R A`). Control f5562.
+- **Method:** every fight by chained `rd search` (scratch driver: goal summed boss HP − step, avoid `hp < H` then `hp < H − 15..20`,
+  hold 40..60, actions aimed at the lowest-HP boss); 55F = purple-meal → state-4 windows (avoid red meal `+0xa74 == 2`, heal state 5,
+  king HP up); 57F = flip (`kst == 6`) then damage while flipped; 58F = goal clamped to the segment floor, avoid the hover landing
+  (`body st 0, tick >= 180, within 8.6`). Food: Curry (pause → Items → Use → row → `A A`) at 52F start (175 → 232), 55F (127 → 237),
+  56F start (183 → 237). **Curry heals ≥ 110 (to full); Baked Yam is SP-only** ("Can't recover any further" at full SP).
+- **Level-up L48 → L49** between 53F and 54F (HP 232 → 237).
+
+| floor | boss | lock −1 → last kill → `estage` 1 | HP drops on the boss (dmg range) | Louie HP (min) | mechanics seen (`aNst`, scans) |
+|---|---|---|---|---|---|
+| 46 | pumpkin ghost ×2 | 5562 → 9664 → 9828 | 15 + 12 (60–202) | 232 → 232 | descent 8, hover 0, cast 1 |
+| 47 | rat 59 | 10278 → 12411 → 12955 | 29 (23–144) | 232 | wander 0, swing 1, eat 2, heal 5 (red meal); **pow-2 gate broken at ATK 181** (no purple window needed) |
+| 48 | ahriman ×3 | 13373 → 15813 → 15977 | 9 + 9 + 9 (16–179) | 232 | circle 0, beam 1; bats (6 / 8 / 9) crowd the floor: strict no-damage searches looped |
+| 49 | Ohm ×3 | 16477 → 17933 → 18108 | 13 + 13 + 15 (41–232) | 232 → 204 | walk 1, charge 2 (**charge hit 13** at DEF 278), burst 3 |
+| 50 | crown slime ×3 | 18584 → 20293 → 20459 | 10 + 14 + 12 (48–142) | 204 → 175 | **power gate BROKEN**: power 5 → **48–61 per hit** (3.66: 69–109, 2.32: 87–110, 1: 49–142); shed 5 → 3.66 → 2.32 → 1, absorb → 5 seen; one swing hit two slimes |
+| 51 | pumpkin ghost ×3 | 20962 → 27323 → 27487 | 16 + 16 + 15 (41–184) | 175 | 0, 1 |
+| 52 | red jellyfish | 27899 → 29306 → 29465 | 9 (36–144) | 232 (Curry first) | killed in 9 hits; phase steps not watched |
+| 53 | Arma | 29911 → 32074 → 32193 | 25 (83–136) | 232 | intro 8, hunt 0, volley 1, lob 2, spread 3, fans 4; **finisher 5 never started**; step 75 (one hit) worked, step 200 looped |
+| 54 | black knight ×2 | 32663 → 34126 → 34290 | 10 + 10 (40–139) | 237 → 223 | walk 0, throw 1, block 4 |
+| 55 | rat 60 | 34712 → 43294 → 43838 | 25 incl. chips (1–186) | 223 → 183 (**min 127**, Curry) | 0, 1 (lunges ~30 each at DEF 278), 2, spray 3, power-up 4; **pow-3 gate HOLDS at ATK 181** (DF 52·9 = 468 → 1–2); state-4 sword 112–186; 4 purple windows; ~8,600 frames, ~45 min |
+| 56 | dark golem | 44262 → 45855 → 46030 | 15 on the body (60–168) | 183 → 237 (Curry) | 0, 1, 2, 3; arms never targeted (body kill ends it) |
+| 57 | black crab | 46450 → 48364 → 48539 | 19 (1–282, blasts included) | 237 | walk 0, jab 1, slam 3, bubbles 5, **flip 6 ×2** (bomb blasts); flipped sword 103–131 |
+| 58 | Arma golem | 48983 → (stopped f53041) | 23 on the body (46 clamp – 186) | 237 → 232 | hover 0, lob 1, rain 2; **breaks** (clamp exact) at 2950 f49906, 2360 f50853, 1770 f52102; one hand hit (116) |
+
+- **58F rate:** ~2,050 HP in 85 min wall (~4,060 frames). The doom found: **hover landing 173 at DEF 278** (f52686 branch, standing 7.0 from the
+  body at hover tick 242: 232 → 59), i.e. the landing barely drops with DEF (142 at DEF 84 on d4 L44); with the landing in the avoid the
+  searches ran again, but a second trap after ~1500 cost 3–4 min per failed step. Remaining 1491 ≈ 17 sword hits (2 more breaks).
+- **Card corrections:** crown-slime (gate fails at ATK 181: 48–61 at power 5; `mid` is required there, as the preset table says);
+  mushroom-king (type 59 pow 2 gate broken at ATK 181; type 60 pow 3 holds; lunge ~30 at DEF 278); ohm (charge 13 at DEF 278);
+  arma-golem (hover landing 173 at DEF 278 on d5 L54; breaks 2950 / 2360 / 1770 live = max − 590·(s+1)).
+- **Tool gaps:** (1) `ck` savestates are never freed: ~110 checkpoints + undo over 41k frames → `live: err savestate pool exhausted`
+  (every search / ck failed in 1 s); `rd stop` + replay (30 s) clears it — a `ck drop` / LRU would help. (2) `rd scan --watch aNtype`
+  reads stale types in freed slots (a mushroom / bat slot keeps a boss type) — needs `aNuse`.
