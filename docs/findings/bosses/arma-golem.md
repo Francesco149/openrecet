@@ -49,7 +49,7 @@ During state 8 on d4 (`FUN_0044f037`): `+0xb04 = +0xb08 = 1`, `+0xa98 = 1`, y �
 ### Dungeon 5 floor 58 (`FUN_00450ee0` case 58)
 
 5 movers; 73 at (−40, 1, −40) (`+0x428 = 1`, state 8), 74 same point (state 0), 75 at (−32, 1, −40), 76 at (−48, 1,
-−40) (state 8); portal at (−40, 0, −47); player start (−40, 0, −60), camera class 3. Event `FUN_0044d0a4(1)`. State 8
+−40) (state 8); portal at (−40, 0, −47); player start (−40, 0, −60) by the code read — **live (`bossrush-lapis`): the party stands at (−40, −45)**; camera class 3. Event `FUN_0044d0a4(1)`. State 8
 = 240 state ticks, no flags written during it (the parts are hittable while waiting; the body's HP gate still
 applies).
 
@@ -177,6 +177,15 @@ taken in the filed movie. Full table: `docs/findings/probes/lapis-91f-100f.md`.
   `+0x2bd02` → 0, `+0x2bc53` = 1, `FUN_00468d22(218112)`; Alouette / Prime leave, Arma gives Recette an Adventurer's
   Guild card, Tear stays). Then control on the night town map.
 - Seen bytes: `+0x2d680..+0x2d683` = 12/16..12/19, `+0x2d684` = 12/20, `+0x2d685` = 12/21 (base `+0x2d670` + event id).
+
+## d5 floor 58 (observed, `bossrush-lapis`, 2026-11-15)
+
+L54: body **3540** (segment 590), core / hands **1180**. Louie L49 DEF 85, HP 237. Damage taken in discarded branches (hit records
+at `0x69324b0`): **fan record 152 = 182** (it travels 0.3/tick and hit at age ~120, 19 units out — not "1 damage"), **hand beam 136 ≈ 61**
+(during the sweep, hand tick ~245, 18+ units from the hand), **lob 164 = 61..173** (lands ~15.7 units from where it was thrown, age ~87–91),
+rain drops reach ≥ 29 from the centre (−61). The floor is a disc of radius ~39 around (−40, −40): walking off costs **23 HP** and re-places
+the party at ~(−40, −60) after ~60 ticks. After rain the body hovers high (y 8 → 1 at 0.05/tick), so the first ~140 hover ticks give no
+sword hits; the player is body-blocked at 6.85 from the centre. Sword 24–27 per hit (ATK 66).
 
 ## 9. Unresolved
 

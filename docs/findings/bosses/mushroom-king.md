@@ -244,3 +244,14 @@ Louie L44 ATK 62 / DEF 82. Dungeon 4 / floor 59 (also d5 f55, §1).
 - **Event 12/4 skipped** when bank+0x2bcf7 is already 1 (`FUN_00450877` floor-59 arm): `estage` stays 1, no dialogue; portals were raised by
   `FUN_0044d0a4(1)` as usual.
 - Not seen on 60: three lunges (`ksub` 2), spray, stay roll, contact record, a hit on the player, the eat-walk timeout.
+
+## Eat rules, read + live (`probes/bossrush-lapis.md`, d5 47F / 55F, 2026-11-15)
+
+- **Eligibility:** the pick (state 0) scans for the nearest mushroom (types 13 / 14, in use) with **age ≥ 600** (`sub_42B6B7`,
+  `*((int*)v31 − 35) >= 600`); none → no eat roll. Mushrooms live in actor slots up to at least 24 (a 16-slot scan misses them).
+- **Eat tick 38:** `+0xa74` := 0; if the target is still in use: freed, `+0xa74` = 2 (red 13) / 1 (purple 14). Tick 48: `+0xa70` :=
+  `+0xa74`. Tick 120: `+0xa70 != 0` → state `(+0xa74 != 1) + 4`, else state 0. **Killing the target before tick 38 = no meal, no heal,
+  and `+0xa70` 0** (the stale power-up below is lost until the next purple meal).
+- **Walk timeout:** the walk (`+0xa5c`) gives up at 180 and falls into the tick-120 test with the previous `+0xa70` / `+0xa74` — after a
+  purple meal, body-blocking the walk for 180 ticks yields a free state-4 (DF 0) window [obs 55F f95376..95572].
+- Red meal heal = max/6 (+280 at HP 1680, d5 55F). Outside state 4 at `+0xab8` 2 / 3 every hit does 1–2.

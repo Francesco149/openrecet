@@ -67,12 +67,27 @@ Levels `f/5 + 25`, f = 5·floor − 145. Table = live `0x5c23f0 + type·0x68` s3
 - Avoid used: `hp < H or within 7 of a hand or (body state 0, body tick ≥ 185, within 8 of the body)`; hit goal: body HP down and
   > 8 from the body and (body state ≠ 0 or body tick < 160) at arrival; hold 90 with straight-run tails.
 
+### Macro attempt (2026-11-15, `tools/drive/macros/golem.py`)
+
+- A per-tick policy expression (attack while the body hovers low, else retreat to a point below / beside the body, a fixed zone
+  during the hands' sweep, under the body during rain; clamped inside the disc) played in 100-tick chunks; a chunk that loses HP is
+  reloaded and retried with another of up to 11,520 parameter sets (20 random tries), then the driver steps 1..8 chunks back.
+- Result: body 3078 → **3002** at f135972 (checkpoint `B3`), ~75 HP in ~30 min of good running (≈ 150 HP/h), then ~40 min with no
+  surviving chunk (every 100-tick chunk after a near-doomed state loses HP: fan 182, beam 61, lob 61–173). Not clearly better than the
+  search loop (~115 HP/h); at this rate the remaining 3002 HP need ~20 h. Stopped per the 1-hour check.
+- Why it is not faster: the hits come only in short low-hover windows (≤ 1–2 swings per 300-tick hover, often none after rain while
+  the body sinks from y 8), and the three projectile sources (fan at hover t 120, beams on the hand clock, the lob) need positions the
+  policy cannot predict; random parameter retries rediscover the same dead ends.
+- Next idea: model the dangers explicitly (fan lines = player's octant ±0, ±0.38, ±0.56 rad from the body at t 120, speed 0.3; beam ray
+  from the hand joint at yaw ± 0.3, sweep +0.02·ramp; lob landing point ~15.7 ahead of the body along its aim) and steer to a point
+  outside all of them, instead of retrying; or feed Louie more ATK (equipment) before this floor.
+
 ## Card corrections
 
 - **boss-rush.md:** mode-4 roster filled (levels 42..54, live HP, tables 59 / 60 / 69 / 71 / 41 / 64..66 / 73..76); §3d added.
 - **ROSTER.md:** d5 46..58 rows: live L / HP.
-- **mushroom-king.md** (to fold in): eligibility age ≥ 600; target-kill → no meal; walk-timeout stale power-up; slots beyond 15.
-- **arma-golem.md:** d5 58 player start is (−40, −45), not (−40, −60).
+- **mushroom-king.md:** eat rules section added (eligibility age ≥ 600, target kill → no meal, walk-timeout stale power-up, slots ≥ 24).
+- **arma-golem.md:** d5 58 party start (−40, −45) (code read said (−40, −60)); live damage table (fan 182, beam ~61, lob 61–173, fall 23 off the radius-~39 disc).
 
 ## Tool gaps
 
