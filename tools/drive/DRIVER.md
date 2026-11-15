@@ -224,6 +224,9 @@ rd eval R "actors(T == 10)" a0hp --at-frame 40650                               
   exit until every actor is gone; bombs (types 37..40) read "dying" when lit — use "slot free". Boss floors: the exit is not object 0 — use `estage == 1`, then the portal / door (`portal > 0`; the return
   door opens only after a sword hit on it — `doorst` 1 = open (`doorx doorz` its place); walking into it before that does nothing;
   `lapis-61f-70f`); the pad is dead ~120 ticks after a clear.
+- **Long boss floors: start from a loadout save** (`tools/drive/SAVES.md` § Boss-test loadouts; `craft_pix_save.py --loadout
+  early|mid|late|rush`) when the task is a boss's mechanics, not the gear: the band's biggest boss takes ~25..40 sword hits and no
+  sword hit can skip an HP-threshold arm. Not for playthrough / economy tasks (crafted state; say so in the report).
 - Enemy stats live at `0x5c23f0 + type*0x68` (+0x2c HP, +0x34 AT, +0x38 DF, +0x3c MA, +0x40 MD): read them, the cards'
   code-read stats were wrong more than once. Hit records: `0x69324b0 + i*0x124` (type +0, side +4, age +0x98).
 - `rd` reads state AFTER the tick (a state entered this tick shows tick 0); wrap `--expr` defines in parentheses.

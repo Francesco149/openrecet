@@ -30,6 +30,28 @@ probe report says which it used. Played saves from the owner's free-play capture
 | `2f2f2203a65d` | `2e4388a2cfe2` | `--gold 1000000` (the day-35 final payment can be paid → the ending → Endless) | bossrush-obsidian |
 | `67e22cc643bf` | `89190665bb8f` | `--gold 900000` | ending-week5-paid |
 
+## Boss-test loadouts (crafted gear presets)
+
+`tools/craft_pix_save.py --base <save> --loadout early|mid|late|rush [--keep-level]` (table + sources:
+`tools/craft_loadouts.py`; `--list-loadouts` prints hits / worst hit per boss). It writes Louie's level dword (0xb3ac,
++ the AT DF MA MD it gives), his 5 equipped slots `id << 6 | 0x20` (record dwords +1..+5 and the copy +6..+10) and the
+preset's Market food into the inventory (pack it at the guild). 0x20 = his own gear: it stays on him after a trip (the
+state a player reaches by selling him the gear in the shop); bag gear equipped at "Equip items in bag?" goes back to the
+bag on return. **Crafted:** say so in the task; real items (drops / guild stock / fusion), +0, at a level the band sees.
+
+| preset | Louie | gear | ATK / DEF / MATK / MDEF | for | biggest boss |
+|---|---|---|---|---|---|
+| early | L15 | Steel Sword, Iron Armor, Spiked Armband, Warrior's Helm, Leather Boots | 44 / 57 / 10 / 23 | Jade Way, Amber Garden, rush d5 30..37 | crabs 20F ~38 hits; crown power gate held |
+| mid | L32 | Breaker Sword, Silver Armor, Spiked Armband, Silver Helm, Hard Boots | 84 / 105 / 18 / 44 | Obsidian 1..50F, rush 38..45, crown trios (Lapis 25F, rush 50F) | Griff 50F ~36, rush 45F ~44 |
+| late | L48 | Holy Sword, Guardian Armor, Superarm Band, Alleus, Battle Boots | 169 / 215 / 48 / 121 | Lapis 1..100F, Crystal 1..30F | Arma golem 100F ~36 (break 490 vs worst sword 324) |
+| rush | L48 | Holy Sword, Legendary Armor, Superarm Band, Legendary Helm, Iron Sandals | 181 / 278 / 66 / 129 | Lapis Boss Rush d5 46..58 | Arma golem 58F ~40 (break 590, red jellyfish third 353 vs worst sword 349) |
+
+Use the sword. The spin (`B`, ×2) can pass the smaller arm intervals.
+
+| sha12 | base | line | verified |
+|---|---|---|---|
+| `efa3dcf87875` | `1aa94b103208` (Endless, slot 020) | `--loadout rush` (level unchanged: 47) | 2026-11-15, run `loadout-rush` (Windows): guild panel lists the 5 items; Depart (d5 38F) → `s32(0x56db0ac..b8)` = 181 / 278 / 66 / 129, HP 232 |
+
 ## Made by probes (replay the scenario to the frame after the in-game Save, `rd endsave`)
 
 | sha12 | state | scenario |
