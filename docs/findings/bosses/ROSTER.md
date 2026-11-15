@@ -174,19 +174,19 @@ next-floor circle; `FUN_00450ee0` case 29), floors 30..58 one boss floor each (B
 | 43 | 67 ×2 | generic | live L33 HP 1140 each; bee cap 8 |
 | 44 | 49 | generic | live L34 HP 780 (table HP **100**, AT **35**) |
 | 45 | 28 Griff + 72 hand | generic + case 45 spawns the hand at (−35, 20, −25) | Griff's floor-49 rule does NOT apply (floor ≠ 49); live: hand slot 0 L36 HP 820, Griff slot 1 L36 HP 1640; Griff's kill freed the hand; return = shut kind-6 door, object 0 at (−40, −40), sword hit |
-| 46 | 55 ×2 | generic | d4's Boss Rush starts at 46 |
-| 47 | 59 | generic | |
-| 48 | 54 ×3 | generic | |
-| 49 | 67 ×3 | generic | |
-| 50 | 23 ×3 | generic | |
-| 51 | 55 ×3 | generic | |
-| 52 | 71 | generic | |
-| 53 | 41 Arma | generic | |
-| 54 | 49 ×2 | generic | |
-| 55 | 60 | generic | |
-| 56 | 64 + 65 + 66 | own: case 56 | |
-| 57 | 69 | generic | |
-| 58 | 73 + 74 + 75 + 76 | own: case 58 (5 pillars, `DAT_0438c150 = 5`); event `FUN_0044d0a4(1)` | |
+| 46 | 55 ×2 | generic | d4's Boss Rush starts at 46; live L42, 1410 each (`bossrush-lapis`) |
+| 47 | 59 | generic | live L43, 1440 (table 150/26/42/10/42) (`bossrush-lapis`) |
+| 48 | 54 ×3 | generic | live L44, 980 each (`bossrush-lapis`) |
+| 49 | 67 ×3 | generic | live L45, 1500 each (`bossrush-lapis`) |
+| 50 | 23 ×3 | generic | live L46, 1020 each (`bossrush-lapis`) |
+| 51 | 55 ×3 | generic | live L47, 1560 each (`bossrush-lapis`) |
+| 52 | 71 | generic | live L48, 1060 (`bossrush-lapis`) |
+| 53 | 41 Arma | generic | live L49, 2700 (`bossrush-lapis`) |
+| 54 | 49 ×2 | generic | live L50, 1100 each (`bossrush-lapis`) |
+| 55 | 60 | generic | live L51, 1680 (table 150/28/52/10/52) (`bossrush-lapis`) |
+| 56 | 64 + 65 + 66 | own: case 56 | live L52, 1710 each part (`bossrush-lapis`) |
+| 57 | 69 | generic | live L53, 1740 (table 150/40/30/20/30) (`bossrush-lapis`) |
+| 58 | 73 + 74 + 75 + 76 | own: case 58 (5 pillars, `DAT_0438c150 = 5`); event `FUN_0044d0a4(1)` | live L54, body 3540 / core + hands 1180 (`bossrush-lapis`) |
 | 59 | — | case 59 | end of the run / dungeon |
 
 Every placed boss starts in AI state 8 (`+0xa54`); in dungeon 5 state 8 lasts 240 state ticks for 28 / 72 / 73 / 75 /

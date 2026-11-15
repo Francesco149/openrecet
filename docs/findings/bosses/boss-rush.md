@@ -49,19 +49,19 @@ FUN_00451546 (port `:1252`, IDA :52823), level FUN_0041f319 (port `src/actor_tab
 | 43 | Ohm (67) × 2 | 33 | 1140 each [obs] | `ohm.md` |
 | 44 | black knight (49) | 34 | 780 [obs; table HP 100, AT 35] | `black-knight.md` |
 | 45 | griffon (28) + demon lord's hand (72, own setup) | 36 | Griff 1640 (slot 1), hand 820 (slot 0) [obs] | `griff.md`, `demon-hand.md` |
-| 46 | pumpkin ghost × 2 | | | — |
-| 47 | ねずみハリセン (59) | | | `mushroom-king.md` |
-| 48 | boss ahriman × 3 | | | `boss-ahriman.md` |
-| 49 | Ohm × 3 | | | `ohm.md` |
-| 50 | crown slime × 3 | | | `crown-slime.md` |
-| 51 | pumpkin ghost × 3 | | | — |
-| 52 | red jellyfish (71) | | | — |
-| 53 | アルマ (41) | | | — |
-| 54 | black knight × 2 | | | — |
-| 55 | ねずみマグロ (60) | | | `mushroom-king.md` |
-| 56 | dark golem (64 + 65 / 66), own setup | | | — |
-| 57 | black crab (69) | | | `crabs.md` |
-| 58 | アルマゴーレム (73..76), own setup, five movers (HP 100 = unbreakable) | | | — |
+| 46 | pumpkin ghost (55) × 2 | 42 | 1410 each [obs `bossrush-lapis`] | `pumpkin-ghost.md` |
+| 47 | ねずみハリセン (59) | 43 | 1440 [obs; table 150/26/42/10/42, `+0xab8` 2 → DF·4: only state 4 hurts] | `mushroom-king.md` |
+| 48 | boss ahriman (54) × 3 | 44 | 980 each [obs] | `boss-ahriman.md` |
+| 49 | Ohm (67) × 3 | 45 | 1500 each [obs] | `ohm.md` |
+| 50 | crown slime (23) × 3 | 46 | 1020 each [obs; table 100/30/8/0/10] | `crown-slime.md` |
+| 51 | pumpkin ghost (55) × 3 | 47 | 1560 each [obs] | `pumpkin-ghost.md` |
+| 52 | red jellyfish (71) | 48 | 1060 [obs; table 100/30/35/20/35] | `jellyfish.md` |
+| 53 | アルマ (41) | 49 | 2700 [obs; table 250/50/35/40/35] | `arma.md` |
+| 54 | black knight (49) × 2 | 50 | 1100 each [obs; table 100/35/20/0/20] | `black-knight.md` |
+| 55 | ねずみマグロ (60) | 51 | 1680 [obs; table 150/28/52/10/52, `+0xab8` 3] | `mushroom-king.md` |
+| 56 | dark golem (64 + 65 / 66), own setup | 52 | 1710 each part [obs; table 150/30/30/0/40] | `golem.md` |
+| 57 | black crab (69) | 53 | 1740 [obs; table 150/40/30/20/30] | `crabs.md` |
+| 58 | アルマゴーレム (73..76), own setup, five movers | 54 | body 3540, core / hands 1180 [obs; body table 300/50/35/50/35, 74..76 100/20/30/0/30] | `arma-golem.md` |
 
 ## 3. What differs from the story floors
 
@@ -98,6 +98,19 @@ FUN_00451546 (port `:1252`, IDA :52823), level FUN_0041f319 (port `src/actor_tab
 - Louie L47 → level-up at the golem clear (f12711: max HP 228 → 232, SP 51 → 52, refilled). Lowest HP 151 (39F); Griff ×2 floors
   without damage. Danger floor = 43 (Ohm pair + bee cap 8): searches that stop on an arrival often sit 10..60 ticks before a committed
   charge / sting (43–65 damage); plain `--apply` with `--hold 100` and an undo on a failed search got through without loss.
+
+## 3d. Observed, mode 4 (`probes/bossrush-lapis.md`, Lapis Boss Rush played live, floors 46..57 cleared, 58 in progress)
+
+- Departure: plate cursor 4 (Lapis), row cursor 20 = "Boss Rush" (00:04:19 shown = d4 best dword **0xb16f** = 15591 already in
+  the crafted lineage; d4 0xb105 = 99, 0xb16e = 1); `dungeon` 5, `0x438b4d0` 4, `floor` 46; fee **4,750** (L48 Louie).
+- Levels = `f/5 + 25` on `f = 5·floor − 145`: 42..54 for floors 46..58 (all 13 live HPs match table·(1 + 0.2·lv)).
+- Party at (−40, −45) on every floor incl. 58 (card said (−40, −60) for 58); 240-tick pad lock; next-floor portal as in modes 1..3.
+- 47F / 55F rats: `+0xab8` 2 / 3 → outside state 4 every hit does 1–2. Mushrooms live in actor slots up to ≥ 24 (scan beyond 15).
+  The eat pick only takes mushrooms of **age ≥ 600** (`sub_42B6B7`, IDA 27805+256). At eat tick 38 `+0xa74` := 0, then
+  (mushroom alive) 2 red / 1 purple; tick 48 `+0xa70` := `+0xa74`. Killing the target before tick 38 → no meal (`+0xa70` 0, state 0);
+  a walk blocked for 180 ticks re-uses the stale `+0xa70` / `+0xa74` (purple → a free state-4 window). Red meals heal max/6 (+280 at 1680).
+- 49F: three Ohms, no damage taken by searches with hold tails that strafe perpendicular to whichever Ohm is in state 2.
+- 57F black crab: bomb blasts on the crab damage it (≈ 270) as well as flipping it (as `crabs.md` §7).
 
 ## 4. Recipe (mode 1: floors 30..32)
 
