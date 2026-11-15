@@ -269,6 +269,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        time, weak enough that every boss arm still fires (no one-shots past phase changes / HP-threshold breaks). Distilled
        as `craft_pix_save.py` loadout presets (equipped weapon / armour / accessories + upgrade level, consumables), with the
        item ids and stats from `findings/item-table.md`; each preset says which bosses it was checked against.
+       **Landed 2026-11-15:** `--loadout early|mid|late|rush` (`tools/craft_loadouts.py`, `SAVES.md` § Boss-test loadouts);
+       rush verified live (`efa3dcf87875`: ATK / DEF 181 / 278 in d5 = predicted). Open: a driver per band confirms the arms
+       fire with the preset (start: 58F golem with `rush`).
     1c. **real playthrough lineage** (owner 2026-11-15; after the crafted paths are exhausted): agents play the game
        segment by segment from New Game, with strategies from wikis and playthrough guides (stock, haggling, dungeon runs,
        gear upgrades), earning each week's debt payment for real, and saving at each segment end. It replaces the crafted
