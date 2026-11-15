@@ -264,6 +264,16 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        triage, no port change; gate rows. `bossrush-obsidian-ending` (crafted +1,000,000 pix: the Obsidian rush = d5 floors 38..45, 8 bosses,
        the final payment, the ending, the Endless save, Endless control; 57,365 frames) identical + save on the first triage, no port change;
        gate rows. Next (from the Endless save `1aa94b103208`): the Lapis rush (13 floors), then d5's own boss floors 30..58.
+    1b. **boss-test loadouts** (owner 2026-11-15): long boss floors (the d5 58F golem: ~120 sword hits at ATK 66, hours of
+       per-hit search) need a crafted gear + upgrade profile per difficulty band: strong enough to end the fight in reasonable
+       time, weak enough that every boss arm still fires (no one-shots past phase changes / HP-threshold breaks). Distilled
+       as `craft_pix_save.py` loadout presets (equipped weapon / armour / accessories + upgrade level, consumables), with the
+       item ids and stats from `findings/item-table.md`; each preset says which bosses it was checked against.
+    1c. **real playthrough lineage** (owner 2026-11-15; after the crafted paths are exhausted): agents play the game
+       segment by segment from New Game, with strategies from wikis and playthrough guides (stock, haggling, dungeon runs,
+       gear upgrades), earning each week's debt payment for real, and saving at each segment end. It replaces the crafted
+       lineage as the start points, and it audits the crafted saves: any crafted state that a real playthrough cannot reach,
+       or that puts the game in an invalid state, gets marked in `tools/drive/SAVES.md`, and its scenarios get re-run on the real lineage.
     2. keep the agent rows green: `gates` has 95 rows; **86/86 ok at 10e36b61, Windows, `-j 8`, 571 s**
        (2026-11-10; 36 of them agent-authored), + the 9 rows of five later probes **9/9 ok** in 24 s. Add a scenario's rows when its triage is
        identical.
