@@ -256,6 +256,20 @@ class Vars:
         os.replace(p + ".tmp", p)
         self.defs[name] = d
 
+    def actor_alias(self, name):
+        """aN<field> for any slot N < ACTOR_SLOTS: the shared a0<field> definition moved N slots (an addr + N*ACTOR_SIZE,
+        an expr with its a0 names renamed aN) — vars.json spells out slots 0..5 only (drivers asked for more, 2026-11-11)"""
+        m = re.fullmatch(r"a(\d+)([a-z]\w*)", name)
+        if not m or int(m.group(1)) >= ACTOR_SLOTS or ("a0" + m.group(2)) not in self.defs:
+            return None
+        n, d = int(m.group(1)), dict(self.defs["a0" + m.group(2)])
+        if "expr" in d:
+            d["expr"] = re.sub(r"\ba0(?=[a-z])", f"a{n}", d["expr"])
+        elif "addr" in d:
+            d["addr"] = hex(int(str(d["addr"]), 16) + n * ACTOR_SIZE)
+        d["note"] = re.sub(r"\bactor 0\b", f"actor {n}", d.get("note", "")) + " (derived from a0)"
+        return d
+
     def compile(self, expr, depth=0):
         """infix (Python syntax over named vars) → list of postfix tokens"""
         try:
@@ -277,6 +291,8 @@ class Vars:
                 return [repr(math.pi)]
             if n.id not in self.defs and n.id.isupper() and all(ch in BTN for ch in n.id):
                 return [str(sum({BTN[ch] for ch in n.id}))]         # a button mask: A, UR, B
+            if n.id not in self.defs and (d := self.actor_alias(n.id)):
+                self.defs[n.id] = d
             if n.id not in self.defs:
                 raise SystemExit(f"unknown name {n.id!r} in {src!r} — `rd ram R list`, or define it (`rd ram R define`)")
             if depth > 12:
@@ -1451,6 +1467,10 @@ def cmd_new(a):
         shutil.rmtree(rd)
     mv, trace, limit = resolve_start(a.src)
     r = Run(a.run, create=True)
+    src_vars = os.path.join(RUNS, re.split(r"[:@]", a.src)[0], "vars.json")
+    if not trace and os.path.exists(src_vars) and not a.src.startswith(("end:", "save:", "fresh")):
+        shutil.copyfile(src_vars, os.path.join(r.dir, "vars.json"))      # a run started from a run keeps its names
+        print(f"[run-local names inherited from {re.split(r'[:@]', a.src)[0]}]")
     r.meta.update(created=time.strftime("%Y-%m-%d %H:%M:%S"), start=a.src)
     r.movie = mv
     if trace:

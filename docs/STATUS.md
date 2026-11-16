@@ -168,9 +168,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     body. Left: type 36 / moai variant > 0 not reached.
     - ☐ one live-session crash (c0000005 at eip 7aef924a, the first tick after a dungeon results page, under
       `rd play --watch`); the replay passed the same frame. Not reproduced.
-    - ☐ driver tool gaps repeated by three drivers: state at an earlier frame (`rd eval --at FRAME`), `--watch` rows
-      on change only, a record-table view, `aN*` beyond slot 5, `--apply` keeping a doomed goal frame (goal tail),
-      run-local vars not inherited by `rd new --from RUN`.
+    - ☐ driver tool gap left (the others landed: `--at-frame`, `--changes`, `--hold`, `aN*` for slots 0..63 and
+      run-local vars inherited by `rd new --from RUN`, 2026-11-16): a record-table view.
   - ✅ 2026-11-11 (night): `obsidian-16f-20f-golem` (Obsidian 16F..19F, the 20F golem 61 / 62 / 63; was split f138) →
     identical + save; gate rows added. Two bugs: (1) f138 the start save (pause-menu Save on the town map, work 0xb381 = 1)
     resumed in the house: FUN_0049a59e's resume-mode dispatch (0 house, 2 gameover, 3 / 4 guild / market, else town map)

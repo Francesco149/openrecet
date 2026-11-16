@@ -83,6 +83,9 @@ directions. `--watch` splits on top-level commas only (`--watch "hp, hypot(a0x -
 (anything within 6), `"actors(T == 67 and ST == 2)"` (Ohms charging). A long one is split into several programs for
 `eval` / `--watch` / `scan` (summed); as a stop condition (`--until`, `--goal`, a task step) it must fit one program
 (598 postfix tokens): narrow the slots (`actors(T == 10, 0, 23)`) if `rd` says it is too long.
+Per-slot names `aN<field>` (`a0x a0z a0hp a0st a0t a0use a0d a0rel …`) work for **every slot 0..63** (`a17hp`): beyond the
+slots `tools/drive/vars.json` spells out, `rd` derives them from the `a0` definition. `rd new R --from RUN[..]` copies RUN's
+run-local names (`rd ram define` without `--shared`) into R.
 
 ## Search: how to think
 
