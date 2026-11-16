@@ -1696,6 +1696,26 @@ def cmd_ram(a):
             x, z = f32_(0x3f0), f32_(0x3f8)
             print(f"{i:3d} {s32_(0x424):4d} {s32_(0x428):3d} {f32_(0x42c):6.0f} {x:7.2f} {f32_(0x3f4):7.2f} {z:7.2f} {f32_(0x420):6.2f} {s32_(0xa54):3d} {s32_(0xa58):4d} {s32_(0xa5c):4d} "
                   f"{s32_(0xae4):4d} {f32_(0xab8):5.2f} {math.hypot(x - px, z - pz):5.1f} {s32_(0xb08):6d} {s32_(0x440):4d} {s32_(0x398):5d}")
+    elif a.op == "records":                    # table B (0x69324b0, 512 x 0x124): every record in use — hits, shots, beams
+        import struct
+        lv = r.attach()
+        RB, RS, RN, CH = 0x69324b0, 0x124, 512, 32
+        px, pz = r.ev("px", "pz")
+        print("  i type  own      x       y       z     vx     vy     vz   age  life   seq  dist   (own = actor slot; age = +0x98)")
+        for c0 in range(0, RN, CH):
+            h = bytes.fromhex(lv.cmd(f"r {RB + c0 * RS:x} {CH * RS}").split()[1])
+            for k in range(CH):
+                o = k * RS
+                s32_ = lambda d: int.from_bytes(h[o + 4 * d:o + 4 * d + 4], "little", signed=True)
+                f32_ = lambda d: struct.unpack("<f", h[o + 4 * d:o + 4 * d + 4])[0]
+                if not s32_(0):
+                    continue
+                own = s32_(4) & 0xffffffff or s32_(5) & 0xffffffff
+                ow = f"a{(own - ACTOR_BASE) // ACTOR_SIZE}" if ACTOR_BASE <= own < ACTOR_BASE + ACTOR_SLOTS * ACTOR_SIZE else \
+                    ("-" if not own else f"{own:x}")
+                x, z = f32_(23), f32_(25)
+                print(f"{c0 + k:3d} {s32_(0):4d} {ow:>4s} {x:7.2f} {f32_(24):7.2f} {z:7.2f} {f32_(26):6.2f} {f32_(27):6.2f} {f32_(28):6.2f} "
+                      f"{s32_(38):5d} {f32_(42):5.1f} {s32_(71):5d} {math.hypot(x - px, z - pz):5.1f}")
     elif a.op == "dwords":                     # N dwords from VA: hex, signed, float
         import struct
         va, n = int(a.args[0], 16), int(a.args[1], 0) if len(a.args) > 1 else 16

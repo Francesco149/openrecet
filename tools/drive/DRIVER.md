@@ -46,6 +46,7 @@ rd tap R "A" [--n 40] [--gap 8] [--until EXPR] [--text]   # (A .*gap) x n: advan
 rd status R        rd text R        rd eval R EXPR [EXPR..] [--at CHECKPOINT | --at-frame F] [--raw]
 rd scan R --from F [--to T] --watch "EXPR,EXPR.." [--every N] [--changes] [--where EXPR] [--at-run RUN] [--fresh] [--raw]
 rd ram R actors    # dungeon actor table
+rd ram R records   # hit / shot / beam records in use (table B 0x69324b0): type, owner slot, pos, vel, age, life, seq
 rd ram R list | read VA [NBYTES] | dwords VA [N] | str VA | define NAME --addr HEX --type f32 | --expr "..." [--status] [--event]
 rd ram R mark ; (act) ; rd ram R diff [--lo VA --hi VA] [--save NAME] [--minus NAME] [--show N]
 rd ck R save NAME | load NAME | list        rd undo R        rd rewind R --to F

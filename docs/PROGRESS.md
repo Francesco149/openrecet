@@ -15,6 +15,8 @@ at every `admit_local` and after every wine `kill_session`. Windows and bunker w
 `portblock obsidian-3f-5f-pumpkin` (FRONT: `recb` differed, records #10 / #11, from 4F on) is **all blocks IDENTICAL**
 at f10995 / 11100 / 11500 / 12000 / 12400 / 12600 / 13000 / 13600 / 15000 / 17000 at 80da0c44 — closed by an earlier
 port change (most likely the scene-1 record wall-tail fall-through of 2026-11-11).
+The drivers' repeated tool gaps are closed: `aN<field>` names for every actor slot 0..63 (derived from `a0`), run-local
+names inherited by `rd new --from RUN`, and `rd ram R records` (table B: type, owner slot, pos, vel, age, life, seq).
 
 ## 2026-11-13 — daily playable build; README on the rhost methodology
 `tools/ci/daily_build.py` (post-commit hook + session start): after 13:00 Europe/Rome, with no `nightly` build started
