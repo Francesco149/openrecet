@@ -265,8 +265,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        the final payment, the ending, the Endless save, Endless control; 57,365 frames) identical + save on the first triage, no port change;
        gate rows. **The Lapis rush** (`bossrush-lapis-r`: d5 floors 46..58, 13 bosses, on the `rush` loadout `efa3dcf87875`; the weak-gear
        run stalled on the 58F golem; 68,508 frames, end save `ea4fa3d6ec75`) identical + save on the first triage, no port change; gate rows.
-       Modes 1..4 (every d5 boss floor 30..58) verified. Next: Crystal Nightmare's own "Boss Rush" row (Crystal plate row 3,
-       `--:--:--` so far; `boss-rush.md` §1 lists modes 1..4 only): what it starts, then a drive with the matching loadout.
+       Modes 1..4 (every d5 boss floor 30..58) verified. **Crystal's own Boss Rush row** (`boss-rush.md` §1b: d5's 29 boss floors 30..58 at L50..97, then the 60F rest
+       floor; `bossrush-crystal-c` on the `crystal` loadout `e13e408068f1` with the 58F blade swap, 142,542 frames, end save `e85ade90b178`)
+       identical + save on the first triage, no port change; gate rows (+ the partial `rush`-loadout run `bossrush-crystal-30f-54f`, rng row).
+       **Every Boss Rush row verified.**
     1b. **boss-test loadouts** (owner 2026-11-15): long boss floors (the d5 58F golem: ~120 sword hits at ATK 66, hours of
        per-hit search) need a crafted gear + upgrade profile per difficulty band: strong enough to end the fight in reasonable
        time, weak enough that every boss arm still fires (no one-shots past phase changes / HP-threshold breaks). Distilled
