@@ -1140,6 +1140,24 @@ class Run:
             os.remove(os.path.join(self.dir, u["tail"]))
         self.save_meta()
 
+    CK_SNAP_MAX = 24                                   # live checkpoint savestates kept per session; older ones replay
+
+    def free_ck_snaps(self, names=None):
+        """free the live savestates of checkpoints NAMES (dropped or overwritten), then keep at most CK_SNAP_MAX of the
+        rest (oldest freed first; their checkpoints stay, `ck load` replays to them). Savestates the undo stack or the
+        ram mark hold are never freed. Without this a long drive (~110 `ck save`) exhausted the pool (2026-11-15)."""
+        if not self.sess or not self.live:
+            return
+        snaps = self.sess.setdefault("snaps", {})
+        keep = {u.get("sid") for u in self.meta.get("undo", []) if self.sid_ok(u)} | {self.sess.get("mark")}
+        drop = [n for n in (names or []) if n in snaps]
+        rest = [n for n in snaps if n not in drop]
+        drop += rest[:max(0, len(rest) - self.CK_SNAP_MAX)]
+        for n in drop:
+            sid = snaps.pop(n)[0]
+            if sid not in keep and sid not in {v[0] for v in snaps.values()}:
+                self.live.cmd(f"free {sid}", check=False)
+
     # ---- reading state
     def ev(self, *exprs):
         return eval_exprs(self.attach(), self.vars, exprs)
@@ -1737,8 +1755,10 @@ def cmd_ck(a):
     elif a.op == "save":
         r.attach()
         sid = r.snap()
+        r.free_ck_snaps([a.name])                      # an overwritten name's old savestate
         cks[a.name] = {"frame": r.movie.frame, "note": " ".join(a.note)}
         r.sess["snaps"][a.name] = [sid, r.movie.frame]
+        r.free_ck_snaps()                              # cap
         r.save_meta(); r.save_sess()
         print(f"checkpoint {a.name} at frame {r.movie.frame}")
     elif a.op == "load":
@@ -1752,6 +1772,7 @@ def cmd_ck(a):
         dropped = [n for n, c in cks.items() if c["frame"] > fr]
         for n in dropped:
             del cks[n]                                 # checkpoints of the abandoned future
+        r.free_ck_snaps(dropped)
         r.save_meta(); r.save_sess()
         print(f"loaded {a.name} ({how})  " + r.status_line())
         if was > fr:
@@ -1792,9 +1813,11 @@ def cmd_rewind(a):
                 if r.sess and c["frame"] == fr and r.sess["snaps"].get(n, [None, -1])[1] == fr), None)
     r.load_frame(fr, sid)
     cks = r.meta.get("checkpoints", {})
-    for n in [n for n, c in cks.items() if c["frame"] > fr]:
+    gone = [n for n, c in cks.items() if c["frame"] > fr]
+    for n in gone:
         del cks[n]
-    r.save_meta()
+    r.free_ck_snaps(gone)
+    r.save_meta(); r.save_sess()
     print("rewound  " + r.status_line())
     r.close()
 
