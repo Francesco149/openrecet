@@ -245,10 +245,20 @@ Phase 0: dungeon hybrid (§3 Phase 1).
   - ✅ `crystal-1f-20f` — **the first Crystal Nightmare (dungeon 5) recording** (crafted lineage; d5 1F..20F, plain random floors L50..L82,
     the 10F / 20F exit pair: next-floor circle + return portal, CAME BACK ALIVE!, day end, Save; end save `2b9e8df3acad`; 49,539 frames)
     → **identical + save** (49,839 ticks) after 1 split: f47564 `FUN_00436f97`'s d5 return portal (kind 6) beside the floor 9 / 19 exit was a
-    PORT-DEBT stub (55720c81); gate rows (394c11c0). ☐ triage blind spot: the dungeon object table is not in the per-tick state check, so
-    the missing portal (object 1, wrong kind from f46303) surfaced only at the first RNG difference ~1,260 ticks later — add it to `state_sem`
-    / a portstate preset. Left: `stage_portal_prompt`'s run-end stub (PORT-DEBT `FUN_00442cef`, `g_portal_prompt > 120`), d5 floor 29
+    PORT-DEBT stub (55720c81); gate rows (394c11c0). ✅ the triage blind spot it showed (the missing portal surfaced ~1,260 ticks late)
+    → the per-tick state check (below). Left: `stage_portal_prompt`'s run-end stub (PORT-DEBT `FUN_00442cef`, `g_portal_prompt > 120`), d5 floor 29
     (rest floor), 30F+ (one boss per floor), Boss Rush.
+  - ◐ **Per-tick state check** (2026-11-16, be71ba51): goldens v2 hash 8 retail-layout blocks after every tick (rhost
+    `--tick-hash`; dobj, mapcol_objs, drop, party, actors, popup, records B / C — portblock-identical at 3 frames of crystal-1f-20f);
+    the port's `--rng-golden` splits on the first mismatch → triage `state: BLOCK differs, RNG identical`, repro `portblock --at F-1,F`.
+    Trial (wine, 8): 5 identical on every block every tick; found (1) Continue re-ran FUN_00435c98 at the fade-end commit → equip sums
+    DAT_056db0ac..b8 wrong f137..f335 (fixed 884e23e3; guild-roster-8 identical); (2) ★ **subnormal velocity**: actor +0x3fc / +0x404
+    decaying below FLT_MIN — retail = prev × 0.82 exactly, the port = retail + 0x22f3f0 (bits) in BOTH obsidian-3f-5f-pumpkin f3255
+    (#35 +0x3fc, prev 0x6a0717) and crown-slime-arms f36168 (#0 +0x404); RNG-invisible. Under `portstate` (--state-va) the port's value
+    is RIGHT (5697877 at f3255) — under `--rng-golden` / `--block-dump` wrong: a run-flag-dependent float path (suspect SSE MXCSR
+    FTZ/DAZ in math3d.c's D3DX mirror vs x87, or a GL-driver CW / MXCSR change; log MXCSR on both sides). Expect most dungeon rows to
+    hit it: fix before the corpus-wide v2 triage. Then: v2 goldens for the whole corpus (Windows), `headless-check` needs v2 win
+    goldens first (none yet).
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; **minion slowdowns + exhaustion: `ahriman-exhaust`, `ohm-exhaust` (2026-11-16)
