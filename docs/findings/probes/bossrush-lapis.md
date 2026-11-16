@@ -97,13 +97,16 @@ Levels `f/5 + 25`, f = 5·floor − 145. Table = live `0x5c23f0 + type·0x68` s3
 4. Long single-floor fights (≈ 100+ hits) are too slow for chained per-hit searches; a dedicated scripted dodge macro for the golem
    (beam clock + hover-landing timing) would be needed.
 
-## Loadout run `bossrush-lapis-r` (2026-11-15, STOPPED on 58F)
+## Loadout run `bossrush-lapis-r` (2026-11-15/16, complete: filed, MATCH)
 
 - **Start: CRAFTED state** `save:efa3dcf87875` = `1aa94b103208` + `--loadout rush` (Louie L47 / L48 in the guild, own gear Holy Sword,
   Legendary Armor, Superarm Band, Legendary Helm, Iron Sandals: ATK / DEF 181 / 278, food in the inventory). Windows native
-  (`RD_HOST=win`), nothing under wine. Not filed / not verified / no end save (stopped by the 90-min-per-boss rule).
-- **Status:** 46..57 cleared; **58F golem body 3540 → 1491** (segments 0..2 broken, next clamp 1180) at **f53041, checkpoint `stop58`**,
-  Louie 232 / 237, SP 53, food left: Curry ×2, Ham Sandwich ×4, Walnut Bread, Melon ×2, Taiyaki ×2, Baked Yam ×4, Mont Blanc ×2.
+  (`RD_HOST=win`), nothing under wine. Scenario `tests/scenarios/bossrush-lapis-r` (68,508 frames); **`rd verify` MATCH, `--real` MATCH**
+  (frame 68508, rng bb8fd889, sem 04f11cb343c2d276). **End save `save:ea4fa3d6ec75`** (slot 020, day dword 37 morning, 490,600 pix,
+  SCORE 10449, TIME 6:00:47, Endless).
+- **Status:** 46..58 cleared; golem killed **f62802**. The 58F fight was stopped once at f53041 (body 1491, 90-min rule), then resumed on the
+  coordinator's 2-hour budget; the movie was cut back to f52412 (body 1770) while finding the doom (below). Food left at the end:
+  Ham Sandwich ×4, Walnut Bread, Melon ×2, Taiyaki ×2, Baked Yam ×4, Mont Blanc ×2 (bag 16/20 on the CLEAR screen).
 - **Before:** load 020 f137..2599 (Endless card, `A` taps); door search → map f2952; `D R` → `wm_cur` 6 → guild f3047; hire `A`, help `A`,
   `A` enters slot 1; `R` ×13 → Food (Apple ×12, Apple+3, Cherry, Melon ×2, Walnut Bread, Ham Sandwich ×4, Curry ×5, Taiyaki ×2, Baked Yam ×4,
   Mont Blanc ×2). Packed from the bottom of the list (cursor clamps to the new last row as rows empty): Mont Blanc ×2, Baked Yam ×4,
@@ -111,9 +114,9 @@ Levels `f/5 + 25`, f = 5·floor − 145. Table = live `0x5c23f0 + type·0x68` s3
   (00:04:19) → `A` f4890: gold 495,350 → 490,600. "Equip items in bag?" f5320 answered No (`R A`). Control f5562.
 - **Method:** every fight by chained `rd search` (scratch driver: goal summed boss HP − step, avoid `hp < H` then `hp < H − 15..20`,
   hold 40..60, actions aimed at the lowest-HP boss); 55F = purple-meal → state-4 windows (avoid red meal `+0xa74 == 2`, heal state 5,
-  king HP up); 57F = flip (`kst == 6`) then damage while flipped; 58F = goal clamped to the segment floor, avoid the hover landing
+  king HP up); 57F = flip (`kst == 6`) then damage while flipped; 58F = goal clamped to the segment floor, avoid the hover landing, `--hold 160`
   (`body st 0, tick >= 180, within 8.6`). Food: Curry (pause → Items → Use → row → `A A`) at 52F start (175 → 232), 55F (127 → 237),
-  56F start (183 → 237). **Curry heals ≥ 110 (to full); Baked Yam is SP-only** ("Can't recover any further" at full SP).
+  56F start (183 → 237), 58F twice (130 → 237 at f55447, 107 → 237 at f59480). **Curry heals ≥ 110 (to full); Baked Yam is SP-only** ("Can't recover any further" at full SP).
 - **Level-up L48 → L49** between 53F and 54F (HP 232 → 237).
 
 | floor | boss | lock −1 → last kill → `estage` 1 | HP drops on the boss (dmg range) | Louie HP (min) | mechanics seen (`aNst`, scans) |
@@ -130,14 +133,19 @@ Levels `f/5 + 25`, f = 5·floor − 145. Table = live `0x5c23f0 + type·0x68` s3
 | 55 | rat 60 | 34712 → 43294 → 43838 | 25 incl. chips (1–186) | 223 → 183 (**min 127**, Curry) | 0, 1 (lunges ~30 each at DEF 278), 2, spray 3, power-up 4; **pow-3 gate HOLDS at ATK 181** (DF 52·9 = 468 → 1–2); state-4 sword 112–186; 4 purple windows; ~8,600 frames, ~45 min |
 | 56 | dark golem | 44262 → 45855 → 46030 | 15 on the body (60–168) | 183 → 237 (Curry) | 0, 1, 2, 3; arms never targeted (body kill ends it) |
 | 57 | black crab | 46450 → 48364 → 48539 | 19 (1–282, blasts included) | 237 | walk 0, jab 1, slam 3, bubbles 5, **flip 6 ×2** (bomb blasts); flipped sword 103–131 |
-| 58 | Arma golem | 48983 → (stopped f53041) | 23 on the body (46 clamp – 186) | 237 → 232 | hover 0, lob 1, rain 2; **breaks** (clamp exact) at 2950 f49906, 2360 f50853, 1770 f52102; one hand hit (116) |
+| 58 | Arma golem | 48983 → **62802** → 62980 | 41 on the body (46 clamp – 186) | 237 → 130 (**min 107**, Curry ×2) | hover 0, lob 1, rain 2; **6 clamps, exact** (`+0xa60` 0 → 1): 2950 f49906, 2360 f50853, 1770 f52102, 1180 f55919, 590 f59320, **0 f62802 = kill** (`+0x428` 2 same tick); chips taken 5 / 23 (hand beam / sweep, accepted by the 2nd search tier); one hand hit (116) |
 
-- **58F rate:** ~2,050 HP in 85 min wall (~4,060 frames). The doom found: **hover landing 173 at DEF 278** (f52686 branch, standing 7.0 from the
-  body at hover tick 242: 232 → 59), i.e. the landing barely drops with DEF (142 at DEF 84 on d4 L44); with the landing in the avoid the
-  searches ran again, but a second trap after ~1500 cost 3–4 min per failed step. Remaining 1491 ≈ 17 sword hits (2 more breaks).
+- **58F:** ~14,000 frames, ~4 h wall in total (2 sessions). **The 168 hit was the body FAN (record 152), not a hover landing** (the earlier 173 at the same hover tick ~242: most likely the
+  fan too, not scanned): hit-record scan at f53100..53103: four type-152 records 2.5–3.2 from Louie for 20+ ticks, then 232 → 64 at hover tick ~240 (fired at
+  t 120; slow, they reach the player ~120 ticks later even 9–10 from the body). The "hover-landing" avoid (`st 0, t ≥ 180, within 8.6`)
+  only helped indirectly; what fixed the loop was **`--hold 160`** (an arrival at hover t ≲ 100 must survive past t ~250 = the fan's
+  arrival). Holds 60 / 120 converged on the same doomed hit every time. After return: door sword hit f63188 (`doorst` 1), "Return to
+  town now?" f63251, CLEAR f63383, town map f63460 (`stime` 2), home f63550; Market (event) + `wm_cur` 2 (event) → night home `stime` 3,
+  Market closed at night, `wm_cur` 2 again → home f67414 `stime` 4 → Daily Profits (Found Chocolate Bar) → day dword 37 f67888; save 020
+  f68212..68508 (`~`, `D` ×4, `A`, `A`, Yes).
 - **Card corrections:** crown-slime (gate fails at ATK 181: 48–61 at power 5; `mid` is required there, as the preset table says);
   mushroom-king (type 59 pow 2 gate broken at ATK 181; type 60 pow 3 holds; lunge ~30 at DEF 278); ohm (charge 13 at DEF 278);
-  arma-golem (hover landing 173 at DEF 278 on d5 L54; breaks 2950 / 2360 / 1770 live = max − 590·(s+1)).
+  arma-golem (d5 L54 fan record 152 = **168–173 at DEF 278 / MDEF 129**, arriving ~120 ticks after t 120 — the card's "hover landing 142" on d4 is probably the same fan; all 6 clamps live = max − 590·(s+1), the 6th = the kill).
 - **Tool gaps:** (1) `ck` savestates are never freed: ~110 checkpoints + undo over 41k frames → `live: err savestate pool exhausted`
   (every search / ck failed in 1 s); `rd stop` + replay (30 s) clears it — a `ck drop` / LRU would help. (2) `rd scan --watch aNtype`
   reads stale types in freed slots (a mushroom / bat slot keeps a boss type) — needs `aNuse`.
