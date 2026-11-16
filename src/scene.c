@@ -186,11 +186,14 @@ void scene_post_fade_init(void)
         }
     }
 
-    /* Engine FUN_0049a59e L100757 — FUN_00435c98 fires right after
-     * the bank setup in BOTH branches.  Body: chara XP threshold
-     * seeding, position carry-forward, scratch reset for the per-stage
-     * tick state.  See src/stage_post_load.h. */
-    stage_post_load_init();
+    /* Engine FUN_0049a59e (all_ida 111790): FUN_00435c98 fires right after
+     * the bank setup in the NEW branch only (`DAT_0438bed4 != 0`).  CONTINUE
+     * ran it at the fade start (fade_counter 30, scene_title.c) and not again:
+     * the equip aggregate DAT_056db0ac..b8 keeps that value until the next
+     * stage init (guild-roster-8: retail f121 → f335 world map; the port's
+     * second call here re-aggregated at f137, found by the triage state
+     * check).  Body: see src/stage_post_load.h. */
+    if (!continue_mode) stage_post_load_init();
 
     /* FUN_00490e56, the guild's item stock: the NEW branch passes 0, the
      * CONTINUE branch 1 (all_ida 111803 / 111808).  See src/guild_stock.h. */
