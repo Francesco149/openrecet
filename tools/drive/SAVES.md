@@ -32,7 +32,7 @@ probe report says which it used. Played saves from the owner's free-play capture
 
 ## Boss-test loadouts (crafted gear presets)
 
-`tools/craft_pix_save.py --base <save> --loadout early|mid|late|rush [--keep-level]` (table + sources:
+`tools/craft_pix_save.py --base <save> --loadout early|mid|late|rush|crystal [--keep-level]` (table + sources:
 `tools/craft_loadouts.py`; `--list-loadouts` prints hits / worst hit per boss). It writes Louie's level dword (0xb3ac,
 + the AT DF MA MD it gives), his 5 equipped slots `id << 6 | 0x20` (record dwords +1..+5 and the copy +6..+10) and the
 preset's Market food into the inventory (pack it at the guild). 0x20 = his own gear: it stays on him after a trip (the
@@ -45,12 +45,16 @@ bag on return. **Crafted:** say so in the task; real items (drops / guild stock 
 | mid | L32 | Breaker Sword, Silver Armor, Spiked Armband, Silver Helm, Hard Boots | 84 / 105 / 18 / 44 | Obsidian 1..50F, rush 38..45, crown trios (Lapis 25F, rush 50F) | Griff 50F ~36, rush 45F ~44 |
 | late | L48 | Holy Sword, Guardian Armor, Superarm Band, Alleus, Battle Boots | 169 / 215 / 48 / 121 | Lapis 1..100F, Crystal 1..30F | Arma golem 100F ~36 (break 490 vs worst sword 324) |
 | rush | L48 | Holy Sword, Legendary Armor, Superarm Band, Legendary Helm, Iron Sandals | 181 / 278 / 66 / 129 | Lapis Boss Rush d5 46..58 | Arma golem 58F ~40 (break 590, red jellyfish third 353 vs worst sword 349) |
+| crystal | L99 (cap) | Holy Sword, Invincible Armor, TH Shield, Asuran Helm, Iron Sandals; **bag:** Heaven's Blade for 58F | 221 / 519 / 95 / 211 (58F: 301), HP 457 | Crystal's own Boss Rush row (d5 30..58, boss L50..97) | Arma 53F ~43; golem 58F 6120 ~40 with the bag blade; 55F rat (type 60): DF-0 windows only (gate needs ATK ≥ 236; the 39F jellyfish third 466 caps ATK at ~229) |
 
-Use the sword. The spin (`B`, ×2) can pass the smaller arm intervals.
+Use the sword. The spin (`B`, ×2) can pass the smaller arm intervals. **crystal:** pack the Heaven's Blade + the 19 food (20/20),
+answer **No** to "Equip items in bag?" at Depart (it would equip the blade), and equip the blade from the dungeon pause Equip page on 58F
+only (the golem body's HP gate clamps each hit at the segment floor; elsewhere the blade's ATK 301 passes the jellyfish third and the rat gate).
 
 | sha12 | base | line | verified |
 |---|---|---|---|
 | `efa3dcf87875` | `1aa94b103208` (Endless, slot 020) | `--loadout rush` (level unchanged: 47) | 2026-11-15, run `loadout-rush` (Windows): guild panel lists the 5 items; Depart (d5 38F) → `s32(0x56db0ac..b8)` = 181 / 278 / 66 / 129, HP 232 |
+| `e13e408068f1` | `ea4fa3d6ec75` | `--loadout crystal` (Louie dword 48 → 98, EXP 1,455,300; Heaven's Blade + Durian ×13 + Filet Mignon ×6 in the inventory) | 2026-11-16, run `loadout-crystal` (Windows): guild "Level:99 Swordsman Louie", fee 9,850, the 5 items; Depart (d5 46F) → 221 / 519 / 95 / 211, HP 457, SP 98 |
 | `672d7fbd4b1b` | `ea4fa3d6ec75` (`bossrush-lapis-r` end save, Endless, day 37) | `--loadout rush --keep-level` (L49 played) | 2026-11-16, run `bossrush-crystal`: 181 / 279 / 67 / 129; Crystal's own rush 30F..54F cleared, stalled 55F (L92 rat) — too weak past ~L90 |
 
 ## Made by probes (replay the scenario to the frame after the in-game Save, `rd endsave`)
