@@ -51,6 +51,7 @@ Use the sword. The spin (`B`, ×2) can pass the smaller arm intervals.
 | sha12 | base | line | verified |
 |---|---|---|---|
 | `efa3dcf87875` | `1aa94b103208` (Endless, slot 020) | `--loadout rush` (level unchanged: 47) | 2026-11-15, run `loadout-rush` (Windows): guild panel lists the 5 items; Depart (d5 38F) → `s32(0x56db0ac..b8)` = 181 / 278 / 66 / 129, HP 232 |
+| `672d7fbd4b1b` | `ea4fa3d6ec75` (`bossrush-lapis-r` end save, Endless, day 37) | `--loadout rush --keep-level` (L49 played) | 2026-11-16, run `bossrush-crystal`: 181 / 279 / 67 / 129; Crystal's own rush 30F..54F cleared, stalled 55F (L92 rat) — too weak past ~L90 |
 
 ## Made by probes (replay the scenario to the frame after the in-game Save, `rd endsave`)
 

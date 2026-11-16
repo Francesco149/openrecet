@@ -29,6 +29,39 @@ FUN_00451546 (port `:1252`, IDA :52823), level FUN_0041f319 (port `src/actor_tab
 - Drops: the source dungeon's tables at its boss floors — mode 1: 4, 9, 14; mode 2: 4, 9, 19, 24, 29; mode 3: 4, 9,
   14, 19, 29, 39, 44, 49; mode 4: 4, 9, 14, 19, 24, 34, 39, 49, 54, 59, 69, 89, 99.
 
+## 1b. Crystal Nightmare's own "Boss Rush" row (dungeon 5, row 3) — code-read
+
+Not an alias of modes 1..4: it is the **native** dungeon-5 gauntlet, all 29 boss floors 30..58 in one trip, then the rest
+floor 59 (60F). IDA refs: guild init `sub_45BDC2` all_ida.c:59767, commit (`sub_45C051`) :59929, `sub_45C025` :59808, `sub_450EE0`
+:52562, `sub_451546` :52823, `sub_44CC80` :50134, level `sub_41F319` :19331, best time (`sub_442CEF`) :44836..44860.
+
+- **Unlock / visibility:** dungeon 5's row count = `(s32(bank·0xb106) + 1) / 5 + 1`, capped at 4 (no cleared-group bump, unlike
+  d1..4; :59769). Row 3 ("Boss Rush": the d5 label is `g < 3 ? "Floor 10g+1～10g+10" : "Boss Rush"`) is listed and pickable once
+  Crystal's deepest floor dword `0xb106` ≥ **14** (15F reached) — the plate itself needs `0x2bc53 != 0 && 0x2bd00 == 1`.
+- **Commit (:59929):** `0x438b4d0` := **−1**, `0x438b4d4` := **−1** (both before the dungeon test, never overwritten for d5),
+  `dungeon` (`0x438b4c8`) = 5, **`floor` = `0x438b4d8` = 10·row = 30**. So `mode` stays −1: `sub_45C025` returns **0** (default arm);
+  there is no floor count and no "last stage".
+- **Floor chain:** every test `b4d0 >= 0 && b4d4 == count − 1` is false → on floors 30..58 the portal is always the **next-floor**
+  kind 8 (incl. 37 Tielle's (−45, 65), 41 / 45 / 56 via `sub_44CC80(2)`, 58's (−40, −47)); `0x9643128` (no-exit) = 1 on 30..58.
+  Floor 58's portal leads to **floor 59 = the `sub_450EE0` case 29 / 59 rest floor**: party in a row, return door (kind 6, scale 0.35)
+  at (−48, 0, −42), **3 treasure chests** (kind 4: `v18` = 3, the −1 / −2 for start floors 10 / 20 applies only on floor 29) at
+  party + 10 z, (−53, −35), (−27, −35); 371-tick intro camera (`sub_451546` case 59); no-exit 0. The door opens on a sword hit
+  (as 30F, `probes/crystal-21f-30f.md`).
+- **Levels (`sub_41F319`, b4d0 < 0, dungeon 5):** `ftol((floor − 30)·1.7 + 50)` = **50 .. 97** on floors 30..58 (Crystal's own curve,
+  restarted at 30), not the source-dungeon formulas of modes 1..4. HP ×(1 + 0.2·lv) → 30F crown 1100, 53F Arma 4700, 58F golem body
+  **6120**; attack ×(1 + 0.12·lv) (≥ L50) → ×7.0 .. ×12.64 (mode 4's 58F was ×7.48).
+- **Drops:** `enemy_drop_pick` with mode < 0 reads dungeon 5's own enemylist tables at the real floor (30..58), not the source
+  dungeons' boss floors.
+- **Best time:** `sub_442CEF`'s portal prompt (:44836): dungeon 5, `b4d4 < 0`, `floor >= 30`, return portal (`0x438bea8` != 0) →
+  dword **`bank·0xb172`** (= `0xb10b + 20·5 + 3`, dword index 45426) := trip counter `0x438b1e8` if 0 or smaller — the row's display slot.
+  Floors < 30 use `0xb10b + 100 + floor/10` at `floor % 10 == 9` (rows 0..2).
+
+| floor | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 44 | 45 | 46 | 47 | 48 | 49 | 50 | 51 | 52 | 53 | 54 | 55 | 56 | 57 | 58 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| lv | 50 | 51 | 53 | 55 | 56 | 58 | 60 | 61 | 63 | 65 | 67 | 68 | 70 | 72 | 73 | 75 | 77 | 78 | 80 | 82 | 84 | 85 | 87 | 89 | 90 | 92 | 94 | 95 | 97 |
+
+- **Live (`probes/bossrush-crystal.md`):** plate `D` → 5, rows `D` ×3 → "Boss Rush --:--:--", `A` → `dungeon` 5, `0x438b4d0` −1, `0x438b4d4` −1, `0x438b4d8` 30, `floor` 30 (fee 4,850 at L49); `+0xae0` = the table above on 30..55 and HP = table·(1 + 0.2·lv) on every floor; every portal 30..54 next-floor (37F at (−45, 65)). Floors 56..59, the rest floor and the 0xb172 write not reached (stopped on 55F).
+
 ## 2. Roster (enemylist `f:N` = floor N − 1; first entry × count is placed, state 8)
 
 | `floor` | boss (type) | lv | HP each | card |
