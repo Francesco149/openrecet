@@ -369,7 +369,7 @@ static void do_explore(int goal, int avoid, const int *cp, int nc, seg_t **acts,
     cells[0] = (cell_t){ k0, root, 0, 0, 0, root_head, { vals[0], vals[1], vals[2], vals[3], vals[4], vals[5] }, sc0 }; map[s0] = 1; n = 1;
     #define WEIGHT(i) ((1.0 / sqrt(1.0 + cells[i].chosen)) * (it - cells[i].born <= 2 ? 3.0 : 1.0) * \
                        (score >= 0 && smax > smin ? exp(greed * (cells[i].score - smin) / (smax - smin)) : 1.0))
-    double t0 = now_ms(), tbest = 0; uint32_t best = 0, it = 0; uint64_t ticks = 0; mnode_t *best_head = NULL; long pruned = 0, evicted = 0, rejected = 0, held = 0; int best_tail = -1;
+    double t0 = now_ms(), tbest = 0; uint32_t best = 0, it = 0; uint64_t ticks = 0; mnode_t *best_head = NULL; long pruned = 0, evicted = 0, rejected = 0, held = 0, nosnap = 0; int best_tail = -1;
     uint32_t hn = hold && hold->n > 0 ? (uint32_t)hold->n : 0;
     while (1) {
         double now = now_ms();
@@ -402,7 +402,7 @@ static void do_explore(int goal, int avoid, const int *cp, int nc, seg_t **acts,
                         if (hn) {                       /* does it survive? savestate the arrival, try each tail */
                             int hs = rh_snap_take();
                             if (!hs) { evicted += evict_cells(cells, n, &cells[ei]); hs = rh_snap_take(); }
-                            if (!hs) { rejected++; break; }   /* no room to test it: not a goal */
+                            if (!hs) { rejected++; nosnap++; break; }   /* no room to test it: not a goal */
                             for (int t = 0; t < hold->nact && tail < 0; t++) {
                                 if (t) rh_snap_restore(hs);
                                 if (hold_try(hold, t, &ticks)) tail = t;
@@ -425,7 +425,7 @@ static void do_explore(int goal, int avoid, const int *cp, int nc, seg_t **acts,
             if (!id) {                                  /* pool full: drop the savestates of the most-expanded cells */
                 evicted += evict_cells(cells, n, c);
                 id = rh_snap_take();
-                if (!id) continue;
+                if (!id) { nosnap++; continue; }        /* the pool is held outside this search (checkpoints, undo): reported */
             }
             if (c) { if (c->snap && c->snap != root) rh_snap_free(c->snap); c->chosen /= 2; }   /* a better-scored arrival may replace the root's cell: its savestate stays */
             else {
@@ -447,6 +447,8 @@ static void do_explore(int goal, int avoid, const int *cp, int nc, seg_t **acts,
     rh_snap_restore(root);
     sb_f(out, "ok found=%d frames=%u cells=%d iters=%u ticks=%llu ms=%.0f pruned=%ld evicted=%ld dirty=%u epoch=%u", best != 0, best ? best + hn : 0, n, it,
          (unsigned long long)ticks, ms, pruned, evicted, rh_snap_dirty(), g_epoch);
+    { int ps, pm; unsigned pmb, pcap; rh_snap_pool(&ps, &pm, &pmb, &pcap);
+      sb_f(out, " nosnap=%ld pool_snaps=%d pool_mb=%u pool_cap_mb=%u", nosnap, ps, pmb, pcap); }
     if (hn) sb_f(out, " hold=%u held=%ld rejected=%ld", hn, held, rejected);
     if (best && hn) sb_f(out, " arrive=%u tail=%d", best, best_tail);
     if (best) {

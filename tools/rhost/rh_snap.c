@@ -307,6 +307,9 @@ long rh_snap_diff(int id, uint32_t lo, uint32_t hi, void (*cb)(uint32_t va, uint
 int rh_snap_frame(int id) { return id > 0 && id < MAX_SNAP && g_snap && g_snap[id] ? (int)g_snap[id]->frame : -1; }
 int rh_snap_anchored(void) { return g_anchored; }
 uint32_t rh_snap_dirty(void) { return g_nD; }
+/* pool use for explore's reply: live savestates / their cap, live slab MB / the slab cap MB */
+void rh_snap_pool(int *snaps, int *max_snaps, unsigned *mb, unsigned *cap_mb)
+{ *snaps = g_live_snaps; *max_snaps = MAX_SNAP; *mb = g_live_slabs >> 8; *cap_mb = g_slab_cap >> 8; }
 
 void rh_snap_stats(char *b, size_t n)
 {

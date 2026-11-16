@@ -165,6 +165,7 @@ int  rh_snap_frame(int id);
 long rh_snap_diff(int id, uint32_t lo, uint32_t hi, void (*cb)(uint32_t va, uint32_t was, uint32_t now, void *u), void *u);
 int  rh_snap_anchored(void);
 uint32_t rh_snap_dirty(void);
+void rh_snap_pool(int *snaps, int *max_snaps, unsigned *mb, unsigned *cap_mb);
 void rh_snap_stats(char *buf, size_t n);
 
 /* rhost.c: the tick hook's coroutine */

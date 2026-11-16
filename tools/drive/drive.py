@@ -2027,6 +2027,11 @@ def search_body(r, lv, a, P, st):
     for e, tag in errs:
         print(f"[session {tag} failed: {e[:300]}]")
     results = [(k, tag) for k, tag in results if "err" not in k]
+    for k, tag in results:              # 2026-11-16: ~35 checkpoints on a 28k-frame movie held the pool; every search
+        if int(k.get("nosnap", 0)):     # then found nothing with no word why
+            print(f"[WARNING session {tag}: {k['nosnap']} cells got no savestate — the pool is full ({k.get('pool_mb', '?')} / "
+                  f"{k.get('pool_cap_mb', '?')} MB, {k.get('pool_snaps', '?')} savestates live); the search is crippled. Free checkpoints "
+                  f"(`rd ck R load` / `rewind` drop later ones) or `rd stop R` (the next command rebuilds the session)]")
     found = [(int(k["frames"]), k, tag) for k, tag in results if k.get("found") == "1"]
     ticks = sum(int(k.get("ticks", 0)) for k, _ in results)
     if len(results) > 1:

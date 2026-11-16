@@ -215,8 +215,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        scenario (done: crown slime, mushroom king, Charme; **minion slowdowns + exhaustion: `ahriman-exhaust`, `ohm-exhaust` (2026-11-16)
        identical, no port change; gate rows**; open: crabs in `dungeon3-deep`, 25F `dungeon2-21f-25f@9840`, the cards' remaining
        "not reached" rows — player dies, Ohm's burst-shot hit, Charme's intros / revisit, Tielle's revisit, jellyfish ≥ 8-actor skip).
-       Driver tool gaps from the exhaust runs: `savestate pool exhausted` after ~35 checkpoints on a 28k-frame movie made every
-       search fail silently; `nearest(COND)` / a cheap whole-table count (slots get reused up to 31); no spawned-this-tick field. Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`
+       Driver tool gaps from the exhaust runs (the silent full-pool search now warns: explore replies `nosnap= pool_mb=`, 2026-11-16):
+       `nearest(COND)` / a cheap whole-table count (slots get reused up to 31); no spawned-this-tick field. Tielle on 30F: done, `amber-26f-30f-tielle`; pumpkin ghost: done, `obsidian-3f-5f-pumpkin`
        port-identical + save (one bug: record 104's NULL-owner return, `findings/bosses/tielle.md` §7). One subscription subagent at a time.
     1. ✅ the two open splits (ending, New Game + / Survival) closed 2026-11-13; Arma verified (`lapis-41f-50f`). 51F..60F identical
        2026-11-13. 61F..70F identical 2026-11-14. **Lapis Ruins 1F..100F all identical + save (2026-11-14).** Crystal Nightmare 1F..20F identical (2026-11-14). 100F long intro (`lapis-100f-long-intro`, crafted `15b20dc3c34e`, events 12/8 / 12/9 / 12/13..15, 76,913 frames) identical + save on the
