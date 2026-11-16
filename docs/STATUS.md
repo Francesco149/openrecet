@@ -166,7 +166,6 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     the disasm for the tail: all fall into it except 9 conditional `continue`s (findings scene1-records-b-tick.md
     §Wall-tail fall-through); bodies return `scene1_b_next_t`, the dispatch runs the tail; + the missing type 0x30
     body. Left: type 36 / moai variant > 0 not reached.
-    - ☐ `portblock obsidian-3f-5f-pumpkin`: `recb` differs (151 dwords, records #10 / #11) from 4F on; RNG and save equal.
     - ☐ one live-session crash (c0000005 at eip 7aef924a, the first tick after a dungeon results page, under
       `rd play --watch`); the replay passed the same frame. Not reproduced.
     - ☐ driver tool gaps repeated by three drivers: state at an earlier frame (`rd eval --at FRAME`), `--watch` rows

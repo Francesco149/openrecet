@@ -7,6 +7,15 @@ the test harness has coverage metrics worth reporting.
 > `port-ledger.{json,md}` (per-function port status). This log is the dated
 > narrative; don't hand-track per-subsystem "done/not-done" status here.
 
+## 2026-11-16 — stray wine processes reaped; the pumpkin portblock item closed
+maximus held five wine system processes of `prefix-headless` (services / plugplay / explorer / svchost / rpcss) for 5 days
+after their wineserver died: a session's `killpg(9)` takes the server, not what wineboot started in other groups.
+`rhost.py reap_wine_orphans` (by hand: `rhost.py reap`) kills our prefixes' processes whose wineserver is gone; it runs
+at every `admit_local` and after every wine `kill_session`. Windows and bunker were clean.
+`portblock obsidian-3f-5f-pumpkin` (FRONT: `recb` differed, records #10 / #11, from 4F on) is **all blocks IDENTICAL**
+at f10995 / 11100 / 11500 / 12000 / 12400 / 12600 / 13000 / 13600 / 15000 / 17000 at 80da0c44 — closed by an earlier
+port change (most likely the scene-1 record wall-tail fall-through of 2026-11-11).
+
 ## 2026-11-13 — daily playable build; README on the rhost methodology
 `tools/ci/daily_build.py` (post-commit hook + session start): after 13:00 Europe/Rome, with no `nightly` build started
 since, it fast-forward-pushes master and dispatches `.github/workflows/nightly.yml` (cron dropped: it built whatever had
