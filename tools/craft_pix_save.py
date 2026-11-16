@@ -10,7 +10,7 @@ save whose slot holds a large gold value.  Gold is bank dword 3
 Usage:
   python3 tools/craft_pix_save.py --base tests/scenarios/_saves/<sha>.sav.gz \
       [--bank N] [--gold 9999999] [--set DWORD=VALUE ..] [--add-item ID[+N] ..]
-      [--loadout early|mid|late|rush [--keep-level]] [--list-loadouts]
+      [--loadout early|mid|late|rush|crystal [--keep-level]] [--list-loadouts]
 
 --set patches any bank dword (index and value: decimal or 0x hex; layout in
 tools/save_arena_map.json), e.g. `--set 0xb100=9` = merchant level 10 on the HUD
@@ -20,8 +20,8 @@ menu entry the natural saves do not have yet. With --set, gold changes only if
 task, and prefer a played save when one exists.
 
 --loadout NAME writes a boss-test preset (tools/craft_loadouts.py: Louie's level,
-his 5 equipped slots, and the preset's food into the inventory): early | mid |
-late | rush. --keep-level leaves Louie's level as it is. --list-loadouts prints
+his 5 equipped slots, and the preset's food / bag gear into the inventory):
+early | mid | late | rush | crystal. --keep-level leaves Louie's level as it is. --list-loadouts prints
 the presets with the expected ATK / DEF and the boss rows.
 
 --bank defaults to the header's last-saved slot (dword 7, the one "Load the
@@ -93,6 +93,9 @@ def craft(buf: bytearray, bank: int | None = None, gold: int | None = None, sets
         if loadout not in craft_loadouts.PRESETS:
             raise SystemExit(f"--loadout {loadout}: one of {', '.join(craft_loadouts.PRESETS)}")
         notes += craft_loadouts.apply(buf, base, loadout, keep_level)
+        for v in craft_loadouts.bag_items(loadout):
+            add_item(buf, base, v)
+            notes.append(f"bag gear {craft_loadouts.ITEMS[v >> 6][0]} -> inventory (pack it)")
         vals = craft_loadouts.food_items(loadout)
         for v in vals:
             add_item(buf, base, v)
@@ -108,9 +111,15 @@ def list_loadouts() -> None:
         gear = ", ".join(craft_loadouts.ITEMS[i][0] + (f"+{n}" if n else "") for i, n in p["equip"])
         print(f"{name}: Louie dword {p['level']} (L{p['level'] + 1}); {gear}")
         print(f"  ATK/DEF/MATK/MDEF {'/'.join(map(str, craft_loadouts.expected(name)))}; for: {p['for']}")
-        for boss, hp, hits, worst, interval in craft_loadouts.boss_rows(name):
+        if "swap" in p:
+            w = craft_loadouts.ITEMS[p["swap"]["weapon"][0]][0]
+            print(f"  bag weapon {w} for {', '.join(p['swap']['bosses'])}: ATK "
+                  f"{craft_loadouts.expected(name, swap=True)[0]}")
+        food = ", ".join(f"{craft_loadouts.FOOD[i][0]} x{n}" for i, n in p["food"])
+        print(f"  food: {food}")
+        for boss, hp, hits, worst, interval, swapped in craft_loadouts.boss_rows(name):
             print(f"  {boss}: HP {hp}, ~{hits} hits, worst sword hit {worst}"
-                  + (f" (arm interval {interval})" if interval else ""))
+                  + (f" (arm interval {interval})" if interval else "") + (" [bag weapon]" if swapped else ""))
 
 
 def main() -> int:

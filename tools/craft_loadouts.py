@@ -33,10 +33,21 @@ it can pass the smaller intervals below — keep to the sword where the column s
 | mid | 31 → L32 | Breaker Sword, Silver Armor, Spiked Armband, Silver Helm, Hard Boots | 84 / 105 / 18 / 44 | Obsidian Tower 1..50F; Obsidian Boss Rush (d5 38..45); Lapis 25F / rush 50F crown trios | Griff rush 45F 1640: ~44; Griff 50F 1320: ~36 | jellyfish 10F 460 → 153 per third vs 146 |
 | late | 47 → L48 | Holy Sword, Guardian Armor, Superarm Band, Alleus, Battle Boots | 169 / 215 / 48 / 121 | Lapis Ruins 1..100F (not 25F), Crystal Nightmare 1..30F | Arma golem 100F 2940 (DF 35): ~36 | red jellyfish 40F 1110 → 370 vs 324; golem break 490 |
 | rush | 47 → L48 | Holy Sword, Legendary Armor, Superarm Band, Legendary Helm, Iron Sandals | 181 / 278 / 66 / 129 | Lapis Boss Rush (d5 46..58, not 50F) | Arma golem 58F 3540 (DF 35): ~40 | red jellyfish 52F 1060 → 353 vs 349; golem break 590 |
+| crystal | 98 → L99 (cap) | Holy Sword, Invincible Armor, TH Shield, Asuran Helm, Iron Sandals; bag: Heaven's Blade (58F) | 221 / 519 / 95 / 211 (58F swap: 301) | Crystal's own Boss Rush row (d5 30..58, boss L50..97) | Arma 53F 4700: ~43; golem 58F 6120 with the swap: ~40 | jellyfish 39F 1400 → 466 vs 444; red jellyfish 52F 613; golem break 1020 vs 609 |
 
 Kept / softened gates: crown slime (DF 8·pow²) holds at early / mid only (late: 34 per hit at power 5) — use mid
 for crown floors; crab DF 750 outside state 6 holds everywhere; mushroom-rat DF 42·pow² (type 59 pow 2: late
 gives 42 outside the DF-0 window, mid 0); the golem's HP gate clamps at the segment floor (a hit never skips a break).
+crystal (one trip, boss L50..97): Louie at the level cap (dword 98: HP 451, SP 98; EXP 150·98·99 — Endless grinding).
+No single real loadout keeps every arm across 30..58: the 39F jellyfish third (466) caps the sword at ATK ≈ 229, and at
+that ATK the 58F body (6120) takes ~55 hits. Least-bad: base gear under the cap for 30..57, Heaven's Blade carried in
+the bag and equipped from the dungeon pause Equip page on 58F only (the body's HP gate clamps every hit at the segment
+floor; worst 609 < 1020). The 55F rat (type 60, DF 52·3² = 468 → 117) needs ATK ≥ 236 to do more than 1 outside the
+purple-meal (DF-0) windows; the real maximum (Heaven's Blade +15, Samael's Mantle +15, Devil's Will, Sealed Shield,
+Assassin's Hood: ≈ 382) would do ~74, but any ATK ≥ 236 breaks the jellyfish rule → windows only (~25 window hits at 221).
+Crown slime power gate (30F / 36F / 50F) is broken at 221 (60 per hit at power 5); DEF 519 brings the golem fan from
+~350 (DEF 278, probe estimate) to ~265 against 457 max HP. Food: 19 full heals (Durian = HP to full, SP −500;
+Filet Mignon 500 / 500) + the Heaven's Blade = the 20-slot bag (merchant level dword 5).
 Sources: item stats `data/item.txt` (read at runtime, not committed); chara rows `data/chara.txt`; boss HP / DF
 findings/bosses/ROSTER.md and the cards.
 """
@@ -51,22 +62,28 @@ OWN_FLAG = 0x20
 # Louie's chara.txt rows: level-1 and level-100 AT DF MA MD (the interpolation inputs).
 LOUIE_L0 = (10, 10, 4, 4)
 LOUIE_L100 = (93, 95, 50, 68)
+LOUIE_HPSP = ((20, 10), (460, 100))   # HP / SP at level 1 / 100 (record +15 / +16 low words)
+MAX_LEVEL = 98                         # dword; `sub_48A383` stops levelling at >= 98 (HUD L99)
 
 # id: (name, ATK, DEF, MATK, MDEF) — the items the presets use.
 ITEMS = {
     3: ("Steel Sword", 20, 0, 0, 0),
     6: ("Breaker Sword", 46, 3, 0, -5),
     11: ("Holy Sword", 110, 0, 26, 25),
+    15: ("Heaven's Blade", 190, 0, 0, 0),
     1302: ("Iron Armor", 0, 14, 0, 2),
     1305: ("Silver Armor", 0, 32, 0, 8),
     1310: ("Guardian Armor", 0, 80, 0, 20),
     1311: ("Legendary Armor", 4, 98, 10, 24),
+    1315: ("Invincible Armor", 0, 188, 0, 42),
     1403: ("Spiked Armband", 3, 9, 0, 8),
     1408: ("Superarm Band", 8, 24, -5, 22),
+    1515: ("TH Shield", 0, 100, 0, 70),
     1702: ("Warrior's Helm", 0, 8, 0, 1),
     1705: ("Silver Helm", 0, 16, 0, 10),
     1710: ("Alleus", 0, 38, 0, 20),
     1711: ("Legendary Helm", 0, 47, 0, 24),
+    1714: ("Asuran Helm", 10, 78, 10, 8),
     2402: ("Leather Boots", 0, 5, 0, 0),
     2403: ("Hard Boots", 0, 9, 0, 0),
     2405: ("Battle Boots", 2, 24, 2, 0),
@@ -74,8 +91,9 @@ ITEMS = {
 }
 # id: (name, HP, SP) — Market food (市 > 0).
 FOOD = {
-    4001: ("Apple", 15, 0), 4005: ("Watermelon", 60, 0), 4006: ("Melon", 250, 0), 4012: ("Beef Bowl", 50, 0),
+    4001: ("Apple", 15, 0), 4005: ("Watermelon", 60, 0), 4006: ("Melon", 250, 0), 4007: ("Durian", 999, -500), 4012: ("Beef Bowl", 50, 0),
     4014: ("Ham Sandwich", 120, 0), 4015: ("Curry", 200, 0), 4029: ("Baked Yam", 0, 50), 4034: ("Mont Blanc", 0, 150),
+    4023: ("Filet Mignon", 500, 500),
 }
 
 # boss rows: (name, HP, DF, power, arm interval or None, note)
@@ -142,6 +160,37 @@ PRESETS = {
         ],
         "gate": ("crab outside state 6", 750, 1.0),
     },
+    "crystal": {
+        "level": MAX_LEVEL,
+        "equip": [(11, 0), (1315, 0), (1515, 0), (1714, 0), (2412, 0)],
+        # bag weapon for 58F only: equip it from the dungeon pause Equip page on arrival (answer No to "Equip
+        # items in bag?" at Depart); it returns to the bag after the trip (no 0x20).
+        "bag": [(15, 0)],
+        "swap": {"weapon": (15, 0), "bosses": ("Arma golem body 58F",)},
+        "food": [(4007, 13), (4023, 6)],
+        "expect": (221, 519, 95, 211),
+        "for": "Crystal Nightmare's own Boss Rush row (d5 30..58 in one trip, boss L50..97); 58F with the bag Heaven's Blade",
+        "bosses": [
+            ("crown slime 30F", 1100, 8, 1.0, None, "power gate broken (pow 5: 60)"),
+            ("boss ahriman 33F", 1200, 20, 1.0, None, ""),
+            ("Ohm 34F", 1830, 25, 1.0, None, ""),
+            ("crab 35F (state 6)", 2142, 30, 1.0, None, "DF 750 outside state 6"),
+            ("Tielle 37F", 1320, 30, 1.0, None, ""),
+            ("pumpkin ghost 38F", 2040, 20, 1.0, None, ""),
+            ("jellyfish 39F", 1400, 30, 1.0, 1400 // 3, "phase per third"),
+            ("golem 41F (body)", 2190, 30, 1.0, None, ""),
+            ("Griff 42F", 3000, 30, 1.0, None, "one 30 % threshold"),
+            ("Griff 45F", 3200, 30, 1.0, None, ""),
+            ("rat 47F (type 59, pow 2)", 2490, 42, 2.0, None, "outside the DF-0 window"),
+            ("red jellyfish 52F", 1840, 35, 1.0, 1840 // 3, "phase per third"),
+            ("Arma 53F", 4700, 35, 1.0, None, ""),
+            ("rat 55F (type 60, DF-0 windows)", 2910, 0, 1.0, None, "outside: 1"),
+            ("dark golem 56F (body)", 2970, 30, 1.0, None, ""),
+            ("black crab 57F (state 6)", 3000, 30, 1.0, None, ""),
+            ("Arma golem body 58F", 6120, 35, 1.0, 1020, "break per sixth (clamped); bag Heaven's Blade"),
+        ],
+        "gate": ("rat 55F (type 60) outside the DF-0 windows", 52, 3.0),
+    },
 }
 
 
@@ -162,10 +211,24 @@ def slot_stats(item_id: int, plus: int) -> list[int]:
     return s
 
 
-def expected(name: str, level: int | None = None) -> tuple[int, int, int, int]:
+def hp_sp(level: int) -> tuple[int, int]:
+    """Max HP / SP (before Ferromin bonuses) from the level, as `sub_47A8C0`."""
+    (h0, s0), (h1, s1) = LOUIE_HPSP
+    return h0 + (h1 - h0) * level // 100, s0 + (s1 - s0) * level // 100
+
+
+def exp_base(level: int) -> int:
+    """`sub_48A331`: EXP threshold 150·n·(n+1) (record +18 = this level's, +19 = the next one's)."""
+    return 150 * level * (level + 1)
+
+
+def expected(name: str, level: int | None = None, swap: bool = False) -> tuple[int, int, int, int]:
     p = PRESETS[name]
     tot = list(level_stats(p["level"] if level is None else level))
-    for iid, plus in p["equip"]:
+    equip = list(p["equip"])
+    if swap:
+        equip[0] = p["swap"]["weapon"]
+    for iid, plus in equip:
         for i, x in enumerate(slot_stats(iid, plus)):
             tot[i] += x
     return tuple(tot)
@@ -177,11 +240,12 @@ def sword_v(atk: int, df: int, power: float = 1.0) -> int:
 
 
 def boss_rows(name: str):
-    """(boss, HP, ~hits, worst sword hit, interval) per boss row of the preset."""
-    atk = expected(name)[0]
-    for boss, hp, df, pw, interval, _note in PRESETS[name]["bosses"]:
-        v = sword_v(atk, df, pw)
-        yield boss, hp, -(-hp * 10 // (v * 11)), int(v * 4.32), interval
+    """(boss, HP, ~hits, worst sword hit, interval, swapped weapon?) per boss row of the preset."""
+    p = PRESETS[name]
+    swapped = set(p.get("swap", {}).get("bosses", ()))
+    for boss, hp, df, pw, interval, _note in p["bosses"]:
+        v = sword_v(expected(name, swap=boss in swapped)[0], df, pw)
+        yield boss, hp, -(-hp * 10 // (v * 11)), int(v * 4.32), interval, boss in swapped
 
 
 def slot_value(item_id: int, plus: int = 0) -> int:
@@ -193,11 +257,18 @@ def apply(buf: bytearray, base: int, name: str, keep_level: bool = False) -> lis
     p = PRESETS[name]
     rec = base + CHARA_BASE_DWORD * 4
     notes = []
-    if not keep_level:
-        old = struct.unpack_from("<i", buf, rec)[0]
-        struct.pack_into("<i", buf, rec, p["level"])
-        struct.pack_into("<4i", buf, rec + 11 * 4, *level_stats(p["level"]))
-        notes.append(f"Louie level dword {old} -> {p['level']}")
+    old = struct.unpack_from("<i", buf, rec)[0]
+    if not keep_level and old != p["level"]:
+        lv = p["level"]
+        struct.pack_into("<i", buf, rec, lv)
+        struct.pack_into("<4i", buf, rec + 11 * 4, *level_stats(lv))
+        # max HP / SP low words (the Ferromin bonus high words kept); EXP = this level's base, so a lowered
+        # level does not level up again on the next orb and a raised one is consistent
+        for k, val in zip((15, 16), hp_sp(lv)):
+            w = struct.unpack_from("<I", buf, rec + k * 4)[0]
+            struct.pack_into("<I", buf, rec + k * 4, (w & 0xffff0000) | (val & 0xffff))
+        struct.pack_into("<3i", buf, rec + 17 * 4, exp_base(lv), exp_base(lv), exp_base(lv + 1))
+        notes.append(f"Louie level dword {old} -> {lv} (EXP {exp_base(lv)})")
     for k, (iid, plus) in enumerate(p["equip"]):
         v = slot_value(iid, plus)
         struct.pack_into("<I", buf, rec + (1 + k) * 4, v)
@@ -211,3 +282,8 @@ def apply(buf: bytearray, base: int, name: str, keep_level: bool = False) -> lis
 def food_items(name: str) -> list[int]:
     """Inventory values (id << 6) of the preset's consumables, one per unit."""
     return [iid << 6 for iid, n in PRESETS[name]["food"] for _ in range(n)]
+
+
+def bag_items(name: str) -> list[int]:
+    """Inventory values of the preset's carried gear (the player's, no 0x20: pack it, equip it in the dungeon)."""
+    return [(iid << 6) | (plus & 0xf) for iid, plus in PRESETS[name].get("bag", ())]

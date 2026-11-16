@@ -46,6 +46,11 @@ def main() -> int:
     # plus goes to the largest stat
     check(cl.slot_stats(11, 3) == [113, 0, 26, 25], "plus on the weapon's ATK")
     check(cl.slot_stats(1408, 2) == [8, 26, -5, 22], "plus on the armband's DEF")
+    # record HP / EXP model vs the Lapis end save's Louie (dword 48: HP 231, EXP bases 352800 / 367500)
+    check(cl.hp_sp(48)[0] == 231 and (cl.exp_base(48), cl.exp_base(49)) == (352800, 367500), "HP / EXP model")
+    # crystal: the type-60 rat gate needs ATK >= 236; the 58F swap stays under the golem's clamped break
+    check(cl.sword_v(235, 52, 3.0) == 1 and cl.sword_v(240, 52, 3.0) > 1, "rat gate threshold")
+    check(cl.expected("crystal", swap=True)[0] == 301, "crystal swap ATK")
 
     for name, p in cl.PRESETS.items():
         check(cl.expected(name) == p["expect"], f"{name}: expected {cl.expected(name)} != table {p['expect']}")
@@ -57,7 +62,7 @@ def main() -> int:
             check(cat not in (21, 22), f"{name}: {iid} not wearable by Louie")
             groups.append({10: 0, 11: 0, 12: 0, 13: 0, 14: 1, 15: 1, 16: 2, 17: 2, 20: 3, 23: 4, 24: 5, 25: 6}[cat])
         check(len(set(groups)) == 4, f"{name}: two items of one group")
-        for boss, hp, hits, worst, interval in cl.boss_rows(name):
+        for boss, hp, hits, worst, interval, _swapped in cl.boss_rows(name):
             check(hits <= 45, f"{name}: {boss} needs ~{hits} hits")
             if interval:
                 check(worst < interval, f"{name}: {boss} worst hit {worst} >= interval {interval}")
@@ -74,7 +79,12 @@ def main() -> int:
         check(list(r[1:6]) == want and list(r[6:11]) == want, f"{name}: slots {r[1:11]}")
         check(r[11:15] == cl.level_stats(p["level"]), f"{name}: record stats {r[11:15]}")
         inv = [v for v in struct.unpack_from("<40I", buf, base + 24) if v != 0xffffffff]
-        check(inv == cl.food_items(name), f"{name}: inventory {inv}")
+        check(inv == cl.bag_items(name) + cl.food_items(name), f"{name}: inventory {inv}")
+        check(len(inv) <= 20, f"{name}: {len(inv)} items > the 20-slot bag")
+        if p["level"] != 47:
+            check(r[0] == p["level"] and struct.unpack_from("<3i", buf, rec + 17 * 4)
+                  == (cl.exp_base(r[0]), cl.exp_base(r[0]), cl.exp_base(r[0] + 1)), f"{name}: EXP not rebased")
+            check(struct.unpack_from("<H", buf, rec + 15 * 4)[0] == cl.hp_sp(r[0])[0], f"{name}: max HP word")
         check(cps.checksum(buf, base) == struct.unpack_from("<I", buf, base + cps.F_CHECKSUM * 4)[0],
               f"{name}: checksum")
 
