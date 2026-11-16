@@ -263,7 +263,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
        **Boss Rush** (`bossrush-jade-amber`: Jade Way + Amber Garden rushes = d5 boss floors 30..37, 8 bosses) identical + save on the first
        triage, no port change; gate rows. `bossrush-obsidian-ending` (crafted +1,000,000 pix: the Obsidian rush = d5 floors 38..45, 8 bosses,
        the final payment, the ending, the Endless save, Endless control; 57,365 frames) identical + save on the first triage, no port change;
-       gate rows. Next (from the Endless save `1aa94b103208`): the Lapis rush (13 floors), then d5's own boss floors 30..58.
+       gate rows. **The Lapis rush** (`bossrush-lapis-r`: d5 floors 46..58, 13 bosses, on the `rush` loadout `efa3dcf87875`; the weak-gear
+       run stalled on the 58F golem; 68,508 frames, end save `ea4fa3d6ec75`) identical + save on the first triage, no port change; gate rows.
+       **All five Boss Rushes verified.** Next: d5's own boss floors 30..58 (non-rush path), with the matching loadouts.
     1b. **boss-test loadouts** (owner 2026-11-15): long boss floors (the d5 58F golem: ~120 sword hits at ATK 66, hours of
        per-hit search) need a crafted gear + upgrade profile per difficulty band: strong enough to end the fight in reasonable
        time, weak enough that every boss arm still fires (no one-shots past phase changes / HP-threshold breaks). Distilled
