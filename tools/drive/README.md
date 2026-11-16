@@ -63,6 +63,11 @@ and the searching rate per host.
 | `bunker` | i5-10600K, NixOS, wine 11.19 wow64 in one bwrap per session, all in the 6 G / 8-CPU pool | ≤ `RD_BUNKER_MAX_SESSIONS` (6) + `RD_BUNKER_MEM_FLOOR_MB` (1024) free in the bound (+ 700 MB per session still replaying) + host MemAvailable ≥ 1 GB | ~0.3 GB idle, 0.6–0.8 GB after a dungeon search |
 | `wine` | maximus i9-10900K, wine 11.20 | `admit_local`: ≤ `RHOST_MAX_PROCS` (10) rhost processes, ≥ 8 GB available | ~650 MB RSS |
 
+wine orphans: a `killpg(9)` of a session can take the wineserver and leave wineboot's system processes (services,
+explorer, rpcss, …) running forever (5 days on 2026-11-16). `rhost.py reap_wine_orphans` kills processes of our two
+prefixes whose wineserver (cwd `/tmp/.wine-UID/server-<dev>-<ino>`) is gone; it runs at every `admit_local` and after
+every wine `kill_session`; `rhost.py reap` by hand.
+
 How a bunker session works (`drive.py` `spawn_live` → `bunker.py spawn_session` → `pool.py spawn` on the box): the
 session dir travels as a tar on the ssh command's stdin to `/var/lib/orc-bunker/root/runs/drive/<name>` (=
 `C:\orc-rhost\runs\drive\<name>`); `pool.py` admits it under a lock shared with batches, then starts `sh → bwrap →

@@ -238,6 +238,56 @@ def mem_avail_gb():
     return 0.0
 
 
+def reap_wine_orphans(min_age=60, verbose=False):
+    """SIGKILL wine processes of OUR prefixes whose wineserver is gone. 2026-11-16: services / plugplay / explorer /
+    svchost / rpcss of prefix-headless sat 5 days after their wineserver died (a killpg(9) of a session takes the
+    wineserver, not the system processes wineboot started in their own groups). Without a server they never exit and
+    never serve anyone. A prefix's server is the wineserver whose cwd is /tmp/.wine-UID/server-<dev>-<ino> of the
+    prefix dir; MIN_AGE s spares a loader that has not started its server yet. Returns the pids killed."""
+    prefixes = {}
+    for pf in (WINE_PREFIX, WINE_PREFIX_HL):
+        try:
+            st = os.stat(pf)
+        except OSError:
+            continue
+        prefixes[os.path.realpath(pf)] = f"/tmp/.wine-{os.getuid()}/server-{st.st_dev:x}-{st.st_ino:x}"
+    if not prefixes:
+        return []
+    live_servers, cands = set(), []
+    hz, uptime = os.sysconf("SC_CLK_TCK"), float(open("/proc/uptime").read().split()[0])
+    for d in os.listdir("/proc"):
+        if not d.isdigit():
+            continue
+        try:
+            if os.stat(f"/proc/{d}").st_uid != os.getuid():
+                continue
+            comm = open(f"/proc/{d}/comm").read().strip()
+            if comm == "wineserver" or comm.endswith("wineserver"):
+                live_servers.add(os.readlink(f"/proc/{d}/cwd"))
+                continue
+            env = open(f"/proc/{d}/environ", "rb").read().split(b"\0")
+            wp = next((e[11:].decode(errors="replace") for e in env if e.startswith(b"WINEPREFIX=")), None)
+            if not wp or os.path.realpath(wp) not in prefixes:
+                continue
+            start = int(open(f"/proc/{d}/stat").read().rsplit(")", 1)[1].split()[19]) / hz
+            if uptime - start >= min_age:
+                cands.append((int(d), os.path.realpath(wp), comm))
+        except (OSError, ValueError, IndexError):
+            continue
+    killed = []
+    for pid, wp, comm in cands:
+        if prefixes[wp] in live_servers:
+            continue
+        try:
+            os.kill(pid, 9)
+            killed.append(pid)
+            if verbose:
+                print(f"[reap] {pid} {comm} (prefix {wp}: no wineserver)")
+        except OSError:
+            pass
+    return killed
+
+
 class admit_local:
     """`with admit_local(wait): Popen(..)` — holds a machine-wide lock while the caller starts ONE rhost process, after
     waiting (up to WAIT seconds) for a free slot and for MemAvailable above the floor; SystemExit when neither comes"""
@@ -246,6 +296,10 @@ class admit_local:
 
     def __enter__(self):
         import fcntl
+        try:
+            reap_wine_orphans()
+        except Exception:           # a sweep must never block admission
+            pass
         os.makedirs(WINE_ROOT, exist_ok=True)
         self.f = open(os.path.join(WINE_ROOT, "admit.lock"), "w")
         t0 = time.time()
@@ -2454,6 +2508,8 @@ def main():
     sp = ap.add_subparsers(dest="cmd", required=True)
     sp.add_parser("build").set_defaults(fn=cmd_build)
     sp.add_parser("stage").set_defaults(fn=cmd_stage)
+    p = sp.add_parser("reap", help="kill wine processes of our prefixes whose wineserver is gone (admission also does this)")
+    p.add_argument("--min-age", type=int, default=60); p.set_defaults(fn=lambda a: print(f"reaped {len(reap_wine_orphans(a.min_age, True))}"))
     p = sp.add_parser("run"); p.add_argument("scenarios", nargs="*"); p.add_argument("--masks"); p.add_argument("--save"); common(p); p.set_defaults(fn=cmd_run)
     p = sp.add_parser("det"); p.add_argument("scenario"); p.add_argument("-n", type=int, default=2); p.add_argument("--calibrate", action="store_true"); common(p); p.set_defaults(fn=cmd_det)
     p = sp.add_parser("corpus"); p.add_argument("--only"); p.add_argument("--flatten", action="store_true"); common(p); p.set_defaults(fn=cmd_corpus)

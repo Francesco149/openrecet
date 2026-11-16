@@ -958,6 +958,10 @@ def kill_session(s):
         os.killpg(s["pid"], signal.SIGKILL)
     except (ProcessLookupError, PermissionError):
         pass
+    try:                        # a killpg can take the wineserver and leave wineboot's system processes behind
+        RH.reap_wine_orphans()
+    except Exception:
+        pass
     rundir = s.get("rundir")
     if rundir and os.path.realpath(rundir).startswith(os.path.realpath(SESS) + os.sep):
         shutil.rmtree(rundir, ignore_errors=True)
