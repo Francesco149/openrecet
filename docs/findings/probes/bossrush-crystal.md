@@ -1,4 +1,4 @@
-# Probe: bossrush-crystal — Crystal Nightmare's own "Boss Rush" row (IN PROGRESS: stopped on floor 55)
+# Probe: bossrush-crystal — Crystal Nightmare's own "Boss Rush" row (run 1 stopped on 55; loadout run `bossrush-crystal-c` complete)
 
 - **Run:** `bossrush-crystal` · **start (CRAFTED):** `save:672d7fbd4b1b` = `ea4fa3d6ec75` (the `bossrush-lapis-r` end save: Endless,
   slot 020, day dword 37 morning, 490,600 pix) + `tools/craft_pix_save.py --loadout rush --keep-level` (Louie's level dword 48 = L49 kept,
@@ -85,16 +85,93 @@ Levels = the §1b table on every floor (`+0xae0` live = 50, 51, 53, 55, 56, 58, 
   `bossrush-lapis-r` needed ~4 h wall for the L54 golem (3540) with fans survivable; here food is nearly gone (Melon ×1).
 - A finish needs a stronger Louie (level / gear beyond `rush`) or many more heals (Curry / Melon from the Market) — a new loadout.
 
-## Card corrections
+## Loadout run `bossrush-crystal-c` (2026-11-16, complete: filed, MATCH)
 
-- **boss-rush.md:** §1b added (the row is the native mode `0x438b4d0 = −1`, floors 30..58 + rest floor 59; levels 50..97; best time
-  0xb172); the levels row is confirmed live 30..55.
-- **tielle.md:** at L61 (Crystal row) HP 1320 (= 100 · 13.2), lobs ~38 at DEF 279; block grids / indices as the card (phase 1: her
-  block 1 at (−32.6, 25.25); phase 2: block 10 at (−28.8, 67.9)); 37F's portal in mode −1 is a next-floor circle at (−45, 65).
-- **jellyfish (type 70):** live L65 HP 1400 → table HP 100.
-- **crabs.md:** type 68 bombs at L58 HP 189; a dying bomb 10 from the crab never flips it; kill it within ~5.5 (it drifts toward the
-  player — stand behind the crab).
-- **SAVES.md:** `672d7fbd4b1b` = `ea4fa3d6ec75` + `--loadout rush --keep-level` (Louie L49) — add to the loadout table.
+- **Start: CRAFTED state** `save:e13e408068f1` = `ea4fa3d6ec75` + `tools/craft_pix_save.py --loadout crystal` (Louie dword 98 = L99, own gear
+  Holy Sword, Invincible Armor, TH Shield, Asuran Helm, Iron Sandals → **221 / 519 / 95 / 211, HP 457, SP 98**; Heaven's Blade, Durian ×13,
+  Filet Mignon ×6 in the inventory). Not a played state. Windows native only (`RHOST_WIN=win-wifi`, `RD_HOST=win`, every search `-j 1`).
+- **Scenario `tests/scenarios/bossrush-crystal-c`, 142,542 frames. `rd verify` MATCH, `rd verify --real` MATCH** (frame 142542, rng 4919566c,
+  sem cf739a977cf9594e). **End save `save:e85ade90b178`** (slot 020, day dword 38 morning, 480,750 pix, SCORE 10889, TIME 6:40:17, Endless).
+- **Best time:** `bank·0xb172` 0 → **123,420** (= trip counter `0x438b1e8`, written on the "Return to town now?" `A` at f138711: 34:17 at
+  60 ticks/s). §1b confirmed.
+- **Before (f0..4152):** load 020 `.*60 A .*30 A .*80` (house f137, no Endless card on load); door search → map f743; `D R` → `wm_cur` 6 →
+  guild f832. Hire `A` (fee **9,850** at L99); the picker opens on **Swords**: `A` on Heaven's Blade (slot 1); slot 2 → tabs `R` to Food
+  (order …, Treasures, Ingredients, Cards, **Food**); Durian ×13 then Filet Mignon ×6 by `A` + (`D A A`)×N (20/20). Depart → plate `D` (Lapis →
+  Crystal), rows `D` ×3 → "Boss Rush --:--:--" → `A` f3102: `dungeon` 5, `0x438b4d0` / `b4d4` −1, `b4d8` 30, gold 490,600 → 480,750.
+  "Equip items in bag?" (f3906) **No** (`R A`): ATK 221 at control f4152 (the blade stayed in the bag).
+- **Method:** the run-1 scratch drivers (chained `rd search`, goal summed boss HP − 200, `--hold 50`, HP tiers); 35 / 57 bomb-flip loop;
+  37F lanes by block searches; 55F a new window loop (below); 58F goal clamped to the segment floor, `--hold 160`, HP tiers −120.
+  Food: Durian = HP to full, SP to 0. Six eaten (49F f64902; 58F f117927, f125307, f128286, f132286, f133909). Eat from the dungeon pause
+  menu: `~ .*40 D .*10 A .*30 D .*10 A .*20 A .*30 B .*15 B .*15 B .*30` (the `D` before the use skips bag row 1 = the blade / Holy Sword).
+
+| floor | boss | lock −1 → `estage` 1 (frames) | sword hits on the boss (damage) | Louie HP (min) | mechanics seen |
+|---|---|---|---|---|---|
+| 30 | crown slime | 4152 → 4918 (766) | 11 (45–147) | 457 | **power gate skipped**: power 5 → 73–132 per hit (DF 200 vs ATK/2 110); shed 5 → 3.66; no absorb seen |
+| 31 | mushroom king (24) | 5411 → 7649 (2238) | 15 (103–186) | 457 | 0, 1, eat 2, purple 4 (f6660), **red heal 5 +280** (f6338) |
+| 32 | Charme | 8210 → 8942 (732) | 9 (85–150) | 457 | 0, 1 |
+| 33 | boss ahriman | 9478 → 10654 (1176) | 7 (111–258) | 457 | 0, 1 |
+| 34 | Ohm | 11208 → 12155 (947) | 13 (109–171) | 457 | walk 1, charge 2 |
+| 35 | crab (68) | 12682 → 18212 (5530) | 13, all flipped (150–240) | 457 → 455 | **5 flips** (state 6) by bomb blasts; states 0..6 all seen (spray 4 f17371); the flips did 0 damage; every sword hit landed flipped |
+| 36 | crown slime ×2 | 18772 → 19958 (1186) | 12 + 12 (61–167) | 455 | gate skipped (61–140 at power 5); shed to 1 |
+| 37 | Tielle | 20451 → `estage` 10 24354 (3903) | 9 (110–279) | 455 → 445 | phase 0 lane 26 / 18 / 12 + reach; phase 1 her block 2 (−40.2, 25.25) by 27 / 19 / 7 / 2; phase 2 her block **5** (−32.6, 71.7) by 24 / 11 / 5; fight stage 7 f23182 → kill f24010 |
+| 38 | pumpkin ghost | 24886 → 28312 (3426) | 16 (13–261) | 445 | 0, cast 1 |
+| 39 | jellyfish (70) | 28889 → 30027 (1138) | 10 (97–183) | 445 | **both phase steps**: 0 → 1 at 927 (< 933.3), 1 → 2 at 316 (< 466.7); no hit near a third |
+| 40 | ahriman ×2 | 30543 → 33003 (2460) | 10 + 10 (94–268) | 445 → 420 | 0, 1 |
+| 41 | golem (61) | 33570 → 35325 (1755) | 16 on the body (93–255) | 420 | 0..3; parts never targeted |
+| 42 | griffon | 35841 → 38580 (2739) | 19 (35–273) | 420 | 0, 1, 2, 3, 5 |
+| 43 | Ohm ×2 | 39176 → 40953 (1777) | 18 + 17 (28–160) | 420 → 298 | walk, charge, burst 3; charges taken |
+| 44 | black knight | 41557 → 42635 (1078) | 9 (99–295) | 298 | 0, 1 |
+| 45 | griffon (slot 1) + hand (slot 0) | 43139 → 45850 (2711) | 19 on Griff (104–405), hand 0 | 298 | griff 0..3; the hand died with Griff |
+| 46 | pumpkin ×2 | 46426 → 52742 (6316) | 17 + 20 (71–251) | 298 → 296 | 0, 1 |
+| 47 | rat (59) | 53233 → 58648 (5415) | 24 (8–221) | 296 → 280 | 0..4; 4 purple windows; **no red meal eaten**; pow-2 gate broken (hits outside 4) |
+| 48 | ahriman ×3 | 59178 → 63724 (4546) | 11 + 11 + 9 (102–238) | 280 → 254 | 0, 1 |
+| 49 | Ohm ×3 | 64314 → 66520 (2206) | 20 + 19 + 20 (35–170) | 254 → **187** → 351 | 0..3; Durian f64902 |
+| 50 | crown ×3 | 67029 → 69286 (2257) | 16 + 17 + 15 (34–180) | 351 → 314 | gate skipped (61–97 at power 5); **absorb seen** (power back to 5 on slots 1 / 2) |
+| 51 | pumpkin ×3 | 69916 → 80170 (10254) | 22 + 22 + 21 (21–221) | 314 | 0, 1 |
+| 52 | red jellyfish (71) | 80726 → 82769 (2043) | 10 (72–343) | 314 → 457 | **phase 1 → 2 at 1105** (< 1226.7), **2 → 3 at 583** (< 613.3); HP + SP full the kill tick f82739 (level 98 kept; source not read) |
+| 53 | Arma | 83282 → 86986 (3704) | 33 (61–312) | 457 | 0..4; finisher 5 not seen |
+| 54 | black knight ×2 | 87567 → 90239 (2672) | 10 + 13 (24–347) | 457 | 0, 1, 2, block 4 |
+| 55 | rat (60) | 90748 → 108959 (18211) | 57 incl. chips (1–234) | 457 → 288 | **16 purple windows** (state 4), **3 red heals of 485** (f97956, f100026, f106348); gate holds outside 4 (1–2); kill f108415 |
+| 56 | dark golem | 109462 → 111709 (2247) | 19 on the body (74–346) | 288 | 0..3 |
+| 57 | black crab (69) | 112315 → 116989 (4674) | 23 (1–575; one blast 575) | 288 | **5 flips** (one blast on the flipped crab −575); states 0..6 (spray 4 f115525); sword unflipped 1–2, flipped 119–175 |
+| 58 | Arma golem | 117584 → 136542 (18958) | 41 on the body (15 clamp – 323) | 288 → **171** (Durian ×5) | hover 0, lob 1, rain 2; **6 clamps exact**: 5100 f120403, 4080 f123321, 3060 f126290, 2040 f129844, 1020 f133633, 0 f136364 (kill) |
+| 59 (60F) | rest floor | 137392 | — | 363 | 3 chests opened by sword (state 2): Fur Robe, Pot Stand, Chocolate Bar; door hit f138651 (`doorst` 1), prompt f138705 |
+
+- **Wall time:** 30..54 ≈ 2 h 15; 55F 56 min; 56..57 ≈ 30 min; 58F ≈ 45 min. No floor near the 90-min rule.
+- **55F window loop (what fixed run 1's stall):** order of branches: state 5 (heal) → pass; state 4 → chained one-hit searches (goal
+  `a0hp <= B − 100`, avoid `hp < H − 40` / king HP up / state 5, cell `(int(px*2), int(pz*2), int(a0hp/20), frame // 6)`, 20 s, `--apply`, until
+  the window ends; none found → a pass search to `state != 4`); state 2 → **pre-position**: red target (`+0xa50` slot, type 13) → kill it,
+  else walk to < 3 of the king and hold < 3.5 until the state changes; states 0 / 1 / 3 → kill reds older than 420, else wait for 4.
+  Windows then gave 3–4 hits each (≈ 500): 2904 → 2391, 2523 → 1283 (two windows chained), 1763 → 1190, 521 → 0. The losses: 3 red heals
+  (+485 each), mostly while a red-kill search ran into the king's walk to another red.
+- **58F blade swap (first live use; works):** on the floor, before the first hit, `~ .*40 D .*10 D .*10 A .*30` (pause entry 2 = the Equip
+  page, `pm_type` 5: "Optimum Equipment", the 5 slots, the bag) → `D .*12` (weapon slot) → `A .*25` (bag list; preview "Attack 221 → 301,
+  Magic 95 → 69, MDef 211 → 186") → `A .*30` on Heaven's Blade (the Holy Sword goes to the bag as "Adventurer's Possession"). `s32(0x56db0ac)`
+  reads 301 after the menu closes (still 221 while it is open), MDEF 186. **Trap:** close with `B` until `scene == 1`, not a fixed count —
+  this run sent three `B`s: the menu closed after two, the third was a **skill** (SP 98 → 93, `p_act` 4, f117791) whose hit took the golem
+  body 6120 → 5797 (−323, f117801) before the fight. That is the only skill use in the movie (SP scan). On return the blade is back in the
+  bag and the Holy Sword back on Louie (CLEAR screen bag list).
+- **Arms the gear skipped:** crown slime power gate (30 / 36 / 50: power 5 does 61–140 at ATK 221); mushroom-king type 59 pow-2 gate (47).
+  **Held:** rat 60 pow-3 gate (55: 1–2 outside state 4 at ATK 221); 58F body HP gate (all 6 clamps); jellyfish thirds (39 / 52: no hit
+  reached a third). **Not seen:** Arma finisher 5 (53).
+- **After:** return `A` f138711 → CLEAR → town map f138896 (`stime` 2); `wm_cur` 2 (scene 14, an event, `A` taps) → map → home f140140
+  (`stime` 3); door → map → `wm_cur` 2 again → home f140865 (`stime` 4) → "You look tired" → Daily Profits (−9,850, score +440) → day 38
+  f141322 → Endless card (`A` taps until the ticker) → save: `~`, `D` ×4 (`pm_type` 3), `A`, `A` on 020, `A` Yes → f142542; `rd endsave`.
+- **Map cursor (`wm_cur`) moves seen:** 0 −L→ 1, 1 −R→ 2, 1 −U→ 4, 4 −D→ 1, 1 −D→ 0, 0 −R→ 3, 6 −L→ 5, 5 −U→ 0. Home = 0, guild = 6.
+
+## Card corrections (both runs; folded into the cards 2026-11-16)
+
+- **boss-rush.md:** §1b (native mode `0x438b4d0 = −1`, floors 30..58 + rest floor 59, levels 50..97, best time 0xb172) — now live end to end:
+  levels / HP on all 29 floors, every portal next-floor, rest floor 3 chests + door, 0xb172 = trip counter at the return prompt.
+- **tielle.md:** L61 (Crystal row) HP 1320 (= 100 · 13.2); lobs ~38 at DEF 279; block grids / indices as the card; her block = `+0xa64`
+  (run 1: 1 then 10; run c: 2 then 5) — lanes per run in §8; 37F's portal in mode −1 is a next-floor circle at (−45, 65).
+- **jellyfish.md:** type 70 live L65 HP 1400 (table 100); type 71 live L87 HP 1840 (table 100); phase steps at the thirds on both (39: 927 / 316,
+  52: 1105 / 583).
+- **crabs.md:** type 68 bombs at L58 HP 189 (run 1); type 69 at L95 HP 3000, bomb type 38 HP 300 (= 15 · 20); a dying bomb 10 from the crab
+  never flips it; a kill within ~5.5 (run 1) / < 8 (run c, type 69) of the crab's centre did; the bomb drifts toward the player — stand
+  behind the crab. Five flips on each of 35 / 57; one blast on the flipped type 69 did 575.
+- **SAVES.md:** `672d7fbd4b1b` (run 1) and `e13e408068f1` (run c) are in the loadout table; the crystal 58F blade swap now has its key
+  sequence and the `B`-count trap; end save `e85ade90b178` to add.
 
 ## Tool gaps
 
@@ -103,3 +180,6 @@ Levels = the §1b table on every floor (`+0xae0` live = 50, 51, 53, 55, 56, 58, 
 2. A rewind into an earlier pause menu replays the meal → food counters kept outside the game drift; read the bag (`~` → Items) instead.
 3. `--hold-actions` / `--acts-extra` split on `|` collided with `{… | A}` masks (scratch-script bug, not rd).
 4. Searches in states where the player cannot act (pumpkin cast, knock-down) report "1–4 cells": a time term in `--cell` fixes it.
+5. (run c) A driver's rewind floor `F0` defaulted to the frame the script started: after a restart inside a doomed state (58F, a fan in
+   flight) every rewind stayed in it. Scripts now take `F0` from the environment (the floor's start).
+6. (run c) Fixed `B` counts to close a pause menu over-run into the dungeon: the extra `B` is a skill. Close with `B` until `scene == 1`.

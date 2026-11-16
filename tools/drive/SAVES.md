@@ -49,12 +49,14 @@ bag on return. **Crafted:** say so in the task; real items (drops / guild stock 
 
 Use the sword. The spin (`B`, ×2) can pass the smaller arm intervals. **crystal:** pack the Heaven's Blade + the 19 food (20/20),
 answer **No** to "Equip items in bag?" at Depart (it would equip the blade), and equip the blade from the dungeon pause Equip page on 58F
-only (the golem body's HP gate clamps each hit at the segment floor; elsewhere the blade's ATK 301 passes the jellyfish third and the rat gate).
+only (the golem body's HP gate clamps each hit at the segment floor; elsewhere the blade's ATK 301 passes the jellyfish third and the rat gate). Keys (verified `bossrush-crystal-c` f117584): `~ .*40 D .*10 D .*10 A .*30`
+(pause entry 2 = Equip page) `D .*12` (weapon slot) `A .*25` (bag; preview 221 → 301) `A .*30` (Heaven's Blade), then `B` **until `scene == 1`**
+— a third fixed `B` fires a skill on the floor (it hit the golem for 323 in that run). `s32(0x56db0ac)` reads 301 only after the menu closes.
 
 | sha12 | base | line | verified |
 |---|---|---|---|
 | `efa3dcf87875` | `1aa94b103208` (Endless, slot 020) | `--loadout rush` (level unchanged: 47) | 2026-11-15, run `loadout-rush` (Windows): guild panel lists the 5 items; Depart (d5 38F) → `s32(0x56db0ac..b8)` = 181 / 278 / 66 / 129, HP 232 |
-| `e13e408068f1` | `ea4fa3d6ec75` | `--loadout crystal` (Louie dword 48 → 98, EXP 1,455,300; Heaven's Blade + Durian ×13 + Filet Mignon ×6 in the inventory) | 2026-11-16, run `loadout-crystal` (Windows): guild "Level:99 Swordsman Louie", fee 9,850, the 5 items; Depart (d5 46F) → 221 / 519 / 95 / 211, HP 457, SP 98 |
+| `e13e408068f1` | `ea4fa3d6ec75` | `--loadout crystal` (Louie dword 48 → 98, EXP 1,455,300; Heaven's Blade + Durian ×13 + Filet Mignon ×6 in the inventory) | 2026-11-16, run `loadout-crystal` (Windows): guild "Level:99 Swordsman Louie", fee 9,850, the 5 items; Depart (d5 46F) → 221 / 519 / 95 / 211, HP 457, SP 98; run `bossrush-crystal-c`: Crystal's own rush 30..58 + rest floor cleared |
 | `672d7fbd4b1b` | `ea4fa3d6ec75` (`bossrush-lapis-r` end save, Endless, day 37) | `--loadout rush --keep-level` (L49 played) | 2026-11-16, run `bossrush-crystal`: 181 / 279 / 67 / 129; Crystal's own rush 30F..54F cleared, stalled 55F (L92 rat) — too weak past ~L90 |
 
 ## Made by probes (replay the scenario to the frame after the in-game Save, `rd endsave`)
@@ -78,6 +80,7 @@ only (the golem body's HP gate clamps each hit at the segment floor; elsewhere t
 | `dea37b7a7519` | level 16, Barrel tables, Wooden + Legendary in the bag | change-tables-l16 (end) |
 | `cbb3056eeb1e` | level 17 (25-slot dungeon bag), week 3 | item-storage-l17 (end) |
 | `1aa94b103208` | Endless Mode, first shop control (day dword 36, 495,350 pix, slot 020 = the ending's Endless save; crafted lineage `2f2f2203a65d`) | bossrush-obsidian-ending (end) |
+| `e85ade90b178` | Endless, day dword 38 morning, slot 020, 480,750 pix, after Crystal's own Boss Rush (best time 0xb172 = 123,420; crafted `crystal` lineage `e13e408068f1`) | bossrush-crystal-c (end) |
 
 Check a lineage: the bank is `HEADER 0x0b10 + slot·0x2dfc8` in the unpacked save, the newest slot in header dword
 7; gold dword 3, day 0xb0fb, `stime` 0xb0fc, merchant level 0xb100, checksum 0xb7f1 (`tools/save_arena_map.json`).

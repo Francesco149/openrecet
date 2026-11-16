@@ -14,6 +14,7 @@ The platform-damage path is ported (§7). Shared rules: `boss-floor-common.md`.
 |---|---|---|
 | dungeon 2 30F | 2 / 29 | FUN_0044db3c(story mode == 2) |
 | Boss Rush (dungeon 2's), 5th = last floor | 5 / 37, `0x438b4d0 == 2` | FUN_0044db3c(1): no dialogues, no save flags |
+| Crystal Nightmare's own Boss Rush row (`boss-rush.md` §1b) | 5 / 37, `0x438b4d0 == −1` | the same timeline; L61 → **HP 1320** (= 100 · 13.2) **[obs `bossrush-crystal`, `bossrush-crystal-c`]**; the stage-10 circle at (−45, 65) is a **next-floor** portal (`pret` 0), not the town door |
 
 - Setup (FUN_0044d9d3 floor-29 arm / FUN_00450ee0 case 37): party in a column at x −40 from z −54 (1.3 apart) facing
   +z; Tielle at (−40, 0, −40), state 8 (unused by her AI), `+0xae4 = 0`; town portal (−45, 0, 65) sunk.
@@ -157,6 +158,12 @@ tick 60.
 hp 59 → 39, by `rd search` (goal `a0use == 2`, score `-a0hp - 0.5*a0d`, cell `(int(a0hp/12), a0st, a0t//20, dx/1.5, dz/1.5, p_act)`,
 aimed walk / swing / spin / away / strafes as actions, 68 s at `-j 2`).
 - End: `tst == 10`, door at (−45, 0, 65): stand on its −z side (`pz < 65`), walk +z into it → `portal > 0`, `A` = Yes.
+- **Lane by single-block searches** (`bossrush-crystal-c`, d5 37, Louie ATK 221 / DEF 519): per block, goal `s32(0x438c154 + 4*i) == 0`,
+  score `-hypot(stand point) − 5·blockHP`, `--apply-best`, actions aimed 4-tick walks / aimed swings / `DIR A .*9`; stand point = the block's
+  x, its z − 3.3. Phase 0: 26 / 18 / 12 (column x −40.2) then reach 2.5 (one `U*66`). Phase 1, `tblk` 2 (−40.2, 25.25): 27 / 19 / 7 / 2
+  (the column's 17.65 cell is empty). Phase 2, `tblk` 5 (−32.6, 71.7): 24 / 11 / 5 (64.1 at x −32.6 is empty). Every block first try;
+  20451 → fight 23182 → kill 24010; 9 sword hits 110–279; HP 455 → 445. Run 1 (`bossrush-crystal`, ATK 181): `tblk` 1 then 10,
+  lobs ~38 at DEF 279.
 - What worked for the box phases (`rd search`, `-j 2`): goal `tst == 6`, score `-hypot(px − target) − k·blockHP`, cell
   `(int(px/1.5), int(pz/1.5), blockHP.., tt % 150 // 50)`, actions 12-tick walks + `"DIR A .*29"` swings: 94 s / 216 s / 58 s for
   phases 0 / 1 / 2. A goal on the outcome of a block (`a type-2 / 15 actor in use`, `a kobold with +0xae4 == 0`) is found the same way

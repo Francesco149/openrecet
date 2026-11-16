@@ -60,7 +60,7 @@ floor 59 (60F). IDA refs: guild init `sub_45BDC2` all_ida.c:59767, commit (`sub_
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | lv | 50 | 51 | 53 | 55 | 56 | 58 | 60 | 61 | 63 | 65 | 67 | 68 | 70 | 72 | 73 | 75 | 77 | 78 | 80 | 82 | 84 | 85 | 87 | 89 | 90 | 92 | 94 | 95 | 97 |
 
-- **Live (`probes/bossrush-crystal.md`):** plate `D` → 5, rows `D` ×3 → "Boss Rush --:--:--", `A` → `dungeon` 5, `0x438b4d0` −1, `0x438b4d4` −1, `0x438b4d8` 30, `floor` 30 (fee 4,850 at L49); `+0xae0` = the table above on 30..55 and HP = table·(1 + 0.2·lv) on every floor; every portal 30..54 next-floor (37F at (−45, 65)). Floors 56..59, the rest floor and the 0xb172 write not reached (stopped on 55F).
+- **Live (`probes/bossrush-crystal.md`):** plate `D` → 5, rows `D` ×3 → "Boss Rush --:--:--", `A` → `dungeon` 5, `0x438b4d0` −1, `0x438b4d4` −1, `0x438b4d8` 30, `floor` 30 (fee 4,850 at L49); `+0xae0` = the table above on 30..55 and HP = table·(1 + 0.2·lv) on every floor; every portal 30..54 next-floor (37F at (−45, 65)). Floors 56..59, the rest floor and the 0xb172 write not reached (stopped on 55F). **`probes/bossrush-crystal.md` loadout run `bossrush-crystal-c`** (crafted `crystal` loadout): all 29 floors cleared, levels / HP = the table on every floor (56 dark golem 2970, 57 black crab 3000, 58 Arma golem body 6120, 6 clamps of 1020), every portal 30..58 next-floor (58's at (−40, −47) → floor 59), rest floor: 3 chests (sword opens them), door hit → "Return to town now?" → **0xb172 := 123,420 = `0x438b1e8`** on the `A` (f138711). Filed, `rd verify` / `--real` MATCH.
 
 ## 2. Roster (enemylist `f:N` = floor N − 1; first entry × count is placed, state 8)
 

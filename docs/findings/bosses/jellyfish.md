@@ -16,8 +16,8 @@ f14788; probe `docs/findings/probes/obsidian-6f-10f.md`. Tags **[obs fNNNN]** = 
 |---|---|---|---|
 | Obsidian Tower 10F | 3 / 9 | 70 | 18 → 100·4.6 = **460** **[obs f9226]** (`+0xae0` 18, `+0x434` 460; HUD "LV19 HP 460") |
 | Lapis Ruins 40F | 4 / 39 | 71 | 32 → 100·7.4 = **740** **[lapis-31f-40f f29293]** (table HP 100, read) |
-| dungeon 5 floor 39 (d3 Boss Rush 2nd) | 5 / 39 | 70 | own: 65 → 1400; rush: 28 → 660 (= the players' 1400 / 660) |
-| dungeon 5 floor 52 (d4 Boss Rush 7th) | 5 / 52 | 71 | own: 87 → 1840; rush: 48 → 1060 (= the players' 1840 / 1060) |
+| dungeon 5 floor 39 (d3 Boss Rush 2nd) | 5 / 39 | 70 | own: 65 → **1400 [obs `bossrush-crystal`, `bossrush-crystal-c`]** (table HP 100); rush: 28 → 660 (= the players' 1400 / 660) |
+| dungeon 5 floor 52 (d4 Boss Rush 7th) | 5 / 52 | 71 | own: 87 → **1840 [obs `bossrush-crystal-c`]** (table HP 100); rush: 48 → 1060 (= the players' 1840 / 1060) |
 
 Corrected from retail: the table HP is 100, not 150 (the ×1.5 figures of [W-Electro] are the wrong ones).
 
@@ -145,3 +145,11 @@ Scenario `lapis-31f-40f` (golden made, not triaged). Louie L43, HP 210 / 210, SP
   flag): return door at (−45, −40), answered from +x walking −x at (−44.21, −40.30).
 - Arms checklist updates: red variant phase start **[obs f29293]**; phase-3 wave of 4 **[obs f30860, f31722]**; tick-60 sweep with adds alive
   **[obs f31855]** (was "not seen" for 70).
+
+## 11. Crystal's own Boss Rush row (types 70 / 71) **[obs]** (run `bossrush-crystal-c`, 2026-11-16; Louie L99 ATK 221; `rd verify` MATCH)
+
+- 39 (type 70, L65, 1400): phase 0 → 1 at f29140 (HP 927 < 933.3), 1 → 2 at f29649 (316 < 466.7); 10 sword hits 97–183. No hit came
+  near a third, so neither step can be skipped at this ATK (one hit would need > 466).
+- 52 (type 71, L87, 1840): phase starts at 1 (f80486); 1 → 2 at f81419 (1105 < 1226.7), 2 → 3 at f82149 (583 < 613.3); 10 hits 72–343.
+  On the kill tick (f82739) Louie's HP and SP went to full (314 → 457, SP 0 → 98; level dword 98 unchanged) — source not read.
+- 0 damage taken on either floor.

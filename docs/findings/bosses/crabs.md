@@ -163,3 +163,16 @@ Louie L46 (ATK 64, DEF 84, HP 224); fight f21572..25309; **0 damage taken**. Ful
 - Search recipe that worked: flip goal = `st == 6` and within 8 of the crab (score: bomb lit, bomb-to-crab distance, flipped bonus
   minus distance); damage goal = −130 HP with `--apply-best` (never "or sub 2": waiting satisfies it); get-up goal = `st != 6`, score
   = distance to a point 9 behind the crab. `--avoid "hp < H − 6"`, `-j 2`, 60–120 s each, 13 searches.
+
+## 8. Live: Crystal's own Boss Rush row (35 = type 68, 57 = type 69) — runs `bossrush-crystal` (ATK 181) and `bossrush-crystal-c` (ATK 221, DEF 519)
+
+- Levels / HP: 35 L58 → **2142**; 57 L95 → **3000** (= 150 · 20). Bombs: type 68's at L58 HP **189**; on 57 a type-38 (blue) bomb at L95 HP
+  **300** (= 15 · 20).
+- Flip: a dying bomb ~10 from the crab never flipped it (run 1); a kill within ~5.5 (run 1, type 68) or < 8 (run c, type 69; card reach 9.85)
+  did. Bombs drift toward the player — stand behind the crab so the bomb comes to it.
+- Run c: **5 flips on each floor**; every damaging sword hit on 35 landed flipped (150–240); on 57 sword unflipped 1–2, flipped 119–175, and
+  one blast on the already flipped crab did **575** (f112927). Flips on both floors did 0 damage themselves. States 0..6 all seen on both,
+  spray (4) at f17371 (35) and f115525 (57). No damage taken (457 → 455 on 35, 288 kept on 57).
+- Driver: wait for a bomb (crab state 0, ≤ 120 ticks) → kill it when it is < 8 from the crab (`--hold 60`, avoid `hp < H − 60`) → flipped:
+  −150 HP searches → after the get-up repeat. A fixed rewind floor at the doomed bomb state (blue bomb at age 1, 21 from the player) looped
+  until rewinds of 60..400 frames were allowed.
