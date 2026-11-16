@@ -995,9 +995,16 @@ def run_port_win(batch, pdir_l, pw, fetch):
 # once per (target, trace, save) with every logger the port commands read, and cached. Keyed on behaviour, never
 # on state hashes: those carry rhost-image pointers (0x964d330 differs across rhost builds, 2026-11-04).
 # GOLDEN_VERSION: bump when rhost's deterministic core changes what retail does for a trace (virtual time,
-# DEFER, the seed, the input path) — then every golden re-runs.
+# DEFER, the seed, the input path) — then every golden re-runs. v2 (2026-11-16): + the per-tick block hashes.
 GOLDENS = os.environ.get("RHOST_GOLDENS", "/mnt/ephemeral/openrecet/goldens")
-GOLDEN_VERSION = 1
+GOLDEN_VERSION = 2
+# the per-tick state check (rhost --tick-hash → rng.golden → the port's --rng-golden, src/rng_golden.h): retail-layout
+# blocks the port mirrors dword for dword (src/state_va.c k_blocks; `portblock` names the dwords of a split).
+# Name, VA, length. A block here must be exact on every tick of every identical scenario.
+TICK_HASH_BLOCKS = [("dobj", 0x695ef78, 512 * 0x2a0), ("mapcol_objs", 0x438bfb0, 0x198), ("drop", 0x438bedc, 0x60),
+                    ("party", 0x56da1b8, 0x3624), ("actors", 0x76b970, 128 * 0xba4), ("popup", 0x44e28f0, 32 * 7 * 4),
+                    ("recb", 0x69324b0, 512 * 0x49 * 4), ("recc", 0x6956cb0, 200 * 0x25 * 4)]
+TH_RE = re.compile(r"^th (\d+)((?: \d+:[0-9a-f]+)*)\s*$", re.M)
 GOLDEN_FILES = ("rhost.log", "trace.flat.jsonl", "save.dat")
 RAND_RE = re.compile(r"^rand f(\d+) seed ([0-9a-f]+) -> ([0-9a-f]+) \[(.*?)\]( worker)?\s*$", re.M)
 
@@ -1021,7 +1028,7 @@ def rand_rows(log):
             for m in RAND_RE.finditer(open(log, errors="replace").read())]
 
 
-def rng_golden_text(rows, frames):
+def rng_golden_text(rows, frames, th=None):
     """the port's --rng-golden file (src/rng_golden.h): per tick the draw count + the LCG state after its last draw"""
     cnt, end = {}, {}
     for f, _, after, _ in rows:
@@ -1029,10 +1036,19 @@ def rng_golden_text(rows, frames):
         end[f] = after
     out = ["# retail per-tick LCG draws (rhost --log-rand); src/rng_golden.h", f"frames {frames}"]
     out += [f"{f} {cnt[f]} {end[f]}" for f in sorted(cnt) if f <= frames]
+    if th:
+        out.append("blocks " + ",".join(f"{va:x}:{n:x}" for _, va, n in TICK_HASH_BLOCKS))
+        out += [f"th {f}{rest}" for f, rest in th if f <= frames]
     return "\n".join(out) + "\n"
 
 
-GOLDEN_EXTRA = "--log-rand 0:100000000 --log-anchors"
+def th_rows(log):
+    """rhost --tick-hash lines → [(tick, ' i:hash ..')], one per tick hashed"""
+    return [(int(m.group(1)), m.group(2)) for m in TH_RE.finditer(open(log, errors="replace").read())]
+
+
+GOLDEN_EXTRA = ("--log-rand 0:100000000 --log-anchors --tick-hash "
+                + ",".join(f"{va:x}:{n:x}" for _, va, n in TICK_HASH_BLOCKS))
 
 
 def golden_store(a, name, tr, save, g, rd, r):
@@ -1046,7 +1062,7 @@ def golden_store(a, name, tr, save, g, rd, r):
     frames = int(r.get("frame", "0") or 0)
     rows = rand_rows(os.path.join(rd, "rhost.log"))
     with gzip.open(os.path.join(tmp, "rng.golden.gz"), "wt", compresslevel=6) as o:
-        o.write(rng_golden_text(rows, frames))
+        o.write(rng_golden_text(rows, frames, th_rows(os.path.join(rd, "rhost.log"))))
     json.dump({"scenario": name, "result": r, "draws": len(rows), "rhost_bin": bin_dir(),
                "target": getattr(a, "target", "win"), "trace_sha256": trace_save.sha256_file(tr),
                "start_save": os.path.basename(save) if save else None,
@@ -1169,7 +1185,7 @@ def headless_compare(g, rd, r):
             bad.append(f"{k} {m.get(k)}→{r.get(k)}")
     gz = lambda f: gzip.open(os.path.join(g, f + ".gz"), "rt", errors="replace").read()
     want = gz("rng.golden") if os.path.exists(os.path.join(g, "rng.golden.gz")) else open(os.path.join(g, "rng.golden")).read()
-    got = rng_golden_text(rand_rows(os.path.join(rd, "rhost.log")), int(r.get("frame", "0") or 0))
+    got = rng_golden_text(rand_rows(os.path.join(rd, "rhost.log")), int(r.get("frame", "0") or 0), th_rows(os.path.join(rd, "rhost.log")))
     if want != got:
         wl, gl = want.splitlines(), got.splitlines()
         i = next((i for i, (x, y) in enumerate(zip(wl, gl)) if x != y), min(len(wl), len(gl)))
@@ -1428,6 +1444,14 @@ def triage_one(a, name):
         row.update(verdict="no-report", sig="port wrote no split.txt (crash / no --rng-golden)")
         return row
     lines = open(sp).read().splitlines()
+    ms = re.match(r"state (\d+) block ([0-9a-f]+):", lines[0] if lines else "")
+    if ms:   # RNG identical through tick F, a retail-layout block not
+        f, va = int(ms.group(1)), int(ms.group(2), 16)
+        bname = next((b[0] for b in TICK_HASH_BLOCKS if b[1] == va), f"{va:x}")
+        row.update(verdict="split", split=f, sig=f"state: {bname} ({va:#x}) differs, RNG identical",
+                   context=scene_context(os.path.join(rd, "rhost.log"), f),
+                   repro=f"rhost.py portblock {name} --at {max(1, f - 1)},{f}")
+        return row
     m = re.match(r"split (\d+) retail (\d+) (\S+) port (\d+) (\S+)", lines[0] if lines else "")
     if not m:
         row.update(verdict="identical", checked=int(lines[0].split()[1]) if lines and lines[0].startswith("identical") else None)

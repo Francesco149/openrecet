@@ -628,9 +628,32 @@ __attribute__((naked)) static void rh_call_tick(void)  /* host → retail's tick
             "ret");
 }
 
+/* --tick-hash: after each tick F (at the boundary, before the deferred workers that count in F+1) a
+ * `th F [i:HASH ..]` line with the blocks whose FNV-1a (over dwords) changed — the golden's per-tick
+ * state check (src/rng_golden.h; the port hashes its retail-layout mirrors the same way) */
+static uint32_t rh_block_hash(uint32_t va, uint32_t len)
+{
+    uint32_t h = 2166136261u;
+    for (uint32_t o = 0; o + 4 <= len; o += 4) { h ^= G32(va + o); h *= 16777619u; }
+    return h;
+}
+static void tick_hash_log(void)
+{
+    static uint32_t last[RH_MAX_TH]; static int have;
+    if (!O.n_th || g_frame == 0) return;
+    char b[RH_MAX_TH * 16 + 32]; size_t o = snprintf(b, sizeof b, "th %u", g_frame);
+    for (int i = 0; i < O.n_th; i++) {
+        uint32_t h = rh_block_hash(O.th_va[i], O.th_len[i]);
+        if (!have || h != last[i]) { o += snprintf(b + o, sizeof b - o, " %d:%08x", i, h); last[i] = h; }
+    }
+    have = 1;
+    rh_log("%s\n", b);
+}
+
 /* everything due at the boundary before tick g_frame+1 */
 static void boundary(void)
 {
+    tick_hash_log();
     if (g_frame == 0 && O.has_seed) G32(DAT_RNG) = O.seed;
     g_vclock += 17;
     if (g_ndef) run_deferred();
@@ -787,7 +810,7 @@ static void usage(void)
                     "  [--hook SPEC] [--coverage F] [--d3d-proxy DLL --cap FROM:COUNT] [--stall-ms N] [--tail N]\n"
                     "  [--no-vtime] [--no-defer] [--no-arena] [--no-overlay] [--log-anchors] [--log-files] [--log-heap]\n"
                     "  [--watch-write VA[,VA..] --watch-exec VA[,VA..] (<= 4 in all) [--ww-frames FROM:TO]]\n"
-                    "  [--cut] [--preamble CODE[:BANK[:TOGGLE]]] [--turbo]\n");
+                    "  [--cut] [--preamble CODE[:BANK[:TOGGLE]]] [--turbo] [--tick-hash VA:LEN[,..]]\n");
     ExitProcess(2);
 }
 static void parse(int argc, char **argv)
@@ -880,6 +903,13 @@ static void parse(int argc, char **argv)
         else if (!strcmp(a, "--quiet")) O.quiet = 1;
         else if (!strcmp(a, "--log-sbh")) O.log_sbh = ARG();
         else if (!strcmp(a, "--log-rand")) { if (sscanf(ARG(), "%u:%u", &g_lr_from, &g_lr_to) != 2) usage(); }
+        else if (!strcmp(a, "--tick-hash")) {   /* VA:LEN[,VA:LEN..] hex: per-tick block hashes (tick_hash_log) */
+            char b[RH_MAX_TH * 24]; snprintf(b, sizeof b, "%s", ARG());
+            for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
+                if (O.n_th == RH_MAX_TH || sscanf(t, "%x:%x", &O.th_va[O.n_th], &O.th_len[O.n_th]) != 2) usage();
+                O.n_th++;
+            }
+        }
         else if (!strcmp(a, "--watch")) {   /* hex VAs: in each `frame` log line + a `post N` line after tick N */
             char b[RH_MAX_WATCH * 12]; snprintf(b, sizeof b, "%s", ARG());
             for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {

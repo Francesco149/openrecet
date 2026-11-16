@@ -23,5 +23,7 @@ const char *state_va_known(void);
 /* the retail-layout blocks (party, actors, objects, records, …) + the active
  * work bank at `frame` into `path` (rhost.py portblock) */
 void state_va_block_dump(const char *path, uint32_t frame);
+/* FNV-1a of the retail-layout block VA..VA+LEN as --block-dump writes it (rng_golden's state check) */
+uint32_t state_va_block_hash(uint32_t va, uint32_t len);
 
 #endif /* OPENRECET_STATE_VA_H */

@@ -696,6 +696,25 @@ static uint32_t to_retail_ptr(uint32_t v)
     return v;
 }
 
+/* the --rng-golden state check: FNV-1a over the block's dwords as --block-dump writes
+ * them (a port pointer into a block = its retail VA; no mirror = 0), rhost's
+ * --tick-hash on the same VAs */
+uint32_t state_va_block_hash(uint32_t va, uint32_t len)
+{
+    uint32_t h = 2166136261u;
+    const int32_t *base = layout_dword(va);
+    /* one contiguous mirror (every k_blocks block): no per-dword lookup */
+    if (base && len >= 4 && layout_dword(va + len - 4) == base + (len / 4 - 1)) {
+        for (uint32_t o = 0; o < len / 4; o++) { h ^= to_retail_ptr((uint32_t)base[o]); h *= 16777619u; }
+        return h;
+    }
+    for (uint32_t o = 0; o + 4 <= len; o += 4) {
+        const int32_t *p = layout_dword(va + o);
+        h ^= p ? to_retail_ptr((uint32_t)*p) : 0u; h *= 16777619u;
+    }
+    return h;
+}
+
 void state_va_block_dump(const char *path, uint32_t frame)
 {
     FILE *fp = fopen(path, "wb");

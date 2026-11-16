@@ -336,6 +336,10 @@ struct test_case {
     X(rng_golden_same_count_other_state_splits) \
     X(rng_golden_missing_tick_draws_split) \
     X(rng_golden_rejects_malformed) \
+    X(rng_golden_state_identical_and_coverage) \
+    X(rng_golden_state_split_names_the_block) \
+    X(rng_golden_rng_split_wins_over_state) \
+    X(rng_golden_th_rejects_malformed) \
     \
     X(math_vec3_normalize_3_4_0) \
     X(math_vec3_normalize_in_place) \

@@ -8,6 +8,10 @@
  *     frames N                 retail ran ticks 1..N (frame 0 = boot)
  *     F COUNT END              tick F drew COUNT times, the LCG state after its
  *                              last draw was END (hex); ticks absent = 0 draws
+ *     blocks VA:LEN[,VA:LEN..] the state check's retail-layout blocks (rhost --tick-hash, hex)
+ *     th F [I:HASH ..]         after tick F block I hashes to HASH (FNV-1a over its dwords;
+ *                              blocks not listed = unchanged since F-1); ticks without a `th`
+ *                              line are past the check's coverage
  *
  * Ticks are labelled like `--rng-log` / rhost `--log-rand` (tick_label(); a deferred
  * loader worker's draws at the boundary before tick F count in F). After tick F the
@@ -15,7 +19,10 @@
  * construction, both sides enter tick 1 at seed 19937) not yet checked up to F is
  * compared (count, and END when COUNT > 0). The first differing tick is the split;
  * the draws of the tick being accumulated are kept (with callers) so the split
- * file carries the port side of the divergence without a second run. */
+ * file carries the port side of the divergence without a second run.
+ * When the golden has blocks and a hasher is set, after an RNG-identical tick F the
+ * port's mirrors of those blocks (rng_golden_set_block_hash) must hash as retail's
+ * did after F; the first that does not is a state split. */
 #ifndef OPENRECET_RNG_GOLDEN_H
 #define OPENRECET_RNG_GOLDEN_H
 
@@ -42,9 +49,13 @@ int rng_golden_split(uint32_t *frame);
 
 /* the split report:  split F retail COUNT END port COUNT END
  *                    then the port's draws of tick F:  rand F BEFORE -> AFTER @RVA
+ * or, for a state split:  state F block VA:LEN retail HASH port HASH
  * 0 ok. Writes "identical CHECKED" when no split was found. */
 int rng_golden_write_report(FILE *fp);
 
 void rng_golden_reset(void);
+
+/* the port's hash of the retail-layout block at VA, LEN bytes (state_va_block_hash) */
+void rng_golden_set_block_hash(uint32_t (*fn)(uint32_t va, uint32_t len));
 
 #endif

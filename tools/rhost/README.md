@@ -89,13 +89,19 @@ python3 tools/rhost/rhost.py triage [SCEN..|--only RE] [--refresh]   # every sce
 ```
 - A **golden** = one retail replay with `--log-rand 0:end --log-anchors --flatten` (+ the DirectMusic
   `--watch`), stored gzipped in `/mnt/ephemeral/openrecet/goldens/<target>/v<GOLDEN_VERSION>/<scen>-<trace
-  sha>-<save sha>/` with `rng.golden` (per tick: draw count + LCG state after the last draw) and
+  sha>-<save sha>/` with `rng.golden` (per tick: draw count + LCG state after the last draw; since v2 also
+  the per-tick hashes of the retail-layout blocks `TICK_HASH_BLOCKS`, from `--tick-hash VA:LEN[,..]`: after
+  tick F, before the boundary's deferred workers, a `th F i:FNV ..` line with the blocks that changed) and
   `meta.json` (RESULT). `portrng` / `portsave` / `portanchors` use it whenever the run is a plain replay
   (no `--extra` / `--hook` / `--frames` / …; `--no-golden` forces a fresh retail run). Bump
   `GOLDEN_VERSION` when rhost's deterministic core changes what retail does.
 - **triage**: per scenario the port runs `--rng-golden rng.golden split.txt` (`src/rng_golden.c`): every
   tick from 1 is checked (count + end LCG state — stricter than portrng's counts); on the first split it
-  runs 2 more ticks and stops, `split.txt` carrying the port's draws of the split tick. A clean run's
+  runs 2 more ticks and stops, `split.txt` carrying the port's draws of the split tick. After an
+  RNG-identical tick the port hashes its mirrors of the same blocks (`state_va_block_hash`, as `--block-dump`
+  writes them); the first mismatch is a **state split** (`state: BLOCK differs, RNG identical`, repro
+  `portblock SCEN --at F-1,F` names the dwords) — a wrong object / record / actor field no longer waits for
+  its first RNG consequence (crystal-1f-20f's missing portal surfaced ~1,260 ticks late). A clean run's
   save is compared to the golden's. Rows are cached in `/mnt/ephemeral/openrecet/triage/<port sha>.jsonl`;
   the report clusters splits by signature = the split tick's first consumer run whose length differs,
   `retail FUN chain ⇄ port function (retail−port)`, with scene context and a `portrng --seq` repro.

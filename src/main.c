@@ -1907,7 +1907,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     if (g_rng_log_path && (g_rng_log_fp = fopen(g_rng_log_path, "w")) != NULL)
         g_rng_trace = rng_log_trace;
     if (g_rng_golden_path) {
-        if (rng_golden_load(g_rng_golden_path) == 0) g_rng_trace = rng_log_trace;
+        if (rng_golden_load(g_rng_golden_path) == 0) {
+            g_rng_trace = rng_log_trace;
+            rng_golden_set_block_hash(state_va_block_hash);
+        }
         else fprintf(stderr, "openrecet: --rng-golden: cannot load %s\n", g_rng_golden_path);
     }
     if (g_anchor_trace_record_path) {
