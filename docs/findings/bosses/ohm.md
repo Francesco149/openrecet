@@ -83,12 +83,12 @@ anim 5; from 100 alpha −8/tick, frees when it passes 0 (≈ tick 132).
 | charge vetoed by the second 1/8 (facing) | facing and `ost in (1, 3)` |
 | walk | `ost == 1` (180 ticks) |
 | burst | `ost == 3`; records at `ot` 20 / 24 / 28 / 32 |
-| charge hits the player | `hp` drops with `ost == 2 and 70 <= ot < 130` |
-| burst shot hits the player | `hp` drops 1–2 with `ost == 3` or shortly after |
+| charge hits the player | `hp` drops with `ost == 2 and 70 <= ot < 130` | **[obs `ohm-exhaust`]** L14 vs DEF 85: 14 / 15 ×14 = `ftol(AT·(1 + 0.1·lv)/2 − DEF/4)`; bee stings 1 / 2 |
+| burst shot hits the player | `hp` drops 1–2 with `ost == 3` or shortly after | not reached in `ohm-exhaust` (19k ticks) |
 | bee spawn | new slot type 10 with `+0xb2c == 1` |
 | bee cap | 3 bees alive, `s32(B+0xa64)` stops counting |
-| bee slowdown / exhaustion | `s32(B+0xa68) > 3` → `+0xa64 == −200`; `> 6` → −400; `>= 15` none |
-| death + sweep | `s32(B+0x428) == 2`; others dying at `s32(B+0xaf0) == 60` |
+| bee slowdown / exhaustion | `s32(B+0xa68) > cap` → `+0xa64 == −200`; `> 2·cap` → −400; `>= 5·cap` none (d2: 3 / 6 / 15; rush / d ≥ 4: 8 / 16 / 40) | **[obs f12988 / f16483 / f28854, `ohm-exhaust`]** rush f34 cap 8: 9th −200, 17th −400, 39 bees, `+0xa68` 40..43 with free slots and nothing spawns; gaps 120 / 320 / 520 (+4 per player hit-stop) |
+| death + sweep | `s32(B+0x428) == 2`; others dying at `s32(B+0xaf0) == 60` | **[obs f31014..31189, `ohm-exhaust`]** single Ohm: tick 1 f31019 `p_inv` 1200, tick 60 f31118 last bee 1 → 0, freed tick 131 = `estage` 1 |
 | player dies | `hp <= 0` |
 
 Port: fully ported, no PORT-DEBT in the AI. Death arm (anim 5, fade) unverified by recording, matches IDA.

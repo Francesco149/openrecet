@@ -57,7 +57,8 @@ Every tick in states 0 / 1:
 Beam (record 137): anchored 2 ahead of the boss along its **facing octant** (+0x18, 8 directions), 2 up, follows the
 boss. Record ages 11..: charge particles; age 80: SE 705; **ages 80..159** (state ticks 100..179): 20 probes a tick,
 1 unit apart, reach 2.5 → a strip 20 long, ± 4.5 wide to the player. "Magic" → ~~1–2 damage~~ **MA 35: 42 + 0..7 at L19 vs
-MDEF 32 [obs 46 / 49 / 48 / 46]**, knock-down 30.
+MDEF 32 [obs 46 / 49 / 48 / 46]**, knock-down 30. **[obs `ahriman-exhaust`] L12 vs MDEF 44: 27..31** = `MA·(1 + 0.1·lv)/2 − MDEF/4`
+(the attack multiplier is `1 + 0.1·lv`, not the HP's `1 + 0.2·lv`). Bat shots land: 5..7 at L12 (the Lapis trio's "never hit" was distance).
 Dies with the owner (`+0x428 != 1`) or at age 175.
 
 Death: tick 1 slow-mo, alpha 0, burst; player invulnerable 1200 only if no other type-54 lives (else 60); tick 60: if
@@ -92,9 +93,9 @@ it was the last 54, every live actor starts dying; frees at 120.
 | beam hits the player | `hp` drops by ~~1–2~~ 42..49 with `ast == 1 and 100 <= at < 180` | **[obs f12030]** q 46; **[obs f11285]** r 48 |
 | minion spawn, type 6 and type 7 | new slot `s32(+0x424) in (6, 7)`, `s32(+0xb2c) == 1` | **[obs f10755..10845]** types 6, 7, 8 (d3: 3 kinds) |
 | minion cap (4) | count of 6..9 holds at 4 | **[obs]** d3 cap 6 is shared: 6 live with two bosses (not 12) |
-| slowdowns at 9th / 17th | `s32(B+0xa68) > 8` → `s32(B+0xa64) == −60`; `> 16` → −120 | **not reached** (`+0xa68` 7 at f13320; d3 thresholds 12 / 24) |
-| minions exhausted | `s32(B+0xa68) >= 20`, no more spawns | **not reached** (same) |
-| death (last of kind sweeps the floor) | `s32(B+0x428) == 2`, at `s32(B+0xaf0) == 60` all others `+0x428 == 2` | **[obs f13784..13948]** `p_inv` 1199 at tick 2, bats 5 → 0 at tick ≈60, `estage` 1 at f13948 |
+| slowdowns at 9th / 17th | `s32(B+0xa68) > 8` → `s32(B+0xa64) == −60`; `> 16` → −120 | 15F: not reached (`+0xa68` 7 at f13320; d3 thresholds 12 / 24). **[obs f11284 / f12651, `ahriman-exhaust`]** (rush f33, cap 4): 9th sets −60, 17th −120; gaps under the cap 30 / 90 / 150 (+4 per player hit-stop) |
+| minions exhausted | `s32(B+0xa68) >= 20`, no more spawns | **[obs f13331, `ahriman-exhaust`]** 19 bats (7 ×11, 6 ×8); `+0xa68` 20..29 every 150 with 0 bats live f13839..14795, nothing spawns |
+| death (last of kind sweeps the floor) | `s32(B+0x428) == 2`, at `s32(B+0xaf0) == 60` all others `+0x428 == 2` | **[obs f13784..13948]** `p_inv` 1199 at tick 2, bats 5 → 0 at tick ≈60, `estage` 1 at f13948; **[obs f14795..14959, `ahriman-exhaust`]** tick 1 f14800 `p_inv` 1200, tick 60 f14899 (slow-mo), freed tick 120 = `estage` 1 |
 | death with a second 54 alive (×2 / ×3 floors) | `s32(0x56db0f4) == 60` at tick 1 | **[obs f13157]** 21 → 60; bats kept; freed tick 120 (f13320) |
 | player dies | `hp <= 0` | **not reached** (lowest 42) |
 

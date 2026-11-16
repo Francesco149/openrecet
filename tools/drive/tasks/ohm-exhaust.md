@@ -3,13 +3,17 @@ name: ohm-exhaust
 start: bossrush-jade-amber@11640
 steps:
   - Ohm on Boss Rush floor 34 with control: scene == 1 and s32(0x76b970 + 0x424) == 67 and lock == -1
-  - first slowdown (more than cap bees): s32(0x76b970 + 0xa68) > 3 and s32(0x76b970 + 0xa64) == -200
-  - second slowdown (more than 2 x cap): s32(0x76b970 + 0xa68) > 6 and s32(0x76b970 + 0xa64) == -400
-  - bees exhausted, Ohm alive: s32(0x76b970 + 0xa68) >= 15 and s32(0x76b970 + 0x428) == 1
-  - floor cleared after exhaustion: estage == 1 and s32(0x76b970 + 0xa68) >= 15
+  - first slowdown (more than cap 8 bees): s32(0x76b970 + 0xa68) > 8 and s32(0x76b970 + 0xa64) == -200
+  - second slowdown (more than 2 x cap): s32(0x76b970 + 0xa68) > 16 and s32(0x76b970 + 0xa64) == -400
+  - bees exhausted, Ohm alive: s32(0x76b970 + 0xa68) >= 40 and s32(0x76b970 + 0x428) == 1
+  - floor cleared after exhaustion: estage == 1 and s32(0x76b970 + 0xa68) >= 40
 forbid:
   - back at the title: scene == 0 and frame > 400
 ---
+**Predicates corrected 2026-11-16** (IDA `sub_422ED6`, all_ida.c:22106..22111: `v5 = 3; if (dword_438B4C8 == 3) v5 = 5;
+if (dword_438B4C8 >= 4) v5 = 8;` — the cap reads the dungeon dword only, no floor test; the rush runs in dungeon 5 → **cap 8**,
+slowdowns at `+0xa68` > 8 / > 16, spawns while `+0xa68 < 40` = **39 bees**; the first draft used the dungeon-2 cap 3).
+
 Probe: **Ohm (type 67) bee slowdowns + exhaustion** — `docs/findings/bosses/ohm.md` §6 rows "bee slowdown / exhaustion"
 (the 40F pair reached `bn` 9 / 8, never exhaustion) and the burst-shot hit, both **not reached**.
 
