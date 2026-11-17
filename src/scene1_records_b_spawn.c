@@ -3613,35 +3613,40 @@ static int init_npc_84_96(int i, const void *owner, int type, int flag,
 {
     (void)flag; (void)part_idx;
 
-    float bend = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
+    /* 0x44732e: fild +0x18 → float local, ·2π / 8 → float local [ebp-0x10] */
+    const float bend = spill32((long double)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f);
 
     float pos_x, pos_y, pos_z;
     if (type == 0x84) {
         pos_x = owner_read_f(owner, 0x3f0);
-        pos_y = owner_read_f(owner, 0x3f4) + 3.0f;
+        pos_y = spill32((long double)owner_read_f(owner, 0x3f4) + 3.0f);
         pos_z = owner_read_f(owner, 0x3f8);
     } else {
         /* 0x96 — bend-spread pos around owner. */
-        pos_x = sinf(bend) + owner_read_f(owner, 0x3f0);
-        pos_y = owner_read_f(owner, 0x3f4) + 2.0f;
-        pos_z = cosf(bend) + owner_read_f(owner, 0x3f8);
+        pos_x = spill32((long double)crt_sinf(bend) + owner_read_f(owner, 0x3f0));
+        pos_y = spill32((long double)owner_read_f(owner, 0x3f4) + 2.0f);
+        pos_z = spill32((long double)crt_cosf(bend) + owner_read_f(owner, 0x3f8));
     }
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, pos_x);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, pos_y);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pos_z);
 
-    float dx   = g_scene1_player_pos[0] - pos_x;
-    float dz   = g_scene1_player_pos[2] - pos_z;
-    float dist = sqrtf(dx * dx + dz * dz);
+    /* x87 as retail 0x4473ba..0x44757e: every step stores to a float local, the CRT
+     * sqrt / atan2 / sin / cos run on doubles and round to float (plain float C
+     * was 1 ulp off in VEL_X / VEL_Z: bossrush-crystal-30f-54f f21961).
+     * dx / dz read POS back from the slot (fsub [ebx+0x5c] / [ebx+0x64]). */
+    float dx = spill32((long double)g_scene1_player_pos[0] - slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X));
+    float dz = spill32((long double)g_scene1_player_pos[2] - slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z));
+    float dist = spill32((long double)sqrt(spill64((long double)dz * dz + (long double)dx * dx)));
 
-    /* L274-285: clamp distance into [5, 30] range. */
+    /* L274-285: clamp distance into [5, 30] range (fmul then fdiv, one rounding). */
     if (dist > 30.0f) {
-        dx *= 30.0f / dist;
-        dz *= 30.0f / dist;
+        dx = spill32((long double)dx * 30.0f / dist);
+        dz = spill32((long double)dz * 30.0f / dist);
     }
     if (dist < 5.0f) {
-        dx  *= 5.0f / dist;
-        dz  *= 5.0f / dist;
+        dx   = spill32((long double)dx * 5.0f / dist);
+        dz   = spill32((long double)dz * 5.0f / dist);
         dist = 5.0f;
     }
     if (dist > 30.0f) {
@@ -3650,26 +3655,26 @@ static int init_npc_84_96(int i, const void *owner, int type, int flag,
 
     /* L286-288: vel_mag baseline + initial RNG jitter (discarded by
      * 0x96 — engine still calls rng()). */
-    float vel_mag_base = dist * 0.01f;
-    float vel_mag      = rng_next_unit() * 0.04f + vel_mag_base;
+    const float vel_mag_base = spill32((long double)dist * 0.01f);
+    float vel_mag = spill32((long double)rng_next_unit() * 0.04f + vel_mag_base);
 
     float ang;
     if (type == 0x96) {
         slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.2f);
-        float ang_center = atan2f(dx, dz);
-        ang     = (rng_next_unit() - 0.5f) * 0.7f + ang_center;
-        vel_mag = rng_next_unit() * 0.08f + vel_mag_base;
+        const float ang_center = spill32(x87_crt_atan2(dx, dz));
+        ang     = spill32(((long double)rng_next_unit() - 0.5f) * 0.7f + ang_center);
+        vel_mag = spill32((long double)rng_next_unit() * 0.08f + vel_mag_base);
     } else {
         /* 0x84 */
         slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.5f);
-        float ang_center = atan2f(dx, dz);
-        ang = (rng_next_unit() - 0.5f) * 0.3f + ang_center;
+        const float ang_center = spill32(x87_crt_atan2(dx, dz));
+        ang = spill32(((long double)rng_next_unit() - 0.5f) * 0.3f + ang_center);
     }
 
     /* L305-313: VEL + ROT_X + DRAG (LAB_00447572 / LAB_0044757e). */
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(ang) * vel_mag);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)crt_sinf(ang) * vel_mag));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.4f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(ang) * vel_mag);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)crt_cosf(ang) * vel_mag));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, ang);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,  0.5f);
     /* NO AUX_C8 = 1 — LAB_0044757e skips LAB_004469d2. */

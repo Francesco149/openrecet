@@ -258,8 +258,17 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     crown-slime-arms identical every block; (3) records B type 0x1f DRAG 1 ulp (unrounded LIFE_MULT, 201540ae) →
     obsidian-3f-5f-pumpkin identical every block + save. Tools: port `--watch-write VA[:FROM:TO]` (DR0, names the
     writer; addr2line on the staged exe); goldens keyed by behaviour (`goldens/headless/` = bunker ≡ wine --headless,
-    a26d9ec3). ◐ v2 goldens corpus-wide on bunker (185), then `triage --target wine --headless` over the corpus;
-    `headless-check` needs v2 win goldens first (none yet; the Windows box was unreachable 2026-11-17).
+    a26d9ec3). ✅ v2 goldens corpus-wide (185); corpus triage 2026-11-17 (wine --headless): 147 identical / 39 split → fixed
+    the same day: records B x87 rounding (15644c65, e6af04f1), the house pose release (4c94750d: 6 house rows), the carpet
+    collision slots (74b5b038). **127 scenarios < 20k frames: 124 identical**; left hire-caillou f1667 popup, hire-griff f1797
+    actors, lapis-30f-story f15085 party. Long dungeon rows: 5 newly identical at 2aa00 (dungeon2-run, charme-arms,
+    dungeon1-clear + save, lapis-21f-30f + save, lapis-61f-70f + save); 21 re-triaging at HEAD. Open: bossrush-crystal-30f-54f
+    f21961 = `init_npc_84_96` (0x4473ba) plain float → ported from the disasm → identical 1..25938, next split f25939 recb; the sibling
+    spawn inits in `scene1_records_b_spawn.c` (~30 `bend` / `sinf` sites) share the pattern — check each against its disasm.
+    Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).
+    Tools: parallel `xvfb-run -a` raced onto one display (fixed 48ddb153); `RHOST_PORT_EXE` pins / overrides the port exe
+    (7de4ae99); Windows disk guard (9d0134d3).
+    `headless-check` needs v2 win goldens first (none yet).
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; **minion slowdowns + exhaustion: `ahriman-exhaust`, `ohm-exhaust` (2026-11-16)
