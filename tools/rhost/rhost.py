@@ -1009,9 +1009,20 @@ GOLDEN_FILES = ("rhost.log", "trace.flat.jsonl", "save.dat")
 RAND_RE = re.compile(r"^rand f(\d+) seed ([0-9a-f]+) -> ([0-9a-f]+) \[(.*?)\]( worker)?\s*$", re.M)
 
 
+def golden_target(a):
+    """the goldens' cache dir per behaviour: wine with real devices (Xvfb; no DirectMusic → its own RNG path) is
+    'wine'; headless retail under wine is one behaviour wherever it runs (maximus wine or bunker; headless-check:
+    ≡ the Windows real-device goldens) → 'headless', so bunker makes them and maximus's wine triage reads them.
+    Before 2026-11-17 the key ignored --headless: a wine triage with --headless read real-device wine goldens."""
+    t = getattr(a, "target", "win")
+    if t == "bunker" or (t == "wine" and getattr(a, "headless", False)):
+        return "headless"
+    return t
+
+
 def golden_dir(a, name, tr, save):
     key = trace_save.sha256_file(tr)[:16] + "-" + (trace_save.sha256_file(save)[:8] if save else "fresh")
-    return os.path.join(GOLDENS, getattr(a, "target", "win"), f"v{GOLDEN_VERSION}", f"{name}-{key}")
+    return os.path.join(GOLDENS, golden_target(a), f"v{GOLDEN_VERSION}", f"{name}-{key}")
 
 
 def golden_usable(a):

@@ -88,8 +88,9 @@ python3 tools/rhost/rhost.py golden [SCEN..|--only RE] [--refresh]   # retail's 
 python3 tools/rhost/rhost.py triage [SCEN..|--only RE] [--refresh]   # every scenario: first port split, clustered
 ```
 - A **golden** = one retail replay with `--log-rand 0:end --log-anchors --flatten` (+ the DirectMusic
-  `--watch`), stored gzipped in `/mnt/ephemeral/openrecet/goldens/<target>/v<GOLDEN_VERSION>/<scen>-<trace
-  sha>-<save sha>/` with `rng.golden` (per tick: draw count + LCG state after the last draw; since v2 also
+  `--watch`), stored gzipped in `/mnt/ephemeral/openrecet/goldens/<kind>/v<GOLDEN_VERSION>/<scen>-<trace
+  sha>-<save sha>/` (kind: `win`, `wine` = real devices under Xvfb, `headless` = `--headless` under wine or on
+  bunker — one behaviour, so `golden --target bunker --headless` makes what `triage --target wine --headless` reads) with `rng.golden` (per tick: draw count + LCG state after the last draw; since v2 also
   the per-tick hashes of the retail-layout blocks `TICK_HASH_BLOCKS`, from `--tick-hash VA:LEN[,..]`: after
   tick F, before the boundary's deferred workers, a `th F i:FNV ..` line with the blocks that changed) and
   `meta.json` (RESULT). `portrng` / `portsave` / `portanchors` use it whenever the run is a plain replay
