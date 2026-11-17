@@ -346,6 +346,8 @@ int scene1_walker_draw_b_mesh_index(int mesh_type_value, int32_t flag_value,
 #include <math.h>
 #include "actor_ai.h"         /* FUN_00490820 */
 #include "x87.h"
+#include "map_collision.h"   /* g_mapcol_objs */
+#include "save_work.h"
 
 /* Engine `face_npc_ptr[face_i] == current_slot` is per-face NPC
  * association; our mesh_t uses per-MATERIAL texture_slots[mat_i] for
@@ -777,6 +779,20 @@ void scene1_walker_dobj_render(struct IDirect3DDevice8 *dev_in, int pass)
     IDirect3DDevice8_SetTextureStageState(dev, 0, D3DTSS_ADDRESSV, D3DTADDRESS_WRAP);
 }
 
+/* LABEL_122's writes (FUN_00457714 0x457... all_ida 57582-57597) */
+static void house_walker_mapcol_slots(void)
+{
+    static const int32_t k_carpet_mesh[15] = { 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };  /* DAT_005c5a00 */
+    const uint32_t *w = save_work_dwords_at(save_work_active_slot());
+    if (w != NULL) {
+        const uint32_t style = w[0x2cdec / 4];
+        if (style < 15)
+            for (int i = 1; i < 5; i++) g_mapcol_objs.slot[i] = k_carpet_mesh[style];
+    }
+    static const int32_t k_fixed[10] = { 3, 4, 4, 4, 3, 4, 3, 3, 3, 3 };   /* objects 5..14 */
+    for (int j = 0; j < 10; j++) g_mapcol_objs.slot[5 + j] = k_fixed[j];
+}
+
 void scene1_walker_pass_render_house(struct IDirect3DDevice8 *dev_in,
                                      int param_1)
 {
@@ -861,11 +877,12 @@ void scene1_walker_pass_render_house(struct IDirect3DDevice8 *dev_in,
         scene1_emit_apply_material_state(
             (struct IDirect3DDevice8 *)dev, slot);
 
-        /* L52887-L52901: per-slot BSS palette writes
-         * (DAT_0438bfbc..0438bff0).  Skipped — those globals feed the
-         * pulse path (DAT_0438cc08==2 gate) which is BSS-zero in HOUSE
-         * and never observable.  When the pulse path lands (likely
-         * post-Cf.*), revisit. */
+        /* LABEL_122 (all_ida 57581): every drawn slot rewrites the placed
+         * collision objects' mesh slots DAT_0438bfbc..0438bff0 — objects 1..4
+         * (the carpet) = DAT_005c5a00[work dword +0x2cdec, the carpet style],
+         * objects 5..14 the fixed 3 / 4.  Collision reads them (carpet 2 has its
+         * own mesh): decor-variants f555 — the port kept the post-load 1. */
+        house_walker_mapcol_slots();
 
         /* L52902-L52950: draw loop A (wall/floor/jutan, DAT_068dcca0)
          * — PII.3c.  Draw each phase-1 instance's mesh (room + carpet
