@@ -352,7 +352,7 @@
    "engine_fn": "FUN_00442cef",
    "desc": "the run's end (FUN_00442c86,",
    "file": "src/scene1_sim.c",
-   "line": 373,
+   "line": 379,
    "kind_known": true
   },
   {

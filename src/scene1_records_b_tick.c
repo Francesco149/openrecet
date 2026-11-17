@@ -2686,7 +2686,7 @@ static rec_next_t body_021_to_032(int i, int32_t type)
 
     /* asm 0x43d7cd-0x43d805: LIFE_MULT += 0.002; DRAG = LIFE_MULT*0.1;
      * ROT_Z += 0.03.  Engine ROT_Z is at slot+0x94 = dw 37. */
-    float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) + 0.002f;
+    float life_mult = spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) + 0.002f);  /* fstp [ebp-8] */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, life_mult);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,      life_mult * 0.1f);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
@@ -2851,7 +2851,7 @@ static rec_next_t body_0x26_or_0x2a(int i)
 
     /* asm 0x43d9fd-0x43da32: LIFE_MULT += 0.002; DRAG = LIFE_MULT*0.2;
      * ROT_Z += 0.03. */
-    float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) + 0.002f;
+    float life_mult = spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) + 0.002f);  /* fstp [ebp-8] */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, life_mult);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,      life_mult * 0.2f);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
@@ -2919,14 +2919,14 @@ static rec_next_t body_0x27(int i)
 
     if (flag == 2) {
         /* asm 0x43dadb-0x43db09: fade-out phase. */
-        float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) - 0.1f;
+        float life_mult = spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) - 0.1f);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, life_mult);
         if (life_mult < 0.0f) {
             scene1_records_b_tick_kill_slot(i);
         }
     } else if (flag == 1) {
         /* asm 0x43db12-0x43db5d: grow phase.  Clamp at 10.0. */
-        float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) + 0.3f;
+        float life_mult = spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) + 0.3f);   /* fstp [ebp-0xc] */
         if (life_mult > 10.0f) life_mult = 10.0f;
         slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, life_mult);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,      life_mult * 0.5f);

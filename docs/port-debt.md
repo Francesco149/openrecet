@@ -87,7 +87,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00434ceb | src/scene_guild.c:472 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
 | FUN_004427f1 | src/dungeon_flow.c:1423 | the +0x2bce2 story beat (the curtain |
-| FUN_00442cef | src/scene1_sim.c:373 | the run's end (FUN_00442c86, |
+| FUN_00442cef | src/scene1_sim.c:379 | the run's end (FUN_00442c86, |
 | FUN_0044b219 | src/scene1_postload.c:384 | the camera shake reset, DAT_073de3a0 = 45 |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:398 | its b924 == 0x276 consumer, scene0/sub8), |
 | FUN_0044e08f | src/dungeon_flow.c:1149 | the +0x2bce2 story beat's setup (the |
