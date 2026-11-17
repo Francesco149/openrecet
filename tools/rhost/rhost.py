@@ -872,7 +872,7 @@ def build_port():
     last held, so an edit without a manual make compared a stale port (once, so a long batch
     never picks up edits made while it runs)"""
     global _port_built
-    if not _port_built and not PREBUILT:
+    if not _port_built and not PREBUILT and not os.environ.get("RHOST_PORT_EXE"):   # a given exe: no build
         sh(["nix", "develop", "--command", "make", "-s", "-C", os.path.join(ROOT, "src"), "-j16"])
         _port_built = True
 
@@ -949,7 +949,8 @@ def run_port_wine(a, pdir_l, args):
     batch = os.path.basename(os.path.dirname(pdir_l))
     edir = os.path.join(WINE_ROOT, "port", batch)
     os.makedirs(edir, exist_ok=True)
-    shutil.copy2(os.path.join(ROOT, "build", "openrecet.exe"), os.path.join(edir, "openrecet.exe"))
+    # a parent (triage / gates) pins the exe it hashed: a rebuild during its batch changes nothing
+    shutil.copy2(port_exe(), os.path.join(edir, "openrecet.exe"))
     shutil.copy2(os.path.join(HERE, "recet.ini"), os.path.join(edir, "recet.ini"))
     # concurrent local runs share one wineserver: the port's singleton mutex would refuse the second
     env = dict(os.environ, WINEPREFIX=WINE_PREFIX, WINEDEBUG="-all", OPENRECET_NO_SINGLETON="1")
@@ -984,11 +985,16 @@ def xvfb_cmd():
         return ["xvfb-run", "-n", str(n), "-s", "-screen 0 1280x1024x24"], fd
     raise RuntimeError("no free X display number in 200..999")
 
+def port_exe():
+    """the local port exe: RHOST_PORT_EXE (an experiment build, or the one a parent pinned) else build/"""
+    return os.environ.get("RHOST_PORT_EXE") or os.path.join(ROOT, "build", "openrecet.exe")
+
+
 def port_dir():
     """Windows dir of the current port build + recet.ini (port\\<sha12>); a gates child takes its parent's"""
     if os.environ.get("RHOST_PORT_DIR"):
         return os.environ["RHOST_PORT_DIR"]
-    return f"{WROOT}\\port\\" + file_sha12(os.path.join(ROOT, "build", "openrecet.exe"), os.path.join(HERE, "recet.ini"))
+    return f"{WROOT}\\port\\" + file_sha12(port_exe(), os.path.join(HERE, "recet.ini"))
 
 
 def stage_port():
@@ -999,7 +1005,7 @@ def stage_port():
     if ssh_win(f"if (Test-Path '{pd}\\recet.ini') {{ 'present' }}; exit 0").strip() == "present":
         return
     ssh_win(f"New-Item -ItemType Directory -Force '{pd}.up' | Out-Null; exit 0")
-    scp(os.path.join(ROOT, "build", "openrecet.exe"), f"{WIN}:{pd.replace(chr(92), '/')}.up/openrecet.exe")
+    scp(port_exe(), f"{WIN}:{pd.replace(chr(92), '/')}.up/openrecet.exe")
     scp(os.path.join(HERE, "recet.ini"), f"{WIN}:{pd.replace(chr(92), '/')}.up/recet.ini")
     ssh_win(f"if (!(Test-Path '{pd}')) {{ Rename-Item '{pd}.up' (Split-Path '{pd}' -Leaf) }} "
             f"else {{ Copy-Item '{pd}.up\\*' '{pd}' -Force -ErrorAction SilentlyContinue; Remove-Item '{pd}.up' -Recurse -Force }}; exit 0")
@@ -1417,7 +1423,7 @@ def keep_port_exe():
     os.makedirs(PORT_EXES, exist_ok=True)
     dst = os.path.join(PORT_EXES, port_sha() + ".exe")
     if not os.path.exists(dst):
-        shutil.copy2(os.path.join(ROOT, "build", "openrecet.exe"), dst + ".tmp")
+        shutil.copy2(port_exe(), dst + ".tmp")
         os.replace(dst + ".tmp", dst)
     return dst
 
@@ -1549,7 +1555,8 @@ def cmd_triage(a):
     # a crash / infra failure is no verdict: those rows re-run until they give one
     todo = [n for n in names if a.refresh or db.get((n, keys[n]), {}).get("verdict", "error") in ("no-report", "error")]
     print(f"triage: port {port_sha()}, {len(names)} scenarios, {len(names) - len(todo)} cached rows")
-    env = dict(os.environ, RHOST_PREBUILT="1", RHOST_BIN_DIR=bin_dir(), RHOST_PORT_DIR=port_dir())
+    env = dict(os.environ, RHOST_PREBUILT="1", RHOST_BIN_DIR=bin_dir(), RHOST_PORT_DIR=port_dir(),
+               RHOST_PORT_EXE=keep_port_exe())
 
     def one(n):
         cmd = [sys.executable, os.path.abspath(__file__), "triage-one", n, "--target", a.target, "-j", "1",
@@ -1959,7 +1966,8 @@ def gates_parallel(a, rows):
         b.scenarios, b.only, b.refresh = sorted({r[1] for r in rows}), None, False
         cmd_golden(b)
     # the children run exactly the binaries staged here, whatever gets built meanwhile
-    env = dict(os.environ, RHOST_PREBUILT="1", RHOST_BIN_DIR=bin_dir(), RHOST_PORT_DIR=port_dir())
+    env = dict(os.environ, RHOST_PREBUILT="1", RHOST_BIN_DIR=bin_dir(), RHOST_PORT_DIR=port_dir(),
+               RHOST_PORT_EXE=keep_port_exe())
     t0 = time.time()
 
     def one(row):
