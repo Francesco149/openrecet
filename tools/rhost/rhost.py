@@ -125,6 +125,43 @@ def scp(src, dst, recursive=False):
         raise SystemExit(f"scp failed: {' '.join(cmd)}\n{r.stderr}")
 
 
+# ---------------------------------------------------------------- Windows disk guard
+# A full C: on the Windows box wedged its sshd sessions (owner, 2026-11-17): every ssh / scp hung, which looked like a
+# network or runner fault. So no Windows work starts below this much free space; the refusal tells the agent to stop
+# and have the orchestrator (or the owner) free space — never to retry, wait it out or quietly use another host.
+WIN_MIN_FREE_GB = float(os.environ.get("RHOST_WIN_MIN_FREE_GB", "30"))
+_disk_ok_at = {}
+
+
+def win_disk_refusal(why):
+    return (f"WINDOWS DISK GUARD — refusing to start work on {WIN}: {why}.\n"
+            "STOP: do not retry, do not wait, do not switch hosts to get around this. Report to the orchestrator "
+            "(the session that dispatched you; at the top level: the owner) that the Windows box needs disk space freed "
+            "before any further Windows run. Fixes for the orchestrator: `python3 tools/rhost/rhost.py prune` (old run dirs), "
+            "park / delete C:\\orc-rhost\\runs\\*-record-* dirs already synced, check other projects' C:\\*-rhost roots; "
+            f"threshold RHOST_WIN_MIN_FREE_GB={WIN_MIN_FREE_GB:g} (tools/rhost/README.md \"Disk guard\").")
+
+
+def win_disk_guard(host=None, ttl=600):
+    """SystemExit unless the Windows box's C: has ≥ WIN_MIN_FREE_GB free. Checked once per `ttl` s per process."""
+    host = host or WIN
+    if WIN_MIN_FREE_GB <= 0 or time.time() - _disk_ok_at.get(host, 0) < ttl:
+        return
+    try:
+        r = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host,
+                            "[math]::Floor((Get-PSDrive C).Free / 1MB)"], text=True, capture_output=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        raise SystemExit(win_disk_refusal("the free-space check got no answer in 60 s (a full disk wedges sshd)"))
+    m = re.search(r"^\s*(\d+)\s*$", r.stdout, re.M)
+    if r.returncode != 0 or not m:
+        err = "\n".join(l for l in r.stderr.splitlines() if not SSH_NOISE.search(l)).strip()
+        raise SystemExit(f"windows disk guard: could not read C: free space on {host} (rc {r.returncode}): {err[:300]}")
+    free_gb = int(m.group(1)) / 1024
+    if free_gb < WIN_MIN_FREE_GB:
+        raise SystemExit(win_disk_refusal(f"C: has {free_gb:.1f} GB free, below {WIN_MIN_FREE_GB:g} GB"))
+    _disk_ok_at[host] = time.time()
+
+
 def file_sha12(*paths):
     import hashlib
     h = hashlib.sha256()
@@ -161,6 +198,7 @@ PS_ADMIT = (
 
 def win_job(job_id, ps_path_win, timeout=7200, stream=True):
     """run C:\\...\\x.ps1 in the INTERACTIVE session through the queue runner"""
+    win_disk_guard()
     q = WROOT + "\\queue"
     ps = (f"Copy-Item '{ps_path_win}' '{q}\\{job_id}.tmp'; Move-Item '{q}\\{job_id}.tmp' '{q}\\{job_id}.job.ps1'; "
           f"while (!(Test-Path '{q}\\{job_id}.done')) {{ Start-Sleep -Milliseconds 200 }}; "
@@ -180,6 +218,7 @@ def cmd_stage(a):
     # content-addressed: bin\<sha12>\ is written once and never replaced, so nothing running is killed
     # or overwritten (the old in-place bin\rhost.exe upload had to kill in-flight batches first)
     bd = bin_dir()
+    win_disk_guard()
     present = ssh_win(f"New-Item -ItemType Directory -Force {WROOT}\\runs,{WROOT}\\queue | Out-Null; "
                       f"if ((Test-Path '{bd}\\v3proxy_d3d8.dll') -and (Test-Path '{bd}\\rhost.exe')) {{ 'present' }}; exit 0").strip()
     if present != "present":
@@ -691,6 +730,7 @@ def run_batch(a, runs, tag, fetch=("rhost.log",)):
         return run_batch_wine(a, runs, tag)
     if getattr(a, "target", "win") == "bunker":
         return bunker().run_batch(a, runs, tag, fetch)
+    win_disk_guard()   # before any ssh / scp of the batch: a full C: wedges sshd
     if not _pruned and PRUNE_HOURS > 0 and not PREBUILT:   # once per command: keep C: from filling up
         _pruned = True
         prune_win_runs()
@@ -1002,6 +1042,7 @@ def stage_port():
     The port reads recet.ini next to its exe: retail's (rhost's canonical) one — without it the port
     ran on its defaults (screen 0 = 640x480) and portshots compared an upscaled frame."""
     pd = port_dir()
+    win_disk_guard()
     if ssh_win(f"if (Test-Path '{pd}\\recet.ini') {{ 'present' }}; exit 0").strip() == "present":
         return
     ssh_win(f"New-Item -ItemType Directory -Force '{pd}.up' | Out-Null; exit 0")
@@ -1012,6 +1053,7 @@ def stage_port():
 
 
 def run_port_win(batch, pdir_l, pw, fetch):
+    win_disk_guard()
     if not PREBUILT:
         stage_port()
     # a golden stands in for the retail run: then runs\<batch> exists only here
@@ -2332,6 +2374,7 @@ def play_install(root):
 def cmd_session_install(a):
     """freeze the current rhost build as the launcher's, upload the session scripts, (re)create the Desktop
     shortcut; --save seeds play\\latest.sav"""
+    win_disk_guard()
     sha = play_install(PLAY)
     if a.save:
         src = save_arg(a.save)

@@ -213,6 +213,18 @@ STATE hooks (`sim_a`, `sim_b`) use `rh_shadow()` (snapshot .data + arena + alloc
 metadata → retail → restore → port/retail → compare; retail stays authoritative).
 Add a port function = one wrapper + one table row.
 
+## Disk guard (2026-11-17)
+
+A full C: on the Windows box wedged its sshd sessions: every ssh / scp hung, which looked like a network or runner
+fault. `win_disk_guard()` (rhost.py) reads C:'s free space (ssh, 10 s connect / 60 s cap; cached 10 min per process) before
+every Windows batch, port run, queue job, stage upload, `session-install` and `rd` Windows session, and refuses below
+`RHOST_WIN_MIN_FREE_GB` (default 30; `0` disables) with `WINDOWS DISK GUARD — refusing …`. A check that gets no answer
+refuses too. The refusal tells a subagent to stop and report; `rd` does not fall back to another host on it.
+**Orchestrator, to clear it:** `rhost.py prune` (run dirs older than `RHOST_PRUNE_HOURS`; `-record-` dirs are kept), then
+park or delete `C:\orc-rhost\runs\*-record-*` already synced, and look at the sibling projects' `C:\*-rhost` roots and
+`%TEMP%` (the Visual Studio installer cache, ~10 GB in 2026-11, is not ours). Audit 2026-11-17: C: 446 GB free; this
+project ~13.4 GB, nearly all in `runs\` (75 dirs back to 2026-10-13, mostly kept `-record-` runs).
+
 ## Windows plumbing
 
 - `ssh win` = Windows OpenSSH on cutestation:2222 (port 22 there is the WSL portproxy).

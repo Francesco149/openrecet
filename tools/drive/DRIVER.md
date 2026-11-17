@@ -249,6 +249,10 @@ rd eval R "actors(T == 10)" a0hp --at-frame 40650                               
 - Do not kill processes by name; `rd stop R` ends your session. Do not touch `C:\orc-rhost` or
   other projects' runners.
 - Do not commit; report instead.
+- **`WINDOWS DISK GUARD — refusing …`** from any `rd` / `rhost.py` command = the Windows box is low on disk (a full
+  C: wedges its sshd). Stop at once and make that your report: "the Windows box needs disk space freed before more
+  Windows runs". Do not retry, wait, prune, delete anything, or force another host (`RD_HOST=wine` / `bunker`) to get around it;
+  the orchestrator fixes the disk and re-dispatches you.
 - **Do not end your turn to wait.** Every time you stop with background work still running, your parent gets a
   notification, and short waits flood the owner with pings (a dozen an hour on the boss-rush runs). Wait INSIDE one
   command instead: run searches / play loops in the foreground with a long Bash timeout (up to 600000 ms), or start them

@@ -781,6 +781,7 @@ class NotAdmitted(SystemExit):
 def win_spawn(name, ld, rhost_args, wait, tag):
     """ld (a local dir with the session's files) → C:\\orc-rhost\\runs\\drive\\NAME; start rhost there detached, admitted;
     → (windows pid, its live port)"""
+    RH.win_disk_guard()   # a full C: wedges the box's sshd: refuse, and tell the agent to report it (no host fallback)
     exe = staged_exe("win")
     rd = f"{WIN_SESS}\\{name}"
     dst = f"{RH.WIN}:{WIN_SESS.replace(chr(92), '/')}/"

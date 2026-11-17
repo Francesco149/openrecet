@@ -26,6 +26,8 @@ Dense on purpose; auto-loads every session. **The repo is the source of truth**;
   `cutestation.soy:2222`): every rhost / rd command takes the host from it.
   sshd runs in session 0 (no desktop ⇒ no D3D), so GUI/D3D jobs go through the rhost
   queue runner (`tools/rhost/README.md`). IDA Pro 9.4 lives here (`C:\orc-ida\`).
+  A full C: wedges its sshd: every Windows run / rd session refuses below `RHOST_WIN_MIN_FREE_GB` (30)
+  free (`WINDOWS DISK GUARD`); a subagent reports it, the orchestrator frees space (README "Disk guard").
 - **bunker** — temporary NixOS box, `root@10.0.10.58` (`RHOST_BUNKER`; access is lost on reboot): rhost headless
   under wine in ONE bounded pool (6 G / 8 CPUs), only `/var/lib/orc-bunker/` + `orc-bunker-*` units
   (`tools/bunker/README.md`). Teardown: `python3 tools/bunker/bunker.py teardown`.
