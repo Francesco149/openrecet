@@ -142,7 +142,7 @@ _none_
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:829 | the engine frees the shop |
 | oob | 0x43e... | src/scene1_records_b_tick.c:3249 | types >= 64 read past DAT_005c23f0 into |
 | render-coupled | FUN_00409925 | src/scene1_player_ctrl.c:1739 | the menu, note, lecture and |
-| render-coupled | FUN_00457714 | src/scene1_walker_pass_init.c:520 | the movers (DAT_0438c150, |
+| render-coupled | FUN_00457714 | src/scene1_walker_pass_init.c:522 | the movers (DAT_0438c150, |
 | render-coupled | FUN_00474d92 | src/dungeon_flow.c:2641 | the |
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |
 | render-coupled | FUN_00485f8c | src/scene1_player_ctrl.c:1415 | the carried table's items (drawn |

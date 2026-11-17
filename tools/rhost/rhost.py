@@ -598,13 +598,15 @@ def run_batch_wine(a, runs, tag):
         log = os.path.join(bdir, runs[i][0], "rhost.log")
         so_path = os.path.join(bdir, runs[i][0], "rhost.stdout")
         so = open(so_path, "w")
+        xfd = None
         with admit_local(wait=4 * 3600, what=f"wine run {runs[i][0]}"):
             if getattr(a, "headless", False):   # fake devices: no X server at all (wine's null driver)
                 henv = {k: v for k, v in env.items() if k not in ("DISPLAY", "WAYLAND_DISPLAY")}
                 p = subprocess.Popen(["wine", exe] + argv, stdout=so, stderr=subprocess.DEVNULL, text=True, env=henv,
                                      start_new_session=True)
             else:
-                p = subprocess.Popen(["xvfb-run", "-a", "-s", "-screen 0 1280x1024x24", "wine", exe] + argv,
+                xv, xfd = xvfb_cmd()
+                p = subprocess.Popen(xv + ["wine", exe] + argv,
                                      stdout=so, stderr=subprocess.DEVNULL, text=True, env=env,
                                      start_new_session=True)
         # a finished run can hang in wine's process teardown: the RESULT line in its log is
@@ -618,6 +620,8 @@ def run_batch_wine(a, runs, tag):
                 os.killpg(p.pid, 9)
                 break
         so.close()
+        if xfd is not None:
+            os.close(xfd)
         out = open(so_path, errors="replace").read()
         if "RESULT" not in out and os.path.exists(log):   # killed before printing: take it from the log
             out += "\n" + "\n".join(l for l in open(log, errors="replace").read().splitlines() if l.startswith("RESULT"))
@@ -949,13 +953,36 @@ def run_port_wine(a, pdir_l, args):
     shutil.copy2(os.path.join(HERE, "recet.ini"), os.path.join(edir, "recet.ini"))
     # concurrent local runs share one wineserver: the port's singleton mutex would refuse the second
     env = dict(os.environ, WINEPREFIX=WINE_PREFIX, WINEDEBUG="-all", OPENRECET_NO_SINGLETON="1")
-    with open(os.path.join(pdir_l, "port.err"), "w") as err:
-        r = subprocess.run(["xvfb-run", "-a", "-s", "-screen 0 1280x1024x24", "wine",
-                            f"{WROOT}\\port\\{batch}\\openrecet.exe", *args],
-                           cwd=cwd, env=env, stdout=subprocess.DEVNULL, stderr=err, timeout=a.wine_timeout)
+    xv, xfd = xvfb_cmd()
+    try:
+        with open(os.path.join(pdir_l, "port.err"), "w") as err:
+            r = subprocess.run(xv + ["wine", f"{WROOT}\\port\\{batch}\\openrecet.exe", *args],
+                               cwd=cwd, env=env, stdout=subprocess.DEVNULL, stderr=err, timeout=a.wine_timeout)
+    finally:
+        os.close(xfd)
     print(f"port exit={r.returncode}")
     shutil.rmtree(edir, ignore_errors=True)
 
+
+
+def xvfb_cmd():
+    """xvfb-run argv with a display number of its own. `xvfb-run -a` picks the first number without an
+    X lock file, so parallel launches race onto one display (2026-11-17: three triage port runs shared :100;
+    the first to exit took its Xvfb down and the other two died with XIO errors, no split.txt). A claim =
+    an flock on /tmp/orc-xvfb/N held by the returned fd until the caller closes it (or dies)."""
+    import fcntl
+    os.makedirs("/tmp/orc-xvfb", exist_ok=True)
+    for n in range(200, 1000):
+        if os.path.exists(f"/tmp/.X{n}-lock"):
+            continue
+        fd = os.open(f"/tmp/orc-xvfb/{n}", os.O_CREAT | os.O_RDWR, 0o644)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            os.close(fd)
+            continue
+        return ["xvfb-run", "-n", str(n), "-s", "-screen 0 1280x1024x24"], fd
+    raise RuntimeError("no free X display number in 200..999")
 
 def port_dir():
     """Windows dir of the current port build + recet.ini (port\\<sha12>); a gates child takes its parent's"""
@@ -1519,7 +1546,8 @@ def cmd_triage(a):
                 x = json.loads(l); db[(x["scenario"], x["golden"])] = x
     # the row key = <kind>/v<N>/<scen>-<sha>: a headless and a real-device wine golden share the basename
     keys = {n: os.path.relpath(golden_dir(a, n, *scenario_inputs(n)), GOLDENS) for n in names}
-    todo = [n for n in names if a.refresh or (n, keys[n]) not in db]
+    # a crash / infra failure is no verdict: those rows re-run until they give one
+    todo = [n for n in names if a.refresh or db.get((n, keys[n]), {}).get("verdict", "error") in ("no-report", "error")]
     print(f"triage: port {port_sha()}, {len(names)} scenarios, {len(names) - len(todo)} cached rows")
     env = dict(os.environ, RHOST_PREBUILT="1", RHOST_BIN_DIR=bin_dir(), RHOST_PORT_DIR=port_dir())
 
