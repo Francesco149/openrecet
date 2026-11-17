@@ -76,6 +76,8 @@ int scene1_conversation_pose_apply(int32_t *player_rec, int32_t *comp_rec,
  * then skips scene1_conversation_pose_tick) */
 int  scene1_conversation_pose_story_tick(void);
 void scene1_conversation_pose_tick(void);
+/* the event arm's call: FUN_0048407f poses unconditionally (house, cc08 != 4) */
+void scene1_conversation_pose_tick_event(void);
 
 /* The FUN_0048407f tail the lean tick above does not run (bg-NPC pump +
  * companion spring-follow/wing emit + the unconditional db054++) — EVENT-ARM

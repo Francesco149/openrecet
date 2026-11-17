@@ -156,7 +156,7 @@ void scene1_ingame_transition_arm_tick(void)
     } else {
         party_aura_tick();                   /* FUN_00483e7b */
         if (!scene1_conversation_pose_story_tick())
-            scene1_conversation_pose_tick();
+            scene1_conversation_pose_tick_event();
         scene1_conversation_pose_release_pending(0);
         scene1_event_actor_tail_tick();
     }
@@ -207,7 +207,13 @@ static void house_master_tick(void)
      * selects FUN_0048670f (the live HOUSE branch) over the FUN_0048b3f6
      * variant.  Both gates open in HOUSE; W1 wires the entry (stub body). */
     scene1_player_ctrl_tick();
-    scene1_conversation_pose_release_pending(player_ctrl_b850_ran());
+    /* No forced release on the default arm: retail's actors leave the pose only
+     * when an owner rewrites them (FUN_0048b850 / FUN_0048a833 inside the
+     * controller above).  A default frame whose FUN_0048670f takes no walk
+     * (item-storage-l17 f201: b1c8 0 between two event scripts, cc08 1 →
+     * LABEL_675) keeps anims 6 / 4 — the port used to force anim 0 there.
+     * 1 = only drop the pending latch. */
+    scene1_conversation_pose_release_pending(1);
 
 
 }

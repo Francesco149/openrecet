@@ -142,6 +142,20 @@ int scene1_conversation_pose_story_tick(void)
     return 1;
 }
 
+/* 1 while the EVENT arm (FUN_004427d3) runs FUN_0048407f: retail's house branch then
+ * poses both actors whenever cc08 != 4 and work +0x2bcd8 == 0 (all_ida 93806: no
+ * dialogue-kind test) — not only in the prologue / tutorial scripts the
+ * intro-dialogue gate knows (item-storage-l17 f139: a crafted save's level-up event;
+ * the port left party +0x930 / +0x988 at anim 0) */
+static int s_event_frame = 0;
+
+void scene1_conversation_pose_tick_event(void)
+{
+    s_event_frame = 1;
+    scene1_conversation_pose_tick();
+    s_event_frame = 0;
+}
+
 void scene1_conversation_pose_tick(void)
 {
     s_anims_ticked = 0;
@@ -173,7 +187,7 @@ void scene1_conversation_pose_tick(void)
      * again after the iv1_2 load — mirroring retail's 1-frame talk-flag blip.  A
      * continuous _running() gate would instead pose straight through and fire only
      * ONE CONV_POSE_START, losing that structure.) */
-    int posing = scene1_intro_dialogue_posing();
+    int posing = scene1_intro_dialogue_posing() || s_event_frame;
 
     /* Hold the pose across the iv2_5→iv2_6 idle beat (retail's DAT_0438b928 /
      * DAT_0438b924 "Recette looks up at Tear" pause between the last day-1-evening
