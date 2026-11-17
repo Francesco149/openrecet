@@ -586,9 +586,9 @@ static void lab_b205_tail(int i, int32_t type, float vel_z)
             float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
             float vy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
             float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
-            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, px + vx);
-            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, py + vy);
-            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pz + vz);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)px + vx));
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)py + vy));
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)pz + vz));
         }
         /* Anchor back using the FINAL vel (state machine may have
          * mutated it; in our no-op hook setup it has not). */
@@ -598,9 +598,12 @@ static void lab_b205_tail(int i, int32_t type, float vel_z)
         float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
         float vy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
         float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, px - (float)iter_count * vx);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, py - (float)iter_count * vy);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pz - (float)iter_count * vz);
+        /* 0x43b2b7..: pos − n·vel unrounded, one rounding at the store (gnu11's
+         * fast excess precision rounded the product: crystal-1f-20f f6296) */
+        const long double n = iter_count;
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)px - n * vx));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)py - n * vy));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)pz - n * vz));
     }
 
     if (age == age_kill) {
@@ -705,12 +708,14 @@ static rec_next_t body_0x1e(int i, int32_t type)
         float alt_x = slot_get_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X);
         float alt_y = slot_get_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y);
         float alt_z = slot_get_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sinf(ang) * 1.5f + alt_x);
+        /* 0x43b08f..0x43b125: each CRT result rounds to float (plain float C
+         * was 1 ulp off in POS_Z: crystal-1f-20f f6296) */
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)crt_sinf(ang) * 1.5f + alt_x));
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, alt_y);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, cosf(ang) * 1.5f + alt_z);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(ang));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)crt_cosf(ang) * 1.5f + alt_z));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, crt_sinf(ang));
         slot_set_i(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0);
-        velz = cosf(ang);
+        velz = crt_cosf(ang);
     }
 
     lab_b205_tail(i, type, velz);
@@ -3540,28 +3545,24 @@ static rec_next_t body_0x53(int i)
         }
     }
 
-    /* asm 0x43e5f7-0x43e699: LIFE_MULT life curve.  edi = 45. */
-    float life_mult = 0.005f;
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, life_mult);
+    /* asm 0x43e5f7-0x43e6e8: the LIFE_MULT curve, x87 as retail — every step
+     * stores LIFE_MULT and reads it back from the slot (the port's unrounded
+     * local made DRAG 1 ulp off: dungeon1-charme f65091).  edi = 45. */
+    const int ramp_down_threshold = kill_age - 45;
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.005f);
     if (age >= 45) {
-        /* Ramp 0.005 → 0.015 over AGE 45..55, then sin-modulated. */
-        float lm_ramp = 0.005f + (float)(age - 45) * 0.001f;
-        if (lm_ramp > 0.015f) lm_ramp = 0.015f;
-        /* asm 0x43e655-0x43e699: sin modulation around peak. */
-        float ang = (float)(age - 45) * 0.04f;
-        float mod = sinf(ang) * 0.02f + 1.0f;
-        life_mult = lm_ramp * mod;
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, life_mult);
+        const float up = spill32((long double)spill32((long double)(age - 45)) * 0.001f + 0.005f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, up);
+        if (up > 0.015f) slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.015f);
+        const float ang = spill32((long double)spill32((long double)(age - 45)) * 0.04f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT,
+                   spill32(((long double)crt_sinf(ang) * 0.02f + 1.0f) *
+                           slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT)));
     }
-
-    /* asm 0x43e69f-0x43e6e8: late-life ramp down (AGE >= kill_age-45). */
-    int ramp_down_threshold = kill_age - 45;
     if (age >= ramp_down_threshold) {
-        float lm_down = 0.015f
-                        - (float)(age - ramp_down_threshold) * 0.001f;
-        if (lm_down < 0.0f) lm_down = 0.0f;
-        life_mult = lm_down;
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, life_mult);
+        const float down = spill32(0.015f - (long double)spill32((long double)(age - ramp_down_threshold)) * 0.001f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, down);
+        if (down < 0.0f) slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.0f);
     }
 
     /* asm 0x43e6ea-0x43e708: AGE < 30 → vel damping. */
@@ -3583,8 +3584,8 @@ static rec_next_t body_0x53(int i)
 
     /* asm 0x43e71d-0x43e749: AGE in (45, kill_age-45) → DRAG + SM. */
     if (age > 45 && age < ramp_down_threshold) {
-        float drag = life_mult * 1.9f / 0.015f;
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, drag);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,
+                   spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) * 1.9f / 0.015f));
         state_machine_call(slot_base(i));
     }
 
