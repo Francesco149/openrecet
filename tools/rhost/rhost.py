@@ -1442,7 +1442,7 @@ def triage_one(a, name):
     rd = os.path.join(bdir, name)
     r = res[name]
     frames = int(r.get("frame", "0") or 0)
-    row = {"scenario": name, "golden": os.path.basename(g), "frames": frames, "port": port_sha(),
+    row = {"scenario": name, "golden": os.path.relpath(g, GOLDENS), "frames": frames, "port": port_sha(),
            "retail_complete": r.get("complete"), "retail_status": r.get("status")}
     if not os.path.exists(os.path.join(rd, "trace.flat.jsonl")):
         row.update(verdict="no-flat", sig="retail wrote no flat trace (a legacy op rhost can't replay)")
@@ -1517,14 +1517,15 @@ def cmd_triage(a):
         for l in open(triage_db_path()):
             if l.strip():
                 x = json.loads(l); db[(x["scenario"], x["golden"])] = x
-    keys = {n: os.path.basename(golden_dir(a, n, *scenario_inputs(n))) for n in names}
+    # the row key = <kind>/v<N>/<scen>-<sha>: a headless and a real-device wine golden share the basename
+    keys = {n: os.path.relpath(golden_dir(a, n, *scenario_inputs(n)), GOLDENS) for n in names}
     todo = [n for n in names if a.refresh or (n, keys[n]) not in db]
     print(f"triage: port {port_sha()}, {len(names)} scenarios, {len(names) - len(todo)} cached rows")
     env = dict(os.environ, RHOST_PREBUILT="1", RHOST_BIN_DIR=bin_dir(), RHOST_PORT_DIR=port_dir())
 
     def one(n):
         cmd = [sys.executable, os.path.abspath(__file__), "triage-one", n, "--target", a.target, "-j", "1",
-               "--wine-timeout", str(a.wine_timeout)]
+               "--wine-timeout", str(a.wine_timeout)] + (["--headless"] if a.headless else [])
         r = subprocess.run(cmd, capture_output=True, text=True, env=env)
         m = re.search(r"^TRIAGE (\{.*\})\s*$", r.stdout, re.M)
         if m:
