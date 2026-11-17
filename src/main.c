@@ -39,6 +39,7 @@
 #include "render_quad.h"
 #include "rng.h"
 #include "rng_golden.h"
+#include "watch_write.h"
 #include "fade.h"
 #include "nowloading.h"
 #include "dungeon_hud.h"
@@ -432,6 +433,9 @@ static unsigned         g_play_se_interval_ms = 250;   /* gap between fires */
  *   --block-dump F[,F..] <file>  after tick F write the retail-layout blocks
  *                                (state_va_block_dump; rhost.py portblock);
  *                                several frames write <file>.F each.
+ *   --watch-write VA[:FROM:TO]   stderr `ww fN eip=.. old->new` for every
+ *                                write to the port mirror of retail dword
+ *                                VA in ticks FROM..TO (DR0; src/watch_write.h).
  *   --model-dump F <file>        after tick F, every loaded model's frame
  *                                tree (rhost.py portframes).
  *   --fx-census <file>           after each tick, "F A|B type" for the
@@ -2421,6 +2425,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
                  * boundary right before the tick — the same point rhost resolves
                  * retail's (tools/rhost DEFER), so loads align by frame number. */
                 worker_load_run_deferred();
+                watch_write_tick(tick_label());
                 if (input_harness_driven()) {
                     uint32_t vms = tick_label() * 17u;
                     tick_step_with_now(vms,
@@ -4027,6 +4032,10 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 lstrcpynA(save_wd_buf, val, (int)sizeof(save_wd_buf));
                 g_save_write_dir = save_wd_buf;
             }
+        } else if (lstrcmpA(tok, "--watch-write") == 0) {
+            char *val = strtok(NULL, " ");
+            if (!val || watch_write_parse(val) != 0)
+                fprintf(stderr, "openrecet: --watch-write VA[:FROM:TO] (hex VA, ticks)\n");
         } else if (lstrcmpA(tok, "--state-va") == 0) {
             char *val = strtok(NULL, " ");
             uint32_t bad = 0;

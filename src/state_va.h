@@ -26,4 +26,7 @@ void state_va_block_dump(const char *path, uint32_t frame);
 /* FNV-1a of the retail-layout block VA..VA+LEN as --block-dump writes it (rng_golden's state check) */
 uint32_t state_va_block_hash(uint32_t va, uint32_t len);
 
+/* the port's storage of the retail dword at VA (layout blocks, work banks), NULL if none */
+int32_t *state_va_mirror_addr(uint32_t va);
+
 #endif /* OPENRECET_STATE_VA_H */

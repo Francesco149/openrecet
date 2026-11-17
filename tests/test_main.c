@@ -1075,6 +1075,7 @@ struct test_case {
     X(state_va_logs_selected_in_order) \
     X(state_va_rejects_unmapped) \
     X(state_va_keeps_outer_strtok) \
+    X(state_va_block_hash_pointer_fields_only) \
     X(worker_load_case_count_is_seventeen) \
     X(worker_load_reset_zeroes_all_state) \
     X(worker_load_begin_raises_busy_and_nowloading) \

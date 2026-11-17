@@ -12,6 +12,7 @@
 #include "dungeon_party.h"
 #include "scene1_combat_sm.h"
 #include "scene1_records.h"
+#include "scene1_records_c_tick.h"   /* SCENE1_RECORDS_C_OFF_OWNER */
 #include "record_hit.h"
 #include "actor_table.h"
 #include "customer_service.h"
@@ -566,6 +567,18 @@ static const int32_t *layout_dword(uint32_t va)
     return NULL;
 }
 
+/* the port's storage of retail dword VA (layout blocks + the work banks), or NULL */
+int32_t *state_va_mirror_addr(uint32_t va)
+{
+    const int32_t *p = layout_dword(va);
+    if (!p && va >= WORK_BANK_VA && va < WORK_BANK_VA + WORK_BANKS * WORK_BANK_SIZE && va % 4 == 0) {
+        uint32_t rel = va - WORK_BANK_VA;
+        const uint32_t *w = save_work_dwords_at((int)(rel / WORK_BANK_SIZE));
+        if (w) p = (const int32_t *)(const void *)&w[(rel % WORK_BANK_SIZE) / 4];
+    }
+    return (int32_t *)(uintptr_t)p;
+}
+
 typedef struct { uint32_t va; int32_t (*get)(void); } sel_t;
 static sel_t s_sel[64];
 static int s_nsel;
@@ -696,21 +709,36 @@ static uint32_t to_retail_ptr(uint32_t v)
     return v;
 }
 
+/* a block dword as --block-dump writes it: the port's host pointer at a known pointer
+ * field = its retail VA (records B owners +0x10 / +0x14, records C owner +0x48); every
+ * other dword raw.  Translating by value range alone rewrote any int / float whose bits
+ * fell in a block's host range (obsidian-3f-5f-pumpkin f3255: actor #35 +0x3fc, subnormal
+ * 0x0056f155 → 0x79e545, a false state split) */
+static uint32_t block_dword_out(uint32_t va, uint32_t v)
+{
+    if (va >= 0x69324b0u && va < 0x69324b0u + SCENE1_RECORDS_B_COUNT * SCENE1_RECORDS_B_STRIDE * 4u) {
+        const uint32_t d = (va - 0x69324b0u) / 4 % SCENE1_RECORDS_B_STRIDE;
+        return d == SCENE1_RECORDS_B_OFF_OWNER_A || d == SCENE1_RECORDS_B_OFF_OWNER_B ? to_retail_ptr(v) : v;
+    }
+    if (va >= 0x6956cb0u && va < 0x6956cb0u + SCENE1_RECORDS_C_COUNT * SCENE1_RECORDS_C_STRIDE * 4u)
+        return (va - 0x6956cb0u) / 4 % SCENE1_RECORDS_C_STRIDE == SCENE1_RECORDS_C_OFF_OWNER ? to_retail_ptr(v) : v;
+    return v;
+}
+
 /* the --rng-golden state check: FNV-1a over the block's dwords as --block-dump writes
- * them (a port pointer into a block = its retail VA; no mirror = 0), rhost's
- * --tick-hash on the same VAs */
+ * them (block_dword_out; no mirror = 0), rhost's --tick-hash on the same VAs */
 uint32_t state_va_block_hash(uint32_t va, uint32_t len)
 {
     uint32_t h = 2166136261u;
     const int32_t *base = layout_dword(va);
     /* one contiguous mirror (every k_blocks block): no per-dword lookup */
     if (base && len >= 4 && layout_dword(va + len - 4) == base + (len / 4 - 1)) {
-        for (uint32_t o = 0; o < len / 4; o++) { h ^= to_retail_ptr((uint32_t)base[o]); h *= 16777619u; }
+        for (uint32_t o = 0; o < len / 4; o++) { h ^= block_dword_out(va + 4 * o, (uint32_t)base[o]); h *= 16777619u; }
         return h;
     }
     for (uint32_t o = 0; o + 4 <= len; o += 4) {
         const int32_t *p = layout_dword(va + o);
-        h ^= p ? to_retail_ptr((uint32_t)*p) : 0u; h *= 16777619u;
+        h ^= p ? block_dword_out(va + o, (uint32_t)*p) : 0u; h *= 16777619u;
     }
     return h;
 }
@@ -744,7 +772,7 @@ void state_va_block_dump(const char *path, uint32_t frame)
         put32(fp, k_blocks[k].len);
         for (uint32_t o = 0; o < k_blocks[k].len; o += 4) {
             const int32_t *p = layout_dword(k_blocks[k].va + o);
-            put32(fp, p ? to_retail_ptr((uint32_t)*p) : 0u);
+            put32(fp, p ? block_dword_out(k_blocks[k].va + o, (uint32_t)*p) : 0u);
         }
     }
     for (uint32_t k = 0; k < nf; k++) {
