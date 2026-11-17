@@ -252,13 +252,14 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     `--tick-hash`; dobj, mapcol_objs, drop, party, actors, popup, records B / C — portblock-identical at 3 frames of crystal-1f-20f);
     the port's `--rng-golden` splits on the first mismatch → triage `state: BLOCK differs, RNG identical`, repro `portblock --at F-1,F`.
     Trial (wine, 8): 5 identical on every block every tick; found (1) Continue re-ran FUN_00435c98 at the fade-end commit → equip sums
-    DAT_056db0ac..b8 wrong f137..f335 (fixed 884e23e3; guild-roster-8 identical); (2) ★ **subnormal velocity**: actor +0x3fc / +0x404
-    decaying below FLT_MIN — retail = prev × 0.82 exactly, the port = retail + 0x22f3f0 (bits) in BOTH obsidian-3f-5f-pumpkin f3255
-    (#35 +0x3fc, prev 0x6a0717) and crown-slime-arms f36168 (#0 +0x404); RNG-invisible. Under `portstate` (--state-va) the port's value
-    is RIGHT (5697877 at f3255) — under `--rng-golden` / `--block-dump` wrong: a run-flag-dependent float path (suspect SSE MXCSR
-    FTZ/DAZ in math3d.c's D3DX mirror vs x87, or a GL-driver CW / MXCSR change; log MXCSR on both sides). Expect most dungeon rows to
-    hit it: fix before the corpus-wide v2 triage. Then: v2 goldens for the whole corpus (Windows), `headless-check` needs v2 win
-    goldens first (none yet).
+    DAT_056db0ac..b8 wrong f137..f335 (fixed 884e23e3; guild-roster-8 identical); (2) the "subnormal velocity" was the
+    check's own false positive (f096e352): the dump / hash rewrote ANY dword whose bits fell in a port block's host range
+    as a retail pointer (actor +0x3fc 0x0056f155 → 0x79e545); now only the records B / C owner fields translate →
+    crown-slime-arms identical every block; (3) records B type 0x1f DRAG 1 ulp (unrounded LIFE_MULT, 201540ae) →
+    obsidian-3f-5f-pumpkin identical every block + save. Tools: port `--watch-write VA[:FROM:TO]` (DR0, names the
+    writer; addr2line on the staged exe); goldens keyed by behaviour (`goldens/headless/` = bunker ≡ wine --headless,
+    a26d9ec3). ◐ v2 goldens corpus-wide on bunker (185), then `triage --target wine --headless` over the corpus;
+    `headless-check` needs v2 win goldens first (none yet; the Windows box was unreachable 2026-11-17).
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; **minion slowdowns + exhaustion: `ahriman-exhaust`, `ohm-exhaust` (2026-11-16)
