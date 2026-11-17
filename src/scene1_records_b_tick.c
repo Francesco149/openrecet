@@ -1846,10 +1846,13 @@ static rec_next_t body_0x71_72_7d(int i, int32_t type)
  */
 static rec_next_t body_0x1f(int i)
 {
-    float life_mult = slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) + 0.03f;
+    /* fstps / flds: the sum rounds to float, DRAG reads LIFE_MULT back from the slot
+     * (the port's unrounded register made DRAG 1 ulp off: obsidian-3f-5f-pumpkin f4781) */
+    float life_mult = spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) + 0.03f);
     if (life_mult > 1.5f) life_mult = 1.5f;
     slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, life_mult);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, life_mult * 0.1f - 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,
+               spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT) * 0.1f - 0.5f));
 
     state_machine_call(slot_base(i));
 
