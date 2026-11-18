@@ -1616,9 +1616,9 @@ int test_records_b_spawn_entity_30_yaw_branch(void)
      * POS via sin/cos(0.31415927 - 0):
      *   sin(0.31415927) ≈ 0.30902
      *   cos(0.31415927) ≈ 0.95106
-     *   POS_X = sin*1.5 + owner+0x38 = 0.46353 + 100 = 100.46353
+     *   POS_X = cos*1.5 + owner+0x38 = 1.42659 + 100 = 101.42659  (retail 0x44461c)
      *   POS_Y = owner+0x3c + 1.5 = 201.5
-     *   POS_Z = owner+0x40 - cos*1.5 = 300 - 1.42659 = 298.57341
+     *   POS_Z = owner+0x40 - sin*1.5 = 300 - 0.46353 = 299.53647  (0x444657)
      * DRAG=20, ROT_Z in [0, 2π), AUX_C8=1. */
     reset_world();
     seed_owner_a_yaw();
@@ -1626,10 +1626,10 @@ int test_records_b_spawn_entity_30_yaw_branch(void)
 
     T_ASSERT_EQ_I(slot_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0x30);
     T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_X),
-                    sinf(0.31415927f) * 1.5f + 100.0f));
+                    cosf(0.31415927f) * 1.5f + 100.0f));
     T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Y), 201.5f));
     T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_POS_Z),
-                    300.0f - cosf(0.31415927f) * 1.5f));
+                    300.0f - sinf(0.31415927f) * 1.5f));
     T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_X), 0.0f));
     T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Y), 0.0f));
     T_ASSERT(APPROX(slot_f(0, SCENE1_RECORDS_B_OFF_VEL_Z), 0.7f));
@@ -1647,11 +1647,11 @@ int test_records_b_spawn_entity_30_people_branch_normalizes_vel(void)
     reset_world();
     seed_owner_a_yaw();
     owner_write_i(g_owner_a, 0xea0, 3);
-    /* Spawn POS (computed above) ≈ (100.46, 201.5, 298.57).
+    /* Spawn POS (computed above) ≈ (101.43, 201.5, 299.54).
      * Pick people-pos that gives a known unit vec3. */
-    float pos_x = sinf(0.31415927f) * 1.5f + 100.0f;
+    float pos_x = cosf(0.31415927f) * 1.5f + 100.0f;
     float pos_y = 201.5f;
-    float pos_z = 300.0f - cosf(0.31415927f) * 1.5f;
+    float pos_z = 300.0f - sinf(0.31415927f) * 1.5f;
     g_scene1_people[3].pos[0] = pos_x + 3.0f;
     g_scene1_people[3].pos[1] = pos_y + 0.0f;
     g_scene1_people[3].pos[2] = pos_z + 4.0f;
@@ -1672,9 +1672,9 @@ int test_records_b_spawn_entity_30_people_branch_zero_distance_keeps_vel(void)
     reset_world();
     seed_owner_a_yaw();
     owner_write_i(g_owner_a, 0xea0, 4);
-    g_scene1_people[4].pos[0] = sinf(0.31415927f) * 1.5f + 100.0f;
+    g_scene1_people[4].pos[0] = cosf(0.31415927f) * 1.5f + 100.0f;
     g_scene1_people[4].pos[1] = 201.5f;
-    g_scene1_people[4].pos[2] = 300.0f - cosf(0.31415927f) * 1.5f;
+    g_scene1_people[4].pos[2] = 300.0f - sinf(0.31415927f) * 1.5f;
 
     scene1_record_b_spawn_entity(g_owner_a, 0x30, 4);
 
@@ -2924,10 +2924,10 @@ int test_records_b_spawn_npc_34_eight_particle_player_target(void)
 int test_records_b_spawn_npc_34_alt_pos_player_offset(void)
 {
     /* Frame counter 0 → frame_table[k] = {-3,-1,-4,2,1,3,-2,4}.
-     * neg_ang = 0; sin(0)=0, cos(0)=1.
-     * ALT_POS_X (dw 32) = 0 * radius + player.x = player.x = 50.
+     * neg_ang = 0; sin(0)=0, cos(0)=1.  Retail 0x446d03 / 0x446d35:
+     * ALT_POS_X (dw 32) = cos * radius + player.x = radius + 50.
      * ALT_POS_Y (dw 33) = player.y + 2 = 62.
-     * ALT_POS_Z (dw 34) = 1 * radius + player.z. */
+     * ALT_POS_Z (dw 34) = sin * radius + player.z = player.z = 70. */
     reset_world();
     seed_owner_b_420_family(0, 0.0f, 0);
     g_scene1_player_pos[0] = 50.0f;
@@ -2943,9 +2943,9 @@ int test_records_b_spawn_npc_34_alt_pos_player_offset(void)
         float radius  = (float)frame_table[tbl_idx] * 5.0f;
         if (radius <= 0.0f) radius += 3.0f;
         else                radius -= 3.0f;
-        T_ASSERT(APPROX(slot_f(k, 32), 50.0f));
+        T_ASSERT(APPROX(slot_f(k, 32), radius + 50.0f));
         T_ASSERT(APPROX(slot_f(k, 33), 62.0f));
-        T_ASSERT(APPROX(slot_f(k, 34), radius + 70.0f));
+        T_ASSERT(APPROX(slot_f(k, 34), 70.0f));
     }
     return 0;
 }
@@ -2954,7 +2954,7 @@ int test_records_b_spawn_npc_34_frame_counter_rotates_table(void)
 {
     /* Advance g_sim_frame_count by 1 → frame_table picker shifts by 1.
      * Slot 0's tbl_idx becomes 1 → frame_table[1] = -1 → radius =
-     * -1*5 + 3 = -2; cos(0)*-2 + 70 = 68. */
+     * -1*5 + 3 = -2; ALT_POS_X = cos(0)*-2 + 50 = 48. */
     reset_world();
     seed_owner_b_420_family(0, 0.0f, 0);
     g_scene1_player_pos[0] = 50.0f;
@@ -2965,7 +2965,7 @@ int test_records_b_spawn_npc_34_frame_counter_rotates_table(void)
     scene1_record_b_spawn_npc(g_owner_b, 0x34, 0);
 
     /* Slot 0: tbl_idx=(1+0)%8=1; frame_table[1]=-1; radius=-2. */
-    T_ASSERT(APPROX(slot_f(0, 34), 68.0f));
+    T_ASSERT(APPROX(slot_f(0, 32), 48.0f));
     return 0;
 }
 

@@ -345,6 +345,13 @@ static int init_entity_82(int i, const void *owner, int type, int flag,
 
 #define B_TWO_PI_F 6.2831855f
 
+/* Retail's NPC bend: fild int → fstp m32 local → fmul 2π → fdiv 8 (the caller
+ * stores the result to a float slot / local: one more m32 rounding). */
+static inline float b_bend(int32_t v)
+{
+    return spill32((long double)spill32((long double)v) * B_TWO_PI_F / 8.0f);
+}
+
 /* Drift cluster — types 2, 3, 4, 0x22, 0x54, 0x67 (engine L41594-41621
  * + LAB_004449b0/c1 + LAB_00443dbe tail).  Shared body — per-type SCALE_X
  * override is the only variation.
@@ -402,7 +409,7 @@ static int init_entity_drift_cluster(int i, const void *owner, int type,
 
     /* L41621 → LAB_004449b0: random ROT_Z. */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
-               rng_next_unit() * B_TWO_PI_F);
+               spill32((long double)rng_next_unit() * B_TWO_PI_F));
     /* LAB_004449c1: DRAG = 20.0. */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 20.0f);
     /* LAB_00443dbe: AUX_C8 = 1. */
@@ -455,21 +462,24 @@ static int init_entity_cluster_a(int i, const void *owner, int type,
         3.3215928f,    /* π + 0.18 */
         2.9615927f,    /* π - 0.18 */
     };
-    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
-    float local_c = bend;
-    if (part_idx >= 0 && part_idx < 8) local_c += shifts[part_idx];
+    /* x87 as retail 0x4452ab..0x4455e4: local_c is a float local [ebp-8]
+     * (bend, then ± the part's shift, each step → m32); every CRT sin / cos
+     * of (double)local_c → m32 before ·k (+ owner). */
+    float local_c = b_bend(owner_read_i(owner, 0x948));
+    if (part_idx >= 1 && part_idx < 8)
+        local_c = spill32((long double)local_c + shifts[part_idx]);
 
     float ox = owner_read_f(owner, 0x20);
     float oy = owner_read_f(owner, 0x24);
     float oz = owner_read_f(owner, 0x28);
 
-    float sc = sinf(local_c);
-    float cc = cosf(local_c);
+    const float sc = crt_sinf(local_c);
+    const float cc = crt_cosf(local_c);
 
     /* L41293-41297: default pos with *0.3 jitter + +0.7y lift. */
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sc * 0.3f + ox);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + 0.7f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, cc * 0.3f + oz);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)sc * 0.3f + ox));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)oy + 0.7f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)cc * 0.3f + oz));
 
     /* L41298-41300: 0x53 sets POS_Y from owner+0x24 with NO +0.7 lift.
      * Order matters — the main-6 override below would clobber if 0x53
@@ -482,11 +492,9 @@ static int init_entity_cluster_a(int i, const void *owner, int type,
     int is_main6 = (type == 0x4d || type == 0x4e || type == 0x4f ||
                     type == 0x50 || type == 0xa5 || type == 0xa6);
     if (is_main6) {
-        float sc2 = sinf(local_c);
-        float cc2 = cosf(local_c);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sc2 * 0.8f + ox);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + 1.4f);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, cc2 * 0.8f + oz);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)sc * 0.8f + ox));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)oy + 1.4f));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)cc * 0.8f + oz));
     }
 
     /* L41310-41336: per-type SCALE_X. */
@@ -526,8 +534,8 @@ static int init_entity_cluster_a(int i, const void *owner, int type,
     }
 
     /* L41377-41381: VEL_X/Z = sin/cos(local_c) * local_10. */
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(local_c) * local_10);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(local_c) * local_10);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sc * local_10));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)cc * local_10));
 
     /* L41394-41396: ROT_X = local_c; DRAG = 0.5; AUX_C8 = 1. */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, local_c);
@@ -614,23 +622,26 @@ static int init_entity_mega_cluster_a(int i, const void *owner, int type,
 {
     (void)flag;
 
+    /* x87 as retail 0x444d01..0x4450d2: local_c is a float local [ebp-8];
+     * every CRT sin / cos result → m32 before ·k (+ owner); pos / alt-pos are
+     * stored, then the mode dispatch re-reads them from the slot. */
     int   npc_idx = owner_read_i(owner, 0x948);
-    float bend    = (float)npc_idx * B_TWO_PI_F / 8.0f;
-    float local_c = bend;
+    float local_c = b_bend(npc_idx);
+    const float bend = local_c;
 
     float ox = owner_read_f(owner, 0x20);
     float oy = owner_read_f(owner, 0x24);
     float oz = owner_read_f(owner, 0x28);
 
     /* L41653-41661: default pos + alt-pos with sin/cos(bend). */
-    float sc_b = sinf(bend);
-    float cc_b = cosf(bend);
-    float pos_x = sc_b * 1.2f + ox;
-    float pos_y = oy + 1.3f;
-    float pos_z = cc_b * 1.2f + oz;
-    float alt_x = sc_b * 0.8f + ox;
-    float alt_y = oy + 1.3f;
-    float alt_z = cc_b * 0.8f + oz;
+    const float sc_b = crt_sinf(bend);
+    const float cc_b = crt_cosf(bend);
+    float pos_x = spill32((long double)sc_b * 1.2f + ox);
+    float pos_y = spill32((long double)oy + 1.3f);
+    float pos_z = spill32((long double)cc_b * 1.2f + oz);
+    float alt_x = spill32((long double)sc_b * 0.8f + ox);
+    float alt_y = spill32((long double)oy + 1.3f);
+    float alt_z = spill32((long double)cc_b * 0.8f + oz);
 
     /* L41662-41664: 0x7a swaps local_c to owner+0xea4 AFTER pos writes. */
     if (type == 0x7a) local_c = owner_read_f(owner, 0xea4);
@@ -638,14 +649,14 @@ static int init_entity_mega_cluster_a(int i, const void *owner, int type,
     /* L41665-41679: 3-way (owner+0x948) dispatch — modifies pos + alt_pos
      * x/z based on the NPC's facing mode. */
     if (npc_idx == 0) {
-        pos_x -= 0.41f;
-        alt_x -= 0.41f;
+        pos_x = spill32((long double)pos_x - 0.41f);
+        alt_x = spill32((long double)alt_x - 0.41f);
     } else if (npc_idx == 4) {
-        pos_x += 0.41f;
-        alt_x += 0.41f;
+        pos_x = spill32((long double)pos_x + 0.41f);
+        alt_x = spill32((long double)alt_x + 0.41f);
     } else {
-        pos_z -= 0.1f;
-        alt_z -= 0.1f;
+        pos_z = spill32((long double)pos_z - 0.1f);
+        alt_z = spill32((long double)alt_z - 0.1f);
     }
 
     /* Commit pos + alt-pos. */
@@ -659,15 +670,17 @@ static int init_entity_mega_cluster_a(int i, const void *owner, int type,
     /* L41680: angle-table mod 32.  owner+0xe3c is a per-entity sub-frame
      * counter (no global stand-in — read directly from owner). */
     uint32_t uvar9 = (uint32_t)(owner_read_i(owner, 0xe3c) + part_idx) & 0x1f;
-    float    fVar2 = (float)((int)(uvar9 & 7) - 4);
-    float    fVar3 = (float)((int)uvar9 / 8);
+    /* fild → m32 locals [ebp-0x20] / [ebp-0x10] */
+    const float fVar2 = spill32((long double)((int)(uvar9 & 7) - 4));
+    const float fVar3 = spill32((long double)((int)uvar9 / 8));
 
-    /* L41681-41689: default tail state. */
+    /* L41681-41689: default tail state.  Each ROT_X below is one x87 chain
+     * (fVar3·k + fVar2·k)·π + local_c, rounded once at the store. */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.3f);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,      0.5f);
     float local_10 = 0.18f;
     slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8, 1);
-    float rot_x = (fVar2 * 0.05f + fVar3 * 0.0125f) * 3.1415927f + local_c;
+    float rot_x = spill32(((long double)fVar3 * 0.0125f + (long double)fVar2 * 0.05f) * 3.1415927f + local_c);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
 
@@ -675,7 +688,7 @@ static int init_entity_mega_cluster_a(int i, const void *owner, int type,
     if (type == 0x7e) {
         slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.4f);
         local_10 = 0.25f;
-        rot_x    = (rng_next_unit() - 0.5f) * 2.1991148f + local_c;
+        rot_x    = spill32(((long double)rng_next_unit() - 0.5f) * 2.1991148f + local_c);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x);
     }
 
@@ -683,39 +696,41 @@ static int init_entity_mega_cluster_a(int i, const void *owner, int type,
     if (type == 0x78 || type == 0x7a) {
         slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.15f);
         local_10 = 0.5f;
-        rot_x    = (fVar2 * 0.01f + fVar3 * 0.0025f) * 3.1415927f + local_c;
+        rot_x    = spill32(((long double)fVar3 * 0.0025f + (long double)fVar2 * 0.01f) * 3.1415927f + local_c);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x);
-        rot_x    = (rng_next_unit() - 0.5f) * 0.3f + local_c;
+        rot_x    = spill32(((long double)rng_next_unit() - 0.5f) * 0.3f + local_c);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x);
         if (part_idx != 3) {
-            float u = rng_next_unit();
+            const long double u = rng_next_unit();
             if (type == 0x78) {
-                slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, u * 0.01f - 0.1f);
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, spill32(u * 0.01f - 0.1f));
             } else {
-                slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, u * 0.01f - 0.07f);
+                slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, spill32(u * 0.01f - 0.07f));
             }
         }
     }
 
-    /* LAB_00444f72 — joined back here regardless of 0x78/0x7a branch. */
+    /* LAB_00444f72 — joined back here regardless of 0x78/0x7a branch.
+     * base is a float local [ebp-0x1c]; n = (part+1)/2 fild → m32; the fan
+     * is base ± n·π/10 in one chain. */
     if (type == 0x7c) {
         local_10 = 0.3f;
-        float base = local_c - 3.1415927f;
+        const float base = spill32((long double)local_c - 3.1415927f);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, base);
-        float shift_mag = (float)((part_idx + 1) / 2) * 0.31415927f;
+        const float n = spill32((long double)((part_idx + 1) / 2));
         float fan;
         if ((part_idx & 1) == 0) {
-            fan = base - shift_mag;
+            fan = spill32((long double)base - (long double)n * 0.31415927f);
         } else {
-            fan = base + shift_mag;
+            fan = spill32((long double)n * 0.31415927f + base);
         }
         rot_x = fan;
         slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y,
-                   rng_next_unit() * 0.01f + 0.15f);
+                   spill32((long double)rng_next_unit() * 0.01f + 0.15f));
     }
     if (type == 0x76) {
-        rot_x = (fVar2 * 0.01f + fVar3 * 0.0025f) * 3.1415927f + local_c;
+        rot_x = spill32(((long double)fVar3 * 0.0025f + (long double)fVar2 * 0.01f) * 3.1415927f + local_c);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x);
     }
     if (type == 0x7b) {
@@ -728,31 +743,31 @@ static int init_entity_mega_cluster_a(int i, const void *owner, int type,
         local_10 = 0.3f;
         slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.8f);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, local_c);
-        rot_x = (rng_next_unit() - 0.5f) * 0.3f + local_c;
+        rot_x = spill32(((long double)rng_next_unit() - 0.5f) * 0.3f + local_c);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x);
     }
 
     /* L41750-41753: VEL_X/Z = sin/cos(ROT_X) * local_10.
-     * Re-read ROT_X to capture all per-type overrides above. */
-    float final_rot_x = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
-    float vx = sinf(final_rot_x) * local_10;
-    float vz = cosf(final_rot_x) * local_10;
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vx);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vz);
+     * Re-read ROT_X to capture all per-type overrides above (0x445073: CRT
+     * results → m32, ·local_10). */
+    const float final_rot_x = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)crt_sinf(final_rot_x) * local_10));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)crt_cosf(final_rot_x) * local_10));
 
     /* L41754-41763: 0x7c rebound — POS_X/Z -= 2*VEL.
-     * Engine reads slot[POS_X/Z] and slot[VEL_X/Z] back, not the local
-     * `vx`/`vz` (same values; faithful read-back). */
+     * Engine reads slot[POS_X/Z] and slot[VEL_X/Z] back (fadd st,st; fsubr). */
     if (type == 0x7c) {
-        float pxr = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
-        float pzr = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, pxr - 2.0f * vx);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pzr - 2.0f * vz);
+        const float vx  = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
+        const float vz  = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
+        const float pxr = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
+        const float pzr = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)pxr - ((long double)vx + vx)));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)pzr - ((long double)vz + vz)));
     }
 
     /* L41764-41769: ROT_Z, AGE. */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
-               rng_next_unit() * B_TWO_PI_F);
+               spill32((long double)rng_next_unit() * B_TWO_PI_F));
     slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE, -part_idx);
     if (type == 0x7c) {
         slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE, part_idx * -4);
@@ -835,7 +850,7 @@ static int init_entity_23(int i, const void *owner, int type, int flag,
     int people_idx = owner_read_i(owner, 0xea0);
 
     /* L40981: POS_Y += 2 (rmw). */
-    float pos_y = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y) + 2.0f;
+    float pos_y = spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y) + 2.0f);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, pos_y);
 
     /* L40982-40984: VEL = (0, -0.3f, 0).  Engine raw `0xbe99999a`. */
@@ -843,48 +858,51 @@ static int init_entity_23(int i, const void *owner, int type, int flag,
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, -0.3f);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, 0.0f);
 
-    float neg_yaw = -g_scene1_camera_yaw;
-    float sn_y = sinf(neg_yaw);
-    float cs_y = cosf(neg_yaw);
+    /* x87 as retail 0x4438f9..0x443a5d: -yaw → m32, CRT sin / cos → m32. */
+    const float neg_yaw = -g_scene1_camera_yaw;
+    const float sn_y = crt_sinf(neg_yaw);
+    const float cs_y = crt_cosf(neg_yaw);
 
     if (people_idx == -1) {
         /* L40986-40990: camera-yaw branch.  Note: pos source is
          * owner+0x38/0x3c/0x40, NOT the +0x20/0x24/0x28 used by the
          * preamble (which preamble overwrites here). */
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
-                   sn_y * 15.0f + owner_read_f(owner, 0x38));
+                   spill32((long double)sn_y * 15.0f + owner_read_f(owner, 0x38)));
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
-                   owner_read_f(owner, 0x3c) + 30.0f);
+                   spill32((long double)owner_read_f(owner, 0x3c) + 30.0f));
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
-                   cs_y * 15.0f + owner_read_f(owner, 0x40));
+                   spill32((long double)cs_y * 15.0f + owner_read_f(owner, 0x40)));
     } else if (people_idx >= 0 && people_idx < SCENE1_PEOPLE_COUNT) {
         /* L40993-40996: people-table branch.  Engine `&DAT_0076bd60` is
          * base+0x0c = people[idx].target. */
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
                    act_getf(&g_actor[people_idx], ACT_POS));
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
-                   act_getf(&g_actor[people_idx], ACT_POS + 4) + 20.0f);
+                   spill32((long double)act_getf(&g_actor[people_idx], ACT_POS + 4) + 20.0f));
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
                    act_getf(&g_actor[people_idx], ACT_POS + 8));
     }
     /* OOB people_idx → preamble pos retained (engine would crash; we
      * stay safe). */
 
-    /* L40998-41016: per-particle dispatch (DEAD in cap=1 flow). */
+    /* L40998-41016: per-particle dispatch (DEAD in cap=1 flow).
+     * PARITY NOTE (not changed here): retail 0x443962 / 0x4439c7 adds cos(-yaw)
+     * to X and sin(-yaw) to Z — the port has them swapped. */
     if (part_idx == 1) {
         float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
         float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
         float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, px + sn_y * 8.0f);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, py + 10.0f);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pz + cs_y * 8.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)sn_y * 8.0f + px));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)py + 10.0f));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)cs_y * 8.0f + pz));
     } else if (part_idx == 2) {
         float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
         float py = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
         float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, px - sn_y * 8.0f);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, py + 20.0f);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pz - cs_y * 8.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)px - (long double)sn_y * 8.0f));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)py + 20.0f));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)pz - (long double)cs_y * 8.0f));
     }
 
     /* L41017: LIFE_MULT = 1.2f (engine raw 0x3f99999a). */
@@ -892,7 +910,7 @@ static int init_entity_23(int i, const void *owner, int type, int flag,
 
     /* L41018-41020: ROT_Z and matrix share ONE rng draw — engine reuses
      * fVar15 across both writes. */
-    float u_angle = rng_next_unit() * B_TWO_PI_F;
+    const float u_angle = spill32((long double)rng_next_unit() * B_TWO_PI_F);  /* [ebp-0x20] */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z, u_angle);
 
     /* Engine `thunk_FUN_004a35d3(&DAT_06932578 + iVar10, u_angle)` is
@@ -945,20 +963,21 @@ static int init_entity_29(int i, const void *owner, int type, int flag,
 
     int people_idx = owner_read_i(owner, 0xea0);
 
-    float neg_yaw = -g_scene1_camera_yaw;
-    float sn_y = sinf(neg_yaw);
-    float cs_y = cosf(neg_yaw);
+    /* x87 as retail 0x443b74..0x443c88: -yaw → m32, CRT sin / cos → m32. */
+    const float neg_yaw = -g_scene1_camera_yaw;
+    const float sn_y = crt_sinf(neg_yaw);
+    const float cs_y = crt_cosf(neg_yaw);
 
     if (people_idx == -1) {
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
-                   sn_y * 15.0f + owner_read_f(owner, 0x20));
+                   spill32((long double)sn_y * 15.0f + owner_read_f(owner, 0x20)));
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
                    owner_read_f(owner, 0x24));
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
-                   cs_y * 15.0f + owner_read_f(owner, 0x28));
+                   spill32((long double)cs_y * 15.0f + owner_read_f(owner, 0x28)));
     } else if (people_idx >= 0 && people_idx < SCENE1_PEOPLE_COUNT) {
         float people_y = g_scene1_people[people_idx].pos[1];
-        float anchor_y = people_y - 5.0f;
+        const float anchor_y = spill32((long double)people_y - 5.0f);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
                    g_scene1_people[people_idx].pos[0]);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, anchor_y);
@@ -975,17 +994,19 @@ static int init_entity_29(int i, const void *owner, int type, int flag,
         }
     }
 
-    /* L41088-41104: per-particle dispatch (DEAD in cap=1 flow). */
+    /* L41088-41104: per-particle dispatch (DEAD in cap=1 flow).
+     * PARITY NOTE (not changed here): retail 0x443bd7 / 0x443c34 adds cos(-yaw)
+     * to X and sin(-yaw) to Z — the port has them swapped. */
     if (part_idx == 1) {
         float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
         float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, px + sn_y * 8.0f);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pz + cs_y * 8.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)sn_y * 8.0f + px));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)cs_y * 8.0f + pz));
     } else if (part_idx == 2) {
         float px = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
         float pz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, px - sn_y * 8.0f);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pz - cs_y * 8.0f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)px - (long double)sn_y * 8.0f));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)pz - (long double)cs_y * 8.0f));
     }
 
     /* LAB_00443a5d → LAB_00444230: DRAG = 0. */
@@ -1027,14 +1048,16 @@ static int init_entity_30(int i, const void *owner, int type, int flag,
 {
     (void)type; (void)flag; (void)part_idx;
 
-    /* L41473-41481: pos via reverse-yaw cone. */
-    float ang = 0.31415927f - g_scene1_camera_yaw;
-    float sn = sinf(ang);
-    float cs = cosf(ang);
-
-    float pos_x = sn * 1.5f + owner_read_f(owner, 0x38);
-    float pos_y = owner_read_f(owner, 0x3c) + 1.5f;
-    float pos_z = owner_read_f(owner, 0x40) - cs * 1.5f;
+    /* L41473-41481: pos via reverse-yaw cone.  x87 as retail 0x444605..0x44467c:
+     * a = π/10 − yaw → m32; CRT results → m32 before ·1.5; pos_z a float local.
+     * POS_X takes cos(a) (0x44461c, CRT 0x503994), POS_Z sin(a) (0x444657, 0x503a44);
+     * the port had them swapped until 2026-11-17. */
+    const float ang = spill32((long double)0.31415927f - g_scene1_camera_yaw);
+    const float sn = crt_sinf(ang);
+    const float cs = crt_cosf(ang);
+    const float pos_x = spill32((long double)cs * 1.5f + owner_read_f(owner, 0x38));
+    const float pos_y = spill32((long double)owner_read_f(owner, 0x3c) + 1.5f);
+    const float pos_z = spill32((long double)owner_read_f(owner, 0x40) - (long double)sn * 1.5f);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, pos_x);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, pos_y);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pos_z);
@@ -1042,28 +1065,32 @@ static int init_entity_30(int i, const void *owner, int type, int flag,
     int people_idx = owner_read_i(owner, 0xea0);
 
     if (people_idx == -1) {
-        /* L41108-41114: trig vel w/ owner+0xea4 angle. */
-        float a = owner_read_f(owner, 0xea4);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(a) * 0.7f);
+        /* L41108-41114: trig vel w/ owner+0xea4 angle (0x444739). */
+        const float a = owner_read_f(owner, 0xea4);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)crt_sinf(a) * 0.7f));
         slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(a) * 0.7f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)crt_cosf(a) * 0.7f));
     } else if (people_idx >= 0 && people_idx < SCENE1_PEOPLE_COUNT) {
-        /* L41087-41101: aim-at-people via normalized distance vector. */
-        float dx = g_scene1_people[people_idx].pos[0] - pos_x;
-        float dy = g_scene1_people[people_idx].pos[1] - pos_y;
-        float dz = g_scene1_people[people_idx].pos[2] - pos_z;
-        float len = sqrtf(dx*dx + dy*dy + dz*dz);
+        /* L41087-41101: aim-at-people via normalized distance vector
+         * (0x444685: dx / dy / dz float locals; dz² + dy² + dx² → m64 → CRT
+         * sqrt → m32; each VEL = d·0.7 / len in one chain). */
+        const float dx = spill32((long double)g_scene1_people[people_idx].pos[0] - pos_x);
+        const float dy = spill32((long double)g_scene1_people[people_idx].pos[1] - pos_y);
+        const float dz = spill32((long double)g_scene1_people[people_idx].pos[2] - pos_z);
+        const float len = spill32((long double)sqrt(spill64((long double)dz * dz +
+                                                            (long double)dy * dy +
+                                                            (long double)dx * dx)));
         if (len > 0.0f) {
-            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, (dx * 0.7f) / len);
-            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, (dy * 0.7f) / len);
-            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, (dz * 0.7f) / len);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)dx * 0.7f / len));
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, spill32((long double)dy * 0.7f / len));
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)dz * 0.7f / len));
         }
         /* L41102: FUN_00503dd0(dx) — atan2 with dropped return value.
          * No observable side-effect on this slot.  Skipped. */
     }
 
     /* LAB_004449b0: ROT_Z = rng_unit() * 2π. */
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z, rng_next_unit() * B_TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z, spill32((long double)rng_next_unit() * B_TWO_PI_F));
 
     /* LAB_004449c1: DRAG = 20.0. */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 20.0f);
@@ -1084,8 +1111,8 @@ static int init_entity_9b(int i, const void *owner, int type, int flag,
                           int part_idx)
 {
     (void)type; (void)flag; (void)part_idx;
-    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, bend);
+    /* 0x443a6c: fild → m32 → ·2π / 8 → ROT_X */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, b_bend(owner_read_i(owner, 0x948)));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.3f);
     return 1;
 }
@@ -1116,22 +1143,25 @@ static int init_entity_9d(int i, const void *owner, int type, int flag,
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.3f);
 
-    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
+    /* x87 as retail 0x445809..0x4458b9: ROT_X = bend; VEL = 2·(CRT sin / cos
+     * of ROT_X → m32). */
+    const float bend = b_bend(owner_read_i(owner, 0x948));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, bend);
 
     float ox = owner_read_f(owner, 0x20);
     float oy = owner_read_f(owner, 0x24);
     float oz = owner_read_f(owner, 0x28);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, ox);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + 1.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)oy + 1.0f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, oz);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X, ox);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y, oy + 0.9f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y, spill32((long double)oy + 0.9f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z, oz);
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(bend) * 2.0f);
+    const float sb = crt_sinf(bend), cb = crt_cosf(bend);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sb + sb));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(bend) * 2.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)cb + cb));
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 10.0f);
 
@@ -1168,23 +1198,24 @@ static int init_entity_58(int i, const void *owner, int type, int flag,
 {
     (void)type; (void)flag; (void)part_idx;
 
-    float ang = owner_read_f(owner, 0xea4);
-    float sa  = sinf(ang);
-    float ca  = cosf(ang);
+    /* x87 as retail 0x443dd5..0x443e9d: each CRT sin / cos of the float angle
+     * → m32, ·k, stored; POS rmw reads the slot. */
+    const float ang = owner_read_f(owner, 0xea4);
+    const float sa  = crt_sinf(ang);
+    const float ca  = crt_cosf(ang);
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * 3.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sa * 3.0f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * 3.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)ca * 3.0f));
 
     float cx = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
     float cy = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
     float cz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, cx - sa * 0.5f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, cy + 1.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, cz - ca * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)cx - (long double)sa * 0.5f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)cy + 1.0f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)cz - (long double)ca * 0.5f));
 
-    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, bend);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, b_bend(owner_read_i(owner, 0x948)));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,  20.0f);
     slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8, 1);
 
@@ -1218,25 +1249,27 @@ static int init_entity_100(int i, const void *owner, int type, int flag,
 {
     (void)flag;
 
+    /* x87 as retail 0x443eab..0x443f99: local_c is a float local [ebp-8]; CRT
+     * sin / cos results → m32 before ·k (+ owner). */
     float local_c = owner_read_f(owner, 0xea4);
 
     float ox = owner_read_f(owner, 0x20);
     float oy = owner_read_f(owner, 0x24);
     float oz = owner_read_f(owner, 0x28);
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sinf(local_c) * 0.5f + ox);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + 1.5f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, cosf(local_c) * 0.5f + oz);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)crt_sinf(local_c) * 0.5f + ox));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)oy + 1.5f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)crt_cosf(local_c) * 0.5f + oz));
 
     /* Per-particle shift — DEAD in cap=1 flow.  Port verbatim. */
-    if (part_idx == 1) local_c += 0.31415927f;
-    if (part_idx == 2) local_c -= 0.31415927f;
-    if (part_idx == 3) local_c += 0.62831855f;
-    if (part_idx == 4) local_c -= 0.62831855f;
+    if (part_idx == 1) local_c = spill32((long double)local_c + 0.31415927f);
+    if (part_idx == 2) local_c = spill32((long double)local_c - 0.31415927f);
+    if (part_idx == 3) local_c = spill32((long double)local_c + 0.62831855f);
+    if (part_idx == 4) local_c = spill32((long double)local_c - 0.62831855f);
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(local_c) * 0.4f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)crt_sinf(local_c) * 0.4f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(local_c) * 0.4f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)crt_cosf(local_c) * 0.4f));
 
     slot_set_i(i, SCENE1_RECORDS_B_OFF_TYPE, type);  /* engine `*piVar13 = 100` */
 
@@ -1275,32 +1308,35 @@ static int init_entity_74_79(int i, const void *owner, int type, int flag,
 {
     (void)type; (void)flag; (void)part_idx;
 
+    /* x87 as retail 0x4456d3..0x4457c5: bend is a float local [ebp-0x1c];
+     * CRT sin / cos → m32 before ·1.2 + owner (pos_z a float local); the mode
+     * step re-reads the stored value; VEL = 2·(m32 CRT result). */
     int   npc_mode = owner_read_i(owner, 0x948);
-    float bend     = (float)npc_mode * B_TWO_PI_F / 8.0f;
-    float sb       = sinf(bend);
-    float cb       = cosf(bend);
+    const float bend = b_bend(npc_mode);
+    const float sb   = crt_sinf(bend);
+    const float cb   = crt_cosf(bend);
 
     float ox = owner_read_f(owner, 0x20);
     float oy = owner_read_f(owner, 0x24);
     float oz = owner_read_f(owner, 0x28);
 
-    float px = sb * 1.2f + ox;
-    float py = oy + 1.3f;
-    float pz = cb * 1.2f + oz;
+    float px = spill32((long double)sb * 1.2f + ox);
+    float py = spill32((long double)oy + 1.3f);
+    float pz = spill32((long double)cb * 1.2f + oz);
 
     /* 3-way dispatch (mode 0 / 4 / else). */
-    if (npc_mode == 0)        px -= 0.41f;
-    else if (npc_mode == 4)   px += 0.41f;
-    else                      pz -= 0.1f;
+    if (npc_mode == 0)        px = spill32((long double)px - 0.41f);
+    else if (npc_mode == 4)   px = spill32((long double)px + 0.41f);
+    else                      pz = spill32((long double)pz - 0.1f);
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, px);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, py);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pz);
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, bend);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sb + sb);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sb + sb));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cb + cb);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)cb + cb));
 
     return 1;
 }
@@ -1377,25 +1413,27 @@ static int init_entity_6a(int i, const void *owner, int type, int flag,
 {
     (void)type; (void)flag;
 
-    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
-    float sb = sinf(bend);
-    float cb = cosf(bend);
+    /* x87 as retail 0x4442a4..0x4443b6: bend is a float local; CRT sin / cos
+     * → m32 before ·k (+ owner); ROT_X = fild part → m32 → ·2π / 10. */
+    const float bend = b_bend(owner_read_i(owner, 0x948));
+    const float sb = crt_sinf(bend);
+    const float cb = crt_cosf(bend);
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
-               sb * 0.8f + owner_read_f(owner, 0x20));
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, owner_read_f(owner, 0x24) + 1.1f);
+               spill32((long double)sb * 0.8f + owner_read_f(owner, 0x20)));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)owner_read_f(owner, 0x24) + 1.1f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
-               cb * 0.8f + owner_read_f(owner, 0x28));
+               spill32((long double)cb * 0.8f + owner_read_f(owner, 0x28)));
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(bend) * 0.1f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sb * 0.1f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(bend) * 0.1f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)cb * 0.1f));
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.3f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, rng_next_unit() * B_TWO_PI_F);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,   rng_next_unit() * B_TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, spill32((long double)rng_next_unit() * B_TWO_PI_F));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,   spill32((long double)rng_next_unit() * B_TWO_PI_F));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,
-               (float)part_idx * B_TWO_PI_F / 10.0f);
+               spill32((long double)spill32((long double)part_idx) * B_TWO_PI_F / 10.0f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 0.5f);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,    0.5f);
     slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8,  1);
@@ -1424,19 +1462,20 @@ static int init_entity_61(int i, const void *owner, int type, int flag,
 {
     (void)type; (void)flag; (void)part_idx;
 
-    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
-    float sb = sinf(bend);
-    float cb = cosf(bend);
+    /* x87 as retail 0x4443c4..0x44449f (as 0x6a). */
+    const float bend = b_bend(owner_read_i(owner, 0x948));
+    const float sb = crt_sinf(bend);
+    const float cb = crt_cosf(bend);
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
-               sb * 0.8f + owner_read_f(owner, 0x20));
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, owner_read_f(owner, 0x24) + 1.1f);
+               spill32((long double)sb * 0.8f + owner_read_f(owner, 0x20)));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)owner_read_f(owner, 0x24) + 1.1f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
-               cb * 0.8f + owner_read_f(owner, 0x28));
+               spill32((long double)cb * 0.8f + owner_read_f(owner, 0x28)));
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(bend) * 0.1f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sb * 0.1f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(bend) * 0.1f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)cb * 0.1f));
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X,   0.5f);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.3f);
@@ -1469,20 +1508,22 @@ static int init_entity_62(int i, const void *owner, int type, int flag,
 {
     (void)type; (void)flag; (void)part_idx;
 
-    float u1 = rng_next_unit();
-    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
-    float ang  = bend + (u1 - 0.5f) * 0.75f;
+    /* x87 as retail 0x4444c5..0x4445af: ang = (u-0.5)·0.75 + bend in one
+     * chain (only the fild'd int rounds first) → m32; CRT results → m32. */
+    const long double u1 = rng_next_unit();
+    const float bend_i = spill32((long double)owner_read_i(owner, 0x948));
+    const float ang = spill32((u1 - 0.5f) * 0.75f + (long double)bend_i * B_TWO_PI_F / 8.0f);
 
-    float sa = sinf(ang);
-    float ca = cosf(ang);
+    const float sa = crt_sinf(ang);
+    const float ca = crt_cosf(ang);
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sa * 1.3f + owner_read_f(owner, 0x20));
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, owner_read_f(owner, 0x24) + 1.2f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, ca * 1.3f + owner_read_f(owner, 0x28));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)sa * 1.3f + owner_read_f(owner, 0x20)));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)owner_read_f(owner, 0x24) + 1.2f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)ca * 1.3f + owner_read_f(owner, 0x28)));
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(ang) * 0.5f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, rng_next_unit() * 0.1f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(ang) * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sa * 0.5f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, spill32((long double)rng_next_unit() * 0.1f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)ca * 0.5f));
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.3f);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,     ang);
@@ -1517,9 +1558,11 @@ static int init_entity_8a_8b(int i, const void *owner, int type, int flag,
     slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X,
                (type == 0x8a) ? 0.2f : 0.1f);
 
-    float ang = owner_read_f(owner, 0xea4);
-    float sa  = sinf(ang);
-    float ca  = cosf(ang);
+    /* x87 as retail 0x4451d0..0x4452a6: CRT sin / cos of the float angle → m32 (stored as is
+     * for VEL); POS rmw reads the slot, − sin/cos·0.5 in one chain. */
+    const float ang = owner_read_f(owner, 0xea4);
+    const float sa  = crt_sinf(ang);
+    const float ca  = crt_cosf(ang);
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
@@ -1528,12 +1571,11 @@ static int init_entity_8a_8b(int i, const void *owner, int type, int flag,
     float cx = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
     float cy = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
     float cz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, cx - sa * 0.5f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, cy + 1.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, cz - ca * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)cx - (long double)sa * 0.5f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)cy + 1.0f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)cz - (long double)ca * 0.5f));
 
-    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, bend);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, b_bend(owner_read_i(owner, 0x948)));
 
     return 1;
 }
@@ -1575,23 +1617,24 @@ static int init_entity_lab_00444be6(int i, const void *owner, int type,
     }
     slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, sx);
 
-    float ang = owner_read_f(owner, 0xea4);
-    float sa  = sinf(ang);
-    float ca  = cosf(ang);
+    /* x87 as retail 0x444bda..0x444cfc: CRT sin / cos of the float angle → m32, ·3 → stored;
+     * POS rmw reads the slot, − sin/cos·0.5 in one chain. */
+    const float ang = owner_read_f(owner, 0xea4);
+    const float sa  = crt_sinf(ang);
+    const float ca  = crt_cosf(ang);
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * 3.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sa * 3.0f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * 3.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)ca * 3.0f));
 
     float cx = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
     float cy = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
     float cz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, cx - sa * 0.5f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, cy + 1.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, cz - ca * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)cx - (long double)sa * 0.5f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)cy + 1.0f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)cz - (long double)ca * 0.5f));
 
-    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, bend);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, b_bend(owner_read_i(owner, 0x948)));
     slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8, 1);
 
     return 1;
@@ -1619,24 +1662,25 @@ static int init_entity_6d_to_70(int i, const void *owner, int type, int flag,
 {
     (void)type; (void)flag;
 
-    float ang = owner_read_f(owner, 0xea4);
-    float sa  = sinf(ang);
-    float ca  = cosf(ang);
+    /* x87 as retail 0x4449d2..0x444ad2: CRT sin / cos of the float angle → m32, ·3 → stored;
+     * POS rmw reads the slot, − sin/cos·0.5 in one chain. */
+    const float ang = owner_read_f(owner, 0xea4);
+    const float sa  = crt_sinf(ang);
+    const float ca  = crt_cosf(ang);
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * 3.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sa * 3.0f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * 3.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)ca * 3.0f));
 
     float cx = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
     float cy = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
     float cz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, cx - sa * 0.5f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, cy + 1.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, cz - ca * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)cx - (long double)sa * 0.5f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)cy + 1.0f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)cz - (long double)ca * 0.5f));
 
-    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, bend);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z, rng_next_unit() * B_TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, b_bend(owner_read_i(owner, 0x948)));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z, spill32((long double)rng_next_unit() * B_TWO_PI_F));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 20.0f);
     slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8, 1);
     slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, part_idx - 1);
@@ -1673,9 +1717,11 @@ static int init_entity_71_72_75_7d(int i, const void *owner, int type,
     if (type == 0x72) slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 0.3f);
     if (type == 0x7d) slot_set_f(i, SCENE1_RECORDS_B_OFF_SCALE_X, 1.5f);
 
-    float ang = owner_read_f(owner, 0xea4);
-    float sa  = sinf(ang);
-    float ca  = cosf(ang);
+    /* x87 as retail 0x444ad7..0x444bd5: CRT sin / cos of the float angle → m32 (stored as is
+     * for VEL); POS rmw reads the slot, − sin/cos·0.5 in one chain. */
+    const float ang = owner_read_f(owner, 0xea4);
+    const float sa  = crt_sinf(ang);
+    const float ca  = crt_cosf(ang);
 
     if (type != 0x75) {
         slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa);
@@ -1686,14 +1732,13 @@ static int init_entity_71_72_75_7d(int i, const void *owner, int type,
     float cx = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
     float cy = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y);
     float cz = slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, cx - sa * 0.5f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, cy + 1.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, cz - ca * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)cx - (long double)sa * 0.5f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)cy + 1.0f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)cz - (long double)ca * 0.5f));
 
-    float bend = (float)owner_read_i(owner, 0x948) * B_TWO_PI_F / 8.0f;
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, bend);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, b_bend(owner_read_i(owner, 0x948)));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
-               (rng_next_unit() - 0.5f) * 1.5707964f);
+               spill32(((long double)rng_next_unit() - 0.5f) * 1.5707964f));
     slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8, 1);
 
     return 1;
@@ -1726,15 +1771,17 @@ static int init_entity_8(int i, const void *owner, int type, int flag,
     float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
     float vy = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y);
     float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, vx * 10.0f + owner_read_f(owner, 0x20));
+    /* x87 as retail 0x44478f..0x4447f8: one chain per POS; ROT_Z = fild
+     * (part+1) → m32 → ·2π. */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)vx * 10.0f + owner_read_f(owner, 0x20)));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
-               vy * 10.0f + owner_read_f(owner, 0x24) + 2.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, vz * 10.0f + owner_read_f(owner, 0x28));
+               spill32(((long double)vy * 10.0f + owner_read_f(owner, 0x24)) + 2.0f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)vz * 10.0f + owner_read_f(owner, 0x28)));
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,    20.0f);
     slot_set_i(i, SCENE1_RECORDS_B_OFF_AUX_C8,  1);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
-               (float)(part_idx + 1) * B_TWO_PI_F);
+               spill32((long double)spill32((long double)(part_idx + 1)) * B_TWO_PI_F));
 
     return 1;
 }
@@ -2043,26 +2090,28 @@ static int init_npc_explicit_return(int i, const void *owner, int type,
 {
     (void)flag; (void)part_idx;
 
-    float ang = owner_read_f(owner, 0x420);
-    float sa = sinf(ang);
-    float ca = cosf(ang);
+    /* x87 as retail 0x447cd9..0x447d79: CRT sin / cos of the float angle →
+     * m32, then doubled (fadd st,st). */
+    const float ang = owner_read_f(owner, 0x420);
+    const float sa = crt_sinf(ang);
+    const float ca = crt_cosf(ang);
 
     float ox = owner_read_f(owner, 0x3f0);
     float oy = owner_read_f(owner, 0x3f4);
     float oz = owner_read_f(owner, 0x3f8);
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,     ox);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,     oy + 1.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,     spill32((long double)oy + 1.0f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,     oz);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X, ox);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y, oy + 0.9f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y, spill32((long double)oy + 0.9f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z, oz);
 
     /* Engine emits `sin + sin` / `cos + cos` (not `sin * 2`) — same
      * value, but worth noting since some hand-decomp might miss it. */
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa + sa);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sa + sa));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca + ca);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)ca + ca));
 
     if (type == 0x9e) {
         /* 0x3fe66666 — note this is NOT 1.8 exactly: 0x3fe66666 = 1.8
@@ -2107,16 +2156,17 @@ static int init_npc_33(int i, const void *owner, int type, int flag,
     /* L42304-42310: vel.{x,z} = sin/cos(ang)*0.8; vel.y = -0.01 *
      * slot.POS_Y (engine reads back the dword just written; equivalent
      * to owner+0x700 * -0.01).  Argless cos = same ang per PHC #7. */
-    float sa = sinf(ang);
-    float ca = cosf(ang);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * 0.8f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, pos_y * -0.01f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * 0.8f);
+    /* x87 as retail 0x44603b..0x4460c9: CRT results → m32 before ·0.8. */
+    const float sa = crt_sinf(ang);
+    const float ca = crt_cosf(ang);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sa * 0.8f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, spill32((long double)pos_y * -0.01f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)ca * 0.8f));
 
     /* L42311-42313: LIFE_MULT = 0x3f333333 (≈0.7); rot.z = u*2π. */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.7f);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
-               rng_next_unit() * B_TWO_PI_F);
+               spill32((long double)rng_next_unit() * B_TWO_PI_F));
     return 1;
 }
 
@@ -2130,20 +2180,21 @@ static int init_npc_27(int i, const void *owner, int type, int flag,
     /* L42423 is a dead write: slot.POS_Y += 2.0, immediately overwritten
      * at L42429 with owner+0x3f4 + 8.0.  Skipped — observable end-state
      * matches. */
-    float ang = owner_read_f(owner, 0x420);
-    float ox  = owner_read_f(owner, 0x3f0);
-    float oy  = owner_read_f(owner, 0x3f4);
-    float oz  = owner_read_f(owner, 0x3f8);
-    float sa  = sinf(ang);
-    float ca  = cosf(ang);
+    /* x87 as retail 0x446242..0x4462ed: CRT results → m32 before ·k (+ owner). */
+    const float ang = owner_read_f(owner, 0x420);
+    const float ox  = owner_read_f(owner, 0x3f0);
+    const float oy  = owner_read_f(owner, 0x3f4);
+    const float oz  = owner_read_f(owner, 0x3f8);
+    const float sa  = crt_sinf(ang);
+    const float ca  = crt_cosf(ang);
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sa * 2.5f + ox);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + 8.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, ca * 2.5f + oz);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)sa * 2.5f + ox));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)oy + 8.0f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)ca * 2.5f + oz));
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sa * 0.5f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, -0.05f);     /* 0xbd4ccccd */
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)ca * 0.5f));
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.0f);
     return 1;
@@ -2158,23 +2209,25 @@ static int init_npc_2b(int i, const void *owner, int type, int flag,
     (void)type; (void)flag; (void)part_idx;
 
     /* L42449-42453: amp w/ owner+0x424 dispatch. */
-    float amp = rng_next_unit() * 0.0125f + 0.1f;
-    if (owner_read_i(owner, 0x424) == 0x45) amp *= 1.5f;
+    /* x87 as retail 0x446300..0x4463a5: amp / ang are float locals; CRT
+     * results → m32 before ·amp. */
+    float amp = spill32((long double)rng_next_unit() * 0.0125f + 0.1f);
+    if (owner_read_i(owner, 0x424) == 0x45) amp = spill32((long double)amp * 1.5f);
 
     /* L42454-42458: ang = u*2π; vel.x = sin(ang)*amp. */
-    float ang = rng_next_unit() * B_TWO_PI_F;
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(ang) * amp);
+    const float ang = spill32((long double)rng_next_unit() * B_TWO_PI_F);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)crt_sinf(ang) * amp));
 
     /* L42460-42461: vel.y = u*0.8+0.2 ∈ [0.2, 1.0). */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y,
-               rng_next_unit() * 0.8f + 0.2f);
+               spill32((long double)rng_next_unit() * 0.8f + 0.2f));
 
     /* L42462-42464: vel.z = cos(ang)*amp (argless cos = same ang). */
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(ang) * amp);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)crt_cosf(ang) * amp));
 
     /* L42465-42470: rot.z random; DRAG=0; LIFE_MULT=0x3e4ccccd (=0.2). */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
-               rng_next_unit() * B_TWO_PI_F);
+               spill32((long double)rng_next_unit() * B_TWO_PI_F));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.0f);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.2f);
     return 1;
@@ -2193,33 +2246,35 @@ static int init_npc_26_2a(int i, const void *owner, int type, int flag,
 
     /* L42474 is a dead write (POS_Y += 2.0, overwritten below). */
 
-    float amp = rng_next_unit() * 0.2f + 0.02f;
-    float ang = owner_read_f(owner, 0x420);
-    float ox  = owner_read_f(owner, 0x3f0);
-    float oy  = owner_read_f(owner, 0x3f4);
-    float oz  = owner_read_f(owner, 0x3f8);
-    float sa  = sinf(ang);
-    float ca  = cosf(ang);
+    /* x87 as retail 0x44704a..0x447163: amp / amp2 are a float local
+     * [ebp-0x10]; CRT results → m32 before ·k (+ owner); each VEL_Y one chain. */
+    const float amp = spill32((long double)rng_next_unit() * 0.2f + 0.02f);
+    const float ang = owner_read_f(owner, 0x420);
+    const float ox  = owner_read_f(owner, 0x3f0);
+    const float oy  = owner_read_f(owner, 0x3f4);
+    const float oz  = owner_read_f(owner, 0x3f8);
+    const float sa  = crt_sinf(ang);
+    const float ca  = crt_cosf(ang);
 
     float lift = (type == 0x26) ? 4.8f : 3.5f;
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sa * 2.5f + ox);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + lift);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, ca * 2.5f + oz);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)sa * 2.5f + ox));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)oy + lift));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)ca * 2.5f + oz));
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * amp);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * amp);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sa * amp));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)ca * amp));
 
     float vel_y;
     if (type == 0x26) {
-        vel_y = -(rng_next_unit() * amp);
+        vel_y = spill32(-((long double)rng_next_unit() * amp));
     } else {
-        float amp2 = rng_next_unit() * 0.8f - 0.4f;
-        vel_y = rng_next_unit() * amp2 * 0.5f;
+        const float amp2 = spill32((long double)rng_next_unit() * 0.8f - 0.4f);
+        vel_y = spill32((long double)rng_next_unit() * amp2 * 0.5f);
     }
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vel_y);
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
-               rng_next_unit() * B_TWO_PI_F);
+               spill32((long double)rng_next_unit() * B_TWO_PI_F));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.0f);
     return 1;
 }
@@ -2233,26 +2288,28 @@ static int init_npc_31_32(int i, const void *owner, int type, int flag,
 {
     (void)flag; (void)part_idx;
 
-    float amp = rng_next_unit() * 0.17f + 0.5f;
-    if (type == 0x32) amp *= 0.5f;
+    /* x87 as retail 0x446f88..0x447045: amp is a float local [ebp-0x10]
+     * (·0.5 → m32 for 0x32); CRT results → m32 before ·amp. */
+    float amp = spill32((long double)rng_next_unit() * 0.17f + 0.5f);
+    if (type == 0x32) amp = spill32((long double)amp * 0.5f);
 
-    float ang = owner_read_f(owner, 0x420);
-    float sa  = sinf(ang);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * amp);
+    const float ang = owner_read_f(owner, 0x420);
+    const float sa  = crt_sinf(ang);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sa * amp));
 
     float vel_y;
     if (type == 0x31) {
-        vel_y = (rng_next_unit() - 0.5f) * 0.1f;
+        vel_y = spill32(((long double)rng_next_unit() - 0.5f) * 0.1f);
     } else {
-        vel_y = (rng_next_unit() - 1.5f) * amp;
+        vel_y = spill32(((long double)rng_next_unit() - 1.5f) * amp);
     }
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vel_y);
 
     /* Argless cos = cos(ang) per PHC #7. */
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(ang) * amp);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)crt_cosf(ang) * amp));
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
-               rng_next_unit() * B_TWO_PI_F);
+               spill32((long double)rng_next_unit() * B_TWO_PI_F));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.0f);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 2.0f);
     return 1;
@@ -2268,27 +2325,29 @@ static int init_npc_25(int i, const void *owner, int type, int flag,
 
     /* L42548 dead write: POS_Y += 2.0 (overwritten). */
 
-    float amp = rng_next_unit() * 0.07f + 0.1f;
-    float ang = owner_read_f(owner, 0x420);
-    float ox  = owner_read_f(owner, 0x3f0);
-    float oy  = owner_read_f(owner, 0x3f4);
-    float oz  = owner_read_f(owner, 0x3f8);
-    float sa  = sinf(ang);
-    float ca  = cosf(ang);
+    /* x87 as retail 0x4463d7..0x44701d: amp is a float local [ebp-0x10];
+     * CRT results → m32 before ·k (+ owner). */
+    const float amp = spill32((long double)rng_next_unit() * 0.07f + 0.1f);
+    const float ang = owner_read_f(owner, 0x420);
+    const float ox  = owner_read_f(owner, 0x3f0);
+    const float oy  = owner_read_f(owner, 0x3f4);
+    const float oz  = owner_read_f(owner, 0x3f8);
+    const float sa  = crt_sinf(ang);
+    const float ca  = crt_cosf(ang);
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sa * 2.5f + ox);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + 8.8f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, ca * 2.5f + oz);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)sa * 2.5f + ox));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)oy + 8.8f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)ca * 2.5f + oz));
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * amp);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sa * amp));
     /* vel.y = amp - u*0.3 (positive bias). */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y,
-               amp - rng_next_unit() * 0.3f);
+               spill32((long double)amp - (long double)rng_next_unit() * 0.3f));
     /* Argless cos = same ang per PHC #7. */
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * amp);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)ca * amp));
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
-               rng_next_unit() * B_TWO_PI_F);
+               spill32((long double)rng_next_unit() * B_TWO_PI_F));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.0f);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 2.0f);
     return 1;
@@ -2302,11 +2361,12 @@ static int init_npc_3b(int i, const void *owner, int type, int flag,
 {
     (void)type; (void)flag; (void)part_idx;
 
-    float ang = owner_read_f(owner, 0x420);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(ang) * 0.6f);
+    /* x87 as retail 0x4464a2..0x4464f1: CRT results → m32 before ·0.6. */
+    const float ang = owner_read_f(owner, 0x420);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)crt_sinf(ang) * 0.6f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
     /* Argless cos = same ang per PHC #7. */
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(ang) * 0.6f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)crt_cosf(ang) * 0.6f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 0.0f);
     return 1;
 }
@@ -2322,12 +2382,12 @@ static int init_npc_28(int i, const void *owner, int type, int flag,
 {
     (void)type; (void)flag; (void)part_idx;
 
-    float ang = owner_read_f(owner, 0x420);
-    float sa  = sinf(ang);
-    float ca  = cosf(ang);
-    float vx  = sa * 0.3f;
-    float vy  = 0.13f;                                       /* 0x3e051eb8 */
-    float vz  = ca * 0.3f;
+    /* x87 as retail 0x446e19..0x446f83: CRT results → m32 before ·0.3; POS =
+     * (VEL+VEL) + owner (+0.8) from the stored VEL, one chain. */
+    const float ang = owner_read_f(owner, 0x420);
+    const float vx  = spill32((long double)crt_sinf(ang) * 0.3f);
+    const float vy  = 0.13f;                                 /* 0x3e051eb8 */
+    const float vz  = spill32((long double)crt_cosf(ang) * 0.3f);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vy);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vz);
@@ -2337,9 +2397,9 @@ static int init_npc_28(int i, const void *owner, int type, int flag,
     float ox = owner_read_f(owner, 0x3f0);
     float oy = owner_read_f(owner, 0x3f4);
     float oz = owner_read_f(owner, 0x3f8);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, vx + vx + ox);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, vy + vy + oy + 0.8f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, vz + vz + oz);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32(((long double)vx + vx) + ox));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((((long double)vy + vy) + oy) + 0.8f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32(((long double)vz + vz) + oz));
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,    20.0f);     /* 0x41a00000 */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, B_ATAN2_0P1_0P5);
@@ -2355,13 +2415,14 @@ static int init_npc_38(int i, const void *owner, int type, int flag,
 {
     (void)type; (void)flag; (void)part_idx;
 
-    float ang = owner_read_f(owner, 0x420);
-    float sa  = sinf(ang);
-    float ca  = cosf(ang);
+    /* x87 as retail 0x446ec8..0x446f83: CRT results → m32 before ·0.5. */
+    const float ang = owner_read_f(owner, 0x420);
+    const float sa  = crt_sinf(ang);
+    const float ca  = crt_cosf(ang);
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sa * 0.5f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)ca * 0.5f));
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 3.8f);    /* 0x40733333 */
 
@@ -2386,23 +2447,25 @@ static int init_npc_21(int i, const void *owner, int type, int flag,
 
     float ang_base = owner_read_f(owner, 0x420);
     /* (u - 0.5) * 0.62831855 = (u - 0.5) * (π/5).  Range: ±π/10. */
-    float ang = (rng_next_unit() - 0.5f) * 0.62831855f + ang_base;
-    float amp = (rng_next_unit() + 1.0f) * 0.025f;
+    /* x87 as retail 0x446a9b..0x446b3f: ang / amp are float locals; CRT
+     * results → m32 before ·amp. */
+    const float ang = spill32(((long double)rng_next_unit() - 0.5f) * 0.62831855f + ang_base);
+    const float amp = spill32(((long double)rng_next_unit() + 1.0f) * 0.025f);
 
-    float sa = sinf(ang);
-    float ca = cosf(ang);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * amp);
+    const float sa = crt_sinf(ang);
+    const float ca = crt_cosf(ang);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sa * amp));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.02f);       /* 0x3ca3d70a */
     /* Argless cos = same ang per PHC #7. */
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * amp);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)ca * amp));
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, owner_read_f(owner, 0x3f0));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
-               owner_read_f(owner, 0x3f4) + 1.8f);
+               spill32((long double)owner_read_f(owner, 0x3f4) + 1.8f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, owner_read_f(owner, 0x3f8));
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
-               rng_next_unit() * B_TWO_PI_F);
+               spill32((long double)rng_next_unit() * B_TWO_PI_F));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG, 20.0f);        /* 0x41a00000 */
     return 1;
 }
@@ -2416,16 +2479,18 @@ static int init_npc_6b(int i, const void *owner, int type, int flag,
 {
     (void)type; (void)flag; (void)part_idx;
 
-    float bend = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
-    float amp  = (rng_next_unit() + 1.0f) * 4.0f;
-    float sa   = sinf(bend);
-    float ca   = cosf(bend);
-    float ox   = owner_read_f(owner, 0x3f0);
-    float oy   = owner_read_f(owner, 0x3f4);
-    float oz   = owner_read_f(owner, 0x3f8);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sa * amp + ox);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + 0.2f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, ca * amp + oz);
+    /* x87 as retail 0x4466bc..0x44676d: bend / amp are float locals; CRT
+     * results → m32 before ·amp + owner. */
+    const float bend = b_bend(owner_read_i(owner, 0x18));
+    const float amp  = spill32(((long double)rng_next_unit() + 1.0f) * 4.0f);
+    const float sa   = crt_sinf(bend);
+    const float ca   = crt_cosf(bend);
+    const float ox   = owner_read_f(owner, 0x3f0);
+    const float oy   = owner_read_f(owner, 0x3f4);
+    const float oz   = owner_read_f(owner, 0x3f8);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)sa * amp + ox));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)oy + 0.2f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)ca * amp + oz));
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, B_ATAN2_0P1_0P5);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,   bend);
@@ -2441,20 +2506,22 @@ static int init_npc_6c(int i, const void *owner, int type, int flag,
 {
     (void)type; (void)flag; (void)part_idx;
 
-    float bend = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
-    float vx   = sinf(bend) * 0.2f;
-    float vy   = 0.0f;
-    float vz   = cosf(bend) * 0.2f;
+    /* x87 as retail 0x44677b..0x446846: CRT results → m32 before ·0.2;
+     * POS = stored VEL·3 + owner (+1.5) in one chain. */
+    const float bend = b_bend(owner_read_i(owner, 0x18));
+    const float vx   = spill32((long double)crt_sinf(bend) * 0.2f);
+    const float vy   = 0.0f;
+    const float vz   = spill32((long double)crt_cosf(bend) * 0.2f);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vx);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vy);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vz);
 
-    float ox = owner_read_f(owner, 0x3f0);
-    float oy = owner_read_f(owner, 0x3f4);
-    float oz = owner_read_f(owner, 0x3f8);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, vx * 3.0f + ox);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, vy * 3.0f + oy + 1.5f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, vz * 3.0f + oz);
+    const float ox = owner_read_f(owner, 0x3f0);
+    const float oy = owner_read_f(owner, 0x3f4);
+    const float oz = owner_read_f(owner, 0x3f8);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)vx * 3.0f + ox));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32(((long double)vy * 3.0f + oy) + 1.5f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)vz * 3.0f + oz));
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, B_ATAN2_0P1_0P5);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,   bend);
@@ -2549,33 +2616,37 @@ static int init_npc_cluster_b(int i, const void *owner, int type, int flag,
 
     /* L42115: bend from owner+0x18 (NPC shape — DIFFERENT field from
      * entity shape's 0x948). */
-    float bend = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
-    float local_1c = bend;
+    /* x87 as retail 0x447b6f..0x447cb2: local_1c is a float local [ebp-0x18]
+     * (bend, ± shift → m32); each CRT sin / cos → m32 before ·k (+ owner). */
+    /* L42115: bend from owner+0x18 (NPC shape — DIFFERENT field from
+     * entity shape's 0x948). */
+    float local_1c = b_bend(owner_read_i(owner, 0x18));
 
     /* L42116-42127: per-particle shifts (only 4 explicit cases — engine
      * uses cluster A's 8-shift table only for entity alloc). */
     static const float shifts[5] = {
         0.0f, -0.18f, +0.18f, -0.36f, +0.36f,
     };
-    if (part_idx >= 0 && part_idx < 5) local_1c += shifts[part_idx];
+    if (part_idx >= 1 && part_idx < 5)
+        local_1c = spill32((long double)local_1c + shifts[part_idx]);
 
     float ox = owner_read_f(owner, 0x3f0);
     float oy = owner_read_f(owner, 0x3f4);
     float oz = owner_read_f(owner, 0x3f8);
 
-    float sc = sinf(local_1c);
-    float cc = cosf(local_1c);
+    const float sc = crt_sinf(local_1c);
+    const float cc = crt_cosf(local_1c);
 
     /* L42131-42135: pos write. */
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sc * 0.8f + ox);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + 1.4f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, cc * 0.8f + oz);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)sc * 0.8f + ox));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)oy + 1.4f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)cc * 0.8f + oz));
 
     /* L42136-42144: LIFE_MULT, vel. */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.4f);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(local_1c) * 0.5f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(local_1c) * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sc * 0.5f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)cc * 0.5f));
 
     /* L42157-42159: tail state. */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, local_1c);
@@ -2684,20 +2755,22 @@ static int init_npc_53(int i, const void *owner, int type, int flag,
 {
     (void)type; (void)flag; (void)part_idx;
 
-    float bend = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
-    float sa   = sinf(bend);
-    float ca   = cosf(bend);
+    /* x87 as retail 0x445cb4..0x445d64: bend is a float local [ebp-8]; each
+     * CRT sin / cos → m32 before ·k (+ owner). */
+    const float bend = b_bend(owner_read_i(owner, 0x18));
+    const float sa   = crt_sinf(bend);
+    const float ca   = crt_cosf(bend);
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
-               sa * 0.3f + owner_read_f(owner, 0x3f0));
+               spill32((long double)sa * 0.3f + owner_read_f(owner, 0x3f0)));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
-               owner_read_f(owner, 0x3f4) + 0.08f);
+               spill32((long double)owner_read_f(owner, 0x3f4) + 0.08f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
-               ca * 0.3f + owner_read_f(owner, 0x3f8));
+               spill32((long double)ca * 0.3f + owner_read_f(owner, 0x3f8)));
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sa * 0.5f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)ca * 0.5f));
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, bend);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,  0.5f);
@@ -2729,26 +2802,28 @@ static int init_npc_51(int i, const void *owner, int type, int flag,
 {
     (void)type; (void)flag;
 
-    float bend = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
+    /* x87 as retail 0x445f1d..0x446014: local_1c is a float local [ebp-0x18]
+     * (bend, ± shift → m32); each CRT sin / cos → m32 before ·k (+ owner). */
     static const float shifts[5] = {
         0.0f, -0.18f, +0.18f, -0.36f, +0.36f,
     };
-    float local_1c = bend;
-    if (part_idx >= 0 && part_idx < 5) local_1c += shifts[part_idx];
+    float local_1c = b_bend(owner_read_i(owner, 0x18));
+    if (part_idx >= 1 && part_idx < 5)
+        local_1c = spill32((long double)local_1c + shifts[part_idx]);
 
-    float sa = sinf(local_1c);
-    float ca = cosf(local_1c);
+    const float sa = crt_sinf(local_1c);
+    const float ca = crt_cosf(local_1c);
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
-               sa * 0.3f + owner_read_f(owner, 0x3f0));
+               spill32((long double)sa * 0.3f + owner_read_f(owner, 0x3f0)));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
-               owner_read_f(owner, 0x3f4) + 0.7f);
+               spill32((long double)owner_read_f(owner, 0x3f4) + 0.7f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
-               ca * 0.3f + owner_read_f(owner, 0x3f8));
+               spill32((long double)ca * 0.3f + owner_read_f(owner, 0x3f8)));
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sa * 0.5f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * 0.5f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)ca * 0.5f));
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,  local_1c);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_DRAG,   0.5f);
@@ -2786,37 +2861,36 @@ static int init_npc_68(int i, const void *owner, int type, int flag,
 {
     (void)type; (void)flag;
 
+    /* x87 as retail 0x445dea..0x445f0f: amp / angle are float locals; each
+     * CRT result → m32 before ·amp + base; VEL = (ALT − POS) / 10 from the
+     * stored slot values, one rounding. */
     /* Primary path — RNG amp + angle around owner. */
-    float u_amp = rng_next_unit();
-    float amp   = (u_amp + 0.5f) * 4.0f;
-    float u_ang = rng_next_unit();
-    float angle = u_ang * B_TWO_PI_F;
-    float sa = sinf(angle);
-    float ca = cosf(angle);
+    const float amp   = spill32(((long double)rng_next_unit() + 0.5f) * 4.0f);
+    const float angle = spill32((long double)rng_next_unit() * B_TWO_PI_F);
+    const float sa = crt_sinf(angle);
+    const float ca = crt_cosf(angle);
 
-    float pos_x = sa * amp + owner_read_f(owner, 0x3f0);
-    float pos_y = owner_read_f(owner, 0x3f4) + 20.0f;
-    float pos_z = ca * amp + owner_read_f(owner, 0x3f8);
+    const float pos_x = spill32((long double)sa * amp + owner_read_f(owner, 0x3f0));
+    const float pos_y = spill32((long double)owner_read_f(owner, 0x3f4) + 20.0f);
+    const float pos_z = spill32((long double)ca * amp + owner_read_f(owner, 0x3f8));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, pos_x);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, pos_y);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pos_z);
 
     /* Alt-target ring around player_pos (engine `DAT_056da1d8/dc/e0`). */
-    float u_amp2 = rng_next_unit();
-    float amp2   = (u_amp2 + 0.5f) * 8.0f;
-    float u_ang2 = rng_next_unit();
-    float ang2   = u_ang2 * B_TWO_PI_F;
-    float alt_x  = sinf(ang2) * amp2 + g_scene1_player_pos[0];
-    float alt_y  = g_scene1_player_pos[1];
-    float alt_z  = cosf(ang2) * amp2 + g_scene1_player_pos[2];
+    const float amp2 = spill32(((long double)rng_next_unit() + 0.5f) * 8.0f);
+    const float ang2 = spill32((long double)rng_next_unit() * B_TWO_PI_F);
+    const float alt_x = spill32((long double)crt_sinf(ang2) * amp2 + g_scene1_player_pos[0]);
+    const float alt_y = g_scene1_player_pos[1];
+    const float alt_z = spill32((long double)crt_cosf(ang2) * amp2 + g_scene1_player_pos[2]);
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X, alt_x);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y, alt_y);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z, alt_z);
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, (alt_x - pos_x) / 10.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, (alt_y - pos_y) / 10.0f);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, (alt_z - pos_z) / 10.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32(((long double)alt_x - pos_x) / 10.0f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, spill32(((long double)alt_y - pos_y) / 10.0f));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32(((long double)alt_z - pos_z) / 10.0f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.6f);
     slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX,  part_idx);
 
@@ -2849,7 +2923,10 @@ static int init_npc_2f(int i, const void *owner, int type, int flag,
 {
     (void)type; (void)flag;
 
-    float rot_z = (float)part_idx * B_TWO_PI_F / 3.0f + 1.5707964f; /* +π/2 */
+    /* x87 as retail 0x4460d7..0x4461f1: fild part → m32 → ·2π / 3 → m32
+     * [ebp-8] → + π/2; CRT results → m32 before ·k / doubling. */
+    const float third = spill32((long double)spill32((long double)part_idx) * B_TWO_PI_F / 3.0f);
+    const float rot_z = spill32((long double)third + 1.5707964f); /* +π/2 */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z, rot_z);
 
     float ang = owner_read_f(owner, 0x420);
@@ -2858,28 +2935,28 @@ static int init_npc_2f(int i, const void *owner, int type, int flag,
     /* L42321-42322: ROT_SCR = u*300 + 10 (engine stashes a life cap into
      * the rot-scratch field — consumer is the per-frame tick). */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR,
-               rng_next_unit() * 300.0f + 10.0f);
+               spill32((long double)rng_next_unit() * 300.0f + 10.0f));
     /* L42324: ALT_POS_X = (u+0.5)*π/10 (≈ rng cone half-width). */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X,
-               (rng_next_unit() + 0.5f) * 0.31415927f);
+               spill32(((long double)rng_next_unit() + 0.5f) * 0.31415927f));
     /* L42327: ALT_POS_Y = u*2π. */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y,
-               rng_next_unit() * B_TWO_PI_F);
+               spill32((long double)rng_next_unit() * B_TWO_PI_F));
 
-    float sa = sinf(ang);
-    float ca = cosf(ang);
+    const float sa = crt_sinf(ang);
+    const float ca = crt_cosf(ang);
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
-               sa * 0.5f + owner_read_f(owner, 0x3f0));
+               spill32((long double)sa * 0.5f + owner_read_f(owner, 0x3f0)));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
-               owner_read_f(owner, 0x3f4) + 1.5f);
+               spill32((long double)owner_read_f(owner, 0x3f4) + 1.5f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
-               ca * 0.5f + owner_read_f(owner, 0x3f8));
+               spill32((long double)ca * 0.5f + owner_read_f(owner, 0x3f8)));
 
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * 2.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sa + sa));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
     /* Argless cos at L42340 — same ang per PHC #7 (`[ebp-0x1c]` reload). */
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, ca * 2.0f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)ca + ca));
 
     /* slot.TYPE is set to 0x2f at L42344 (already from preamble — engine
      * just re-asserts).  PART_IDX = part_idx % 3. */
@@ -2929,16 +3006,19 @@ static int init_npc_2e_36(int i, const void *owner, int type, int flag,
     (void)flag;
 
     /* Phase 1 — common angle calc (consumes 1 u + 1 rng_next15 coin). */
+    /* x87 as retail 0x447168..0x447325: ang / spread are float locals; CRT
+     * results → m32 before ·k (+ owner); VEL (0x36) one chain from the
+     * stored POS; 0x2e's tail re-reads POS_Y / VEL_Y from the slot. */
     float ang = owner_read_f(owner, 0x420);
-    float spread = (rng_next_unit() + 1.0f) * 0.7853982f; /* π/4 */
+    const float spread = spill32(((long double)rng_next_unit() + 1.0f) * 0.7853982f); /* π/4 */
     if ((rng_next15() & 1) == 0) {
-        ang = ang - spread;
+        ang = spill32((long double)ang - spread);
     } else {
-        ang = ang + spread;
+        ang = spill32((long double)spread + ang);
     }
     /* L42368-42371: 0x2e overrides local_14 with a fresh random angle. */
     if (type == 0x2e) {
-        ang = rng_next_unit() * 3.1415927f;
+        ang = spill32((long double)rng_next_unit() * 3.1415927f);
     }
 
     /* Phase 2 — per-type pos/vel. */
@@ -2957,41 +3037,41 @@ static int init_npc_2e_36(int i, const void *owner, int type, int flag,
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, px);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, py);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pz);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, (px - ox)             * 0.02f);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, (py - (oy + 10.0f))   * 0.02f);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, (pz - oz)             * 0.02f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32(((long double)px - ox) * 0.02f));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, spill32(((long double)py - ((long double)oy + 10.0f)) * 0.02f));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32(((long double)pz - oz) * 0.02f));
     } else {
         /* 0x2e else-branch (L42384-42400). */
-        float sa = sinf(ang);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, sa * 0.5f + ox);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy + 4.0f);
-        float ca = cosf(ang);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, ca * 0.5f + oz);
-        float sa2 = sinf(ang);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa2 * 0.4f);
+        const float sa = crt_sinf(ang);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)sa * 0.5f + ox));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)oy + 4.0f));
+        const float ca = crt_cosf(ang);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)ca * 0.5f + oz));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)sa * 0.4f));
         slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.14f);     /* 0x3e0f5c29 */
         /* Argless cos at L42397 = same ang per PHC #7. */
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(ang) * 0.4f);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)ca * 0.4f));
     }
 
     /* Phase 3 — common tail (L42402-42410). */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_X,
-               (rng_next_unit() - 0.5f) * 3.0f);
+               spill32(((long double)rng_next_unit() - 0.5f) * 3.0f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Y,
-               rng_next_unit() + 1.0f);
+               spill32((long double)rng_next_unit() + 1.0f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ALT_POS_Z,
-               (rng_next_unit() - 0.5f) * 3.0f);
+               spill32(((long double)rng_next_unit() - 0.5f) * 3.0f));
     /* L42408-42410: 1 RNG consumed BEFORE local_8++; ROT_Z gets the
      * subsequent u*2π value.  In our outer-loop refactor part_idx is
      * incremented after we return, so the RNG ordering is identical. */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
-               rng_next_unit() * B_TWO_PI_F);
+               spill32((long double)rng_next_unit() * B_TWO_PI_F));
 
-    /* Phase 4 — 0x2e sign-flip tail (L42411-42413).  Engine reads the
-     * just-written slot field; we mirror by inline math (vy was 0.14). */
+    /* Phase 4 — 0x2e sign-flip tail (L42411-42413, 0x447308): VEL_Y = −VEL_Y,
+     * POS_Y = stored POS_Y − 4 (= m32(m32(oy + 4) − 4), not oy). */
     if (type == 0x2e) {
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, -0.14f);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, oy);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, -slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Y));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
+                   spill32((long double)slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Y) - 4.0f));
     }
 
     return (type == 0x36) ? 8 : 1;
@@ -3032,21 +3112,22 @@ static int init_npc_98(int i, const void *owner, int type, int flag,
 {
     (void)type; (void)flag;
 
-    float local_1c = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
-    if (part_idx == 1) local_1c -= 0.38f;
-    if (part_idx == 2) local_1c += 0.38f;
-    if (part_idx == 3) local_1c -= 0.56f;
-    if (part_idx == 4) local_1c += 0.56f;
+    /* x87 as retail 0x44650b..0x446603: local_1c is a float local [ebp-0x18]
+     * (bend, ± shift → m32); CRT results → m32 before ·0.3. */
+    float local_1c = b_bend(owner_read_i(owner, 0x18));
+    if (part_idx == 1) local_1c = spill32((long double)local_1c - 0.38f);
+    if (part_idx == 2) local_1c = spill32((long double)local_1c + 0.38f);
+    if (part_idx == 3) local_1c = spill32((long double)local_1c - 0.56f);
+    if (part_idx == 4) local_1c = spill32((long double)local_1c + 0.56f);
 
-    float sa = sinf(local_1c);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sa * 0.3f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)crt_sinf(local_1c) * 0.3f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
     /* Argless cos = same local_1c per PHC #7. */
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(local_1c) * 0.3f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)crt_cosf(local_1c) * 0.3f));
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, owner_read_f(owner, 0x3f0));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
-               owner_read_f(owner, 0x3f4) + 0.25f);
+               spill32((long double)owner_read_f(owner, 0x3f4) + 0.25f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, owner_read_f(owner, 0x3f8));
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, B_ATAN2_0P1_0P5);
@@ -3070,7 +3151,7 @@ static int init_npc_5a(int i, const void *owner, int type, int flag,
 {
     (void)type; (void)flag; (void)part_idx;
 
-    float bend = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
+    const float bend = b_bend(owner_read_i(owner, 0x18));   /* [ebp-0x14] (0x44662f) */
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, 0.0f);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
@@ -3078,7 +3159,7 @@ static int init_npc_5a(int i, const void *owner, int type, int flag,
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, owner_read_f(owner, 0x3f0));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
-               owner_read_f(owner, 0x3f4) + 0.25f);
+               spill32((long double)owner_read_f(owner, 0x3f4) + 0.25f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, owner_read_f(owner, 0x3f8));
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, B_ATAN2_0P1_0P5);
@@ -3109,9 +3190,8 @@ static int init_npc_9c(int i, const void *owner, int type, int flag,
                        int part_idx)
 {
     (void)type; (void)flag; (void)part_idx;
-    float bend = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,     bend);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.7999998f);  /* 0x3fe66666 */
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,     b_bend(owner_read_i(owner, 0x18)));
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 1.8f);  /* 0x3fe66666 (0x446c20; 1.7999998f was 0x3fe66665) */
     return 1;
 }
 
@@ -3138,15 +3218,17 @@ static int init_npc_3a(int i, const void *owner, int type, int flag,
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, -0.3f);      /* 0xbe99999a */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, 0.0f);
 
+    /* x87 as retail 0x4469ef..0x446a7b: one chain per POS; rot_z a float
+     * local [ebp-8]. */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X,
-               (rng_next_unit() - 0.5f) * 5.0f + g_scene1_player_pos[0]);
+               spill32(((long double)rng_next_unit() - 0.5f) * 5.0f + g_scene1_player_pos[0]));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
-               g_scene1_player_pos[1] + 20.0f);
+               spill32((long double)g_scene1_player_pos[1] + 20.0f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z,
-               (rng_next_unit() - 0.5f) * 5.0f + g_scene1_player_pos[2]);
+               spill32(((long double)rng_next_unit() - 0.5f) * 5.0f + g_scene1_player_pos[2]));
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, 1.5707964f); /* π/2 */
-    float rot_z = rng_next_unit() * B_TWO_PI_F;
+    const float rot_z = spill32((long double)rng_next_unit() * B_TWO_PI_F);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z, rot_z);
 
     /* slot.MATRIX0 = RotY(rot_z) — engine thunk_FUN_004a35d3 at L42751.
@@ -3203,37 +3285,40 @@ static int init_npc_34(int i, const void *owner, int type, int flag,
     /* Engine's 8-element azimuth table (local_4c[0..7] at L42860-42867). */
     static const int frame_table[8] = { -3, -1, -4, 2, 1, 3, -2, 4 };
 
+    /* x87 as retail 0x446c6d..0x446dc9: the table int fild → m32, ·5 → m32,
+     * ±3 → m32; CRT results → m32 before ·radius / doubling.
+     * +0x80 takes cos(−ang) (0x446d03), +0x88 sin(−ang) (0x446d35); the port had
+     * them swapped until 2026-11-17. */
     int   tbl_idx = (int)((g_sim_frame_count + (uint32_t)part_idx) % 8u);
-    float radius  = (float)frame_table[tbl_idx] * 5.0f;
-    if (radius <= 0.0f) radius += 3.0f;
-    else                radius -= 3.0f;
+    float radius  = spill32((long double)spill32((long double)frame_table[tbl_idx]) * 5.0f);
+    if (radius <= 0.0f) radius = spill32((long double)radius + 3.0f);
+    else                radius = spill32((long double)radius - 3.0f);
 
-    float ang     = owner_read_f(owner, 0x420);
-    float neg_ang = -ang;
-    float s_n     = sinf(neg_ang);
+    const float ang     = owner_read_f(owner, 0x420);
+    const float neg_ang = -ang;
+    const float c_n     = crt_cosf(neg_ang);
     /* ALT_POS at dw 32/33/34 — distinct from the standard ALT_POS at
      * dw 29/30/31.  Engine writes DAT_06932530/34/38. */
     int32_t *r = slot_base(i);
-    float alt_x_v = s_n * radius + g_scene1_player_pos[0];
-    float alt_y_v = g_scene1_player_pos[1] + 2.0f;
-    /* Argless cos at L42881 = same neg_ang per PHC #7. */
-    float c_n     = cosf(neg_ang);
-    float alt_z_v = c_n * radius + g_scene1_player_pos[2];
+    const float s_n     = crt_sinf(neg_ang);
+    float alt_x_v = spill32((long double)c_n * radius + g_scene1_player_pos[0]);
+    float alt_y_v = spill32((long double)g_scene1_player_pos[1] + 2.0f);
+    float alt_z_v = spill32((long double)s_n * radius + g_scene1_player_pos[2]);
     memcpy(&r[32], &alt_x_v, sizeof alt_x_v);
     memcpy(&r[33], &alt_y_v, sizeof alt_y_v);
     memcpy(&r[34], &alt_z_v, sizeof alt_z_v);
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, owner_read_f(owner, 0x3f0));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y,
-               owner_read_f(owner, 0x3f4) + 11.0f);
+               spill32((long double)owner_read_f(owner, 0x3f4) + 11.0f));
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, owner_read_f(owner, 0x3f8));
 
-    float s_a = sinf(ang);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, s_a + s_a);  /* * 2 */
+    const float s_a = crt_sinf(ang);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)s_a + s_a));  /* * 2 */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.0f);
     /* Argless cos at L42893 = same ang per PHC #7. */
-    float c_a = cosf(ang);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, c_a + c_a);
+    const float c_a = crt_cosf(ang);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)c_a + c_a));
 
     /* TYPE explicit at L42898 (already set in preamble — matches). */
     slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE, part_idx * -4);
@@ -3257,8 +3342,7 @@ static int init_npc_lab_42831_group(int i, const void *owner, int type,
                                     int flag, int part_idx)
 {
     (void)type; (void)flag; (void)part_idx;
-    float bend = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, bend);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, b_bend(owner_read_i(owner, 0x18)));
     return 1;
 }
 
@@ -3279,8 +3363,7 @@ static int init_npc_16_17(int i, const void *owner, int type, int flag,
                           int part_idx)
 {
     (void)type; (void)flag;
-    float bend = (float)owner_read_i(owner, 0x18) * B_TWO_PI_F / 8.0f;
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,    bend);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X,    b_bend(owner_read_i(owner, 0x18)));
     slot_set_i(i, SCENE1_RECORDS_B_OFF_PART_IDX, part_idx - 1);
     return 3;
 }
@@ -3354,35 +3437,39 @@ static int init_npc_mega_cluster_b(int i, const void *owner, int type,
 {
     (void)flag;
 
+    /* x87 as retail 0x447590..0x447b6a: bend is a float local [ebp-0x18];
+     * each CRT sin / cos → m32 before ·k (+ owner); every ROT_X step is
+     * stored to the slot (one rounding) and VEL reads it back; the wobble
+     * ints are fild → m32 locals. */
     /* L954-956: bend angle. */
     int   mode = owner_read_i(owner, 0x18);
-    float bend = (float)mode * B_TWO_PI_F / 8.0f;
-    float sb   = sinf(bend);
-    float cb   = cosf(bend);
+    const float bend = b_bend(mode);
+    const float sb   = crt_sinf(bend);
+    const float cb   = crt_cosf(bend);
 
     float ox = owner_read_f(owner, 0x3f0);
     float oy = owner_read_f(owner, 0x3f4);
     float oz = owner_read_f(owner, 0x3f8);
 
     /* L957-963: POS = sin/cos(bend)*1.2 + owner + +1.3y. */
-    float pos_x = sb * 1.2f + ox;
-    float pos_y = oy + 1.3f;
-    float pos_z = cb * 1.2f + oz;
+    float pos_x = spill32((long double)sb * 1.2f + ox);
+    float pos_y = spill32((long double)oy + 1.3f);
+    float pos_z = spill32((long double)cb * 1.2f + oz);
     /* L964-969: ALT_POS = sin/cos(bend)*0.8 + owner + +1.3y. */
-    float alt_x = sb * 0.8f + ox;
-    float alt_y = oy + 1.3f;
-    float alt_z = cb * 0.8f + oz;
+    float alt_x = spill32((long double)sb * 0.8f + ox);
+    float alt_y = spill32((long double)oy + 1.3f);
+    float alt_z = spill32((long double)cb * 0.8f + oz);
 
-    /* L970-984: 3-way owner+0x18 mode dispatch. */
+    /* L970-984: 3-way owner+0x18 mode dispatch (re-reads the stored values). */
     if (mode == 0) {
-        pos_x -= 0.41f;
-        alt_x -= 0.41f;
+        pos_x = spill32((long double)pos_x - 0.41f);
+        alt_x = spill32((long double)alt_x - 0.41f);
     } else if (mode == 4) {
-        pos_x += 0.41f;
-        alt_x += 0.41f;
+        pos_x = spill32((long double)pos_x + 0.41f);
+        alt_x = spill32((long double)alt_x + 0.41f);
     } else {
-        pos_z -= 0.1f;
-        alt_z -= 0.1f;
+        pos_z = spill32((long double)pos_z - 0.1f);
+        alt_z = spill32((long double)alt_z - 0.1f);
     }
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, pos_x);
@@ -3404,10 +3491,10 @@ static int init_npc_mega_cluster_b(int i, const void *owner, int type,
     /* L990-994: vel mag default + ROT_X wobble. */
     float vel_mag  = 0.18f;
     int   mod32    = part_idx % 32;
-    float wobble_x = (float)((mod32 & 7) - 4);
-    float wobble_y = (float)(mod32 / 8);
-    float rot_x    = (wobble_x * 0.05f + wobble_y * 0.0125f) * 3.1415927f
-                     + bend;
+    const float wobble_x = spill32((long double)((mod32 & 7) - 4));
+    const float wobble_y = spill32((long double)(mod32 / 8));
+    float rot_x    = spill32(((long double)wobble_y * 0.0125f + (long double)wobble_x * 0.05f)
+                             * 3.1415927f + bend);
 
     /* L995: VEL_Y = 0 (default — per-type may override). */
     float vel_y = 0.0f;
@@ -3430,7 +3517,7 @@ static int init_npc_mega_cluster_b(int i, const void *owner, int type,
     if (type == 0x7e) {
         slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.4f);
         vel_mag = 0.25f;
-        rot_x   = (rng_next_unit() - 0.5f) * 2.1991148f + bend;
+        rot_x   = spill32(((long double)rng_next_unit() - 0.5f) * 2.1991148f + bend);
     }
 
     int run_lab_00447802 = 1;
@@ -3439,14 +3526,14 @@ static int init_npc_mega_cluster_b(int i, const void *owner, int type,
         vel_mag = 0.5f;
         /* Engine L1006-1007: dead write to ROT_X (overwritten by L1009-
          * 1010); skipped — observable end-state matches. */
-        rot_x = (rng_next_unit() - 0.5f) * 0.3f + bend;
+        rot_x = spill32(((long double)rng_next_unit() - 0.5f) * 0.3f + bend);
         if (type != 0xa0) {
             /* 0x7a — wider downward bias + falls into LAB_00447802. */
-            vel_y = rng_next_unit() * 0.01f - 0.07f;
+            vel_y = spill32((long double)rng_next_unit() * 0.01f - 0.07f);
             run_lab_00447802 = 1;
         } else {
             /* 0xa0 — narrower downward bias + SKIPS LAB_00447802. */
-            vel_y = rng_next_unit() * 0.01f - 0.1f;
+            vel_y = spill32((long double)rng_next_unit() * 0.01f - 0.1f);
             run_lab_00447802 = 0;
         }
     }
@@ -3454,21 +3541,21 @@ static int init_npc_mega_cluster_b(int i, const void *owner, int type,
     if (run_lab_00447802) {
         if (type == 0x7c) {
             vel_mag = 0.3f;
-            float base = bend - 3.1415927f;
+            const float base = spill32((long double)bend - 3.1415927f);   /* [ebp-0x10] */
             /* L1024 dead write of ROT_X = base — kept faithful to engine
              * (immediately overwritten below).  No observable effect. */
             slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, base);
-            float shift_mag = (float)((part_idx + 1) / 2) * 0.31415927f;
+            const float n = spill32((long double)((part_idx + 1) / 2));
             if ((part_idx & 1) == 0) {
-                rot_x = base - shift_mag;
+                rot_x = spill32((long double)base - (long double)n * 0.31415927f);
             } else {
-                rot_x = base + shift_mag;
+                rot_x = spill32((long double)n * 0.31415927f + base);
             }
-            vel_y = rng_next_unit() * 0.01f + 0.15f;
+            vel_y = spill32((long double)rng_next_unit() * 0.01f + 0.15f);
         }
         if (type == 0xa3) {
-            rot_x   = (wobble_x * 0.015f + wobble_y * 0.0025f) * 3.1415927f
-                      + bend;
+            rot_x   = spill32(((long double)wobble_y * 0.0025f + (long double)wobble_x * 0.015f)
+                              * 3.1415927f + bend);
             vel_mag = 0.25f;
         }
         if (type == 0xa4) {
@@ -3477,11 +3564,13 @@ static int init_npc_mega_cluster_b(int i, const void *owner, int type,
              * ±2.5132742 (= 0.8π, the same 0x4020d97c constant as in
              * 0x29's people-table branch). */
             rot_x = bend;
-            float dx = g_scene1_player_pos[0] - pos_x;
-            float dz = g_scene1_player_pos[2] - pos_z;
+            /* 0x4478bf: dx / dz float locals from the stored POS; CRT atan2
+             * → m32; (u−0.5)·0.2 + a → ROT_X. */
+            const float dx = spill32((long double)g_scene1_player_pos[0] - pos_x);
+            const float dz = spill32((long double)g_scene1_player_pos[2] - pos_z);
             if (dx != 0.0f || dz != 0.0f) {
-                float a = atan2f(dx, dz);
-                rot_x   = (rng_next_unit() - 0.5f) * 0.2f + a;
+                const float a = spill32(x87_crt_atan2(dx, dz));
+                rot_x   = spill32(((long double)rng_next_unit() - 0.5f) * 0.2f + a);
             }
             if (rot_x < 2.5132742f && rot_x > 0.0f) {
                 rot_x = 2.5132742f;
@@ -3501,28 +3590,28 @@ static int init_npc_mega_cluster_b(int i, const void *owner, int type,
             vel_mag = 0.3f;
             slot_set_f(i, SCENE1_RECORDS_B_OFF_LIFE_MULT, 0.8f);
             slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR,   bend);
-            rot_x = (rng_next_unit() - 0.5f) * 1.5707964f + bend;
+            rot_x = spill32(((long double)rng_next_unit() - 0.5f) * 1.5707964f + bend);
         }
     }
 
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, vel_y);
 
-    /* L1080-1086: VEL_X/Z from final ROT_X. */
-    float vel_x = sinf(rot_x) * vel_mag;
-    float vel_z = cosf(rot_x) * vel_mag;
+    /* L1080-1086: VEL_X/Z from final ROT_X (CRT results → m32, ·vel_mag). */
+    const float vel_x = spill32((long double)crt_sinf(rot_x) * vel_mag);
+    const float vel_z = spill32((long double)crt_cosf(rot_x) * vel_mag);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vel_x);
     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vel_z);
 
-    /* L1087-1094: 0x7c rebound — pos -= 2*vel on x/z. */
+    /* L1087-1094: 0x7c rebound — pos -= 2*vel on x/z (fadd st,st; fsubr). */
     if (type == 0x7c) {
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, pos_x - 2.0f * vel_x);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, pos_z - 2.0f * vel_z);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)pos_x - ((long double)vel_x + vel_x)));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)pos_z - ((long double)vel_z + vel_z)));
     }
 
     /* L1095-1096: ROT_Z = u * 2π. */
     slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,
-               rng_next_unit() * B_TWO_PI_F);
+               spill32((long double)rng_next_unit() * B_TWO_PI_F));
 
     /* L1097: AGE = -part_idx. */
     slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE, -part_idx);
