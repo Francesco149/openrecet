@@ -2158,6 +2158,7 @@ struct test_case {
     X(records_b_tick_type_2f_writes_joint_pose) \
     X(records_b_tick_type_2f_aux_b0_1_uses_positive_pi_half) \
     X(records_b_tick_type_2f_joint_enable_byte_gates_body) \
+    X(records_b_tick_type_1e_owner_gate_kills) \
     X(records_b_tick_type_2f_sets_drag_1_0_in_tail) \
     X(records_b_tick_type_88_drag_1_0_kill_at_0x96) \
     X(records_b_tick_type_9a_drag_0_5_kill_at_0x15e) \

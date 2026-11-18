@@ -430,6 +430,23 @@ int test_records_b_tick_type_2f_joint_enable_byte_gates_body(void)
     T_ASSERT(fabsf(slot_get_f(0, SCENE1_RECORDS_B_OFF_VEL_X) - 0.0f) < 1e-6f);
     /* Drag also untouched (LAB_0043b205 tail did not run). */
     T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_DRAG), 0);
+    /* IDA 40188: the set joint byte goes to LABEL_798 `*v0 = 0` — killed. */
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
+    return 0;
+}
+
+int test_records_b_tick_type_1e_owner_gate_kills(void)
+{
+    /* IDA 40205: owner+0x428 != 1 → LABEL_798 `*v0 = 0` (lapis-41f-50f f9680). */
+    reset_world();
+    owner_blob_reset();
+    owner_blob_set_i(0x428, 0);
+    stage_live(0, 0x1e, 0, 0, 0, 0, 0, 0, 2);
+    bind_owner(0);
+
+    scene1_records_b_tick();
+
+    T_ASSERT_EQ_I(slot_get_i(0, SCENE1_RECORDS_B_OFF_TYPE), 0);
     return 0;
 }
 

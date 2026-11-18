@@ -639,7 +639,11 @@ static rec_next_t body_anchor_joint(int i, int32_t type)
     slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, jpz);
 
     /* Engine L36483 — gate on per-joint enable byte at +0xa88. */
-    if (owner_read_i(owner, 0xa88 + aux_b0 * 4) != 0) return REC_TAIL;
+    /* IDA 40188: a set joint byte → LABEL_798 `*v0 = 0` (kill), not a plain exit */
+    if (owner_read_i(owner, 0xa88 + aux_b0 * 4) != 0) {
+        scene1_records_b_tick_kill_slot(i);
+        return REC_TAIL;
+    }
 
     /* Engine L36485-98 — angle bias by joint index. */
     float bias = (aux_b0 == 1) ? 1.5707964f : -1.5707964f;
@@ -664,7 +668,12 @@ static rec_next_t body_0x1e(int i, int32_t type)
     if (!owner) return REC_TAIL;
 
     /* Engine L36574 — gate. */
-    if (owner_read_i(owner, 0x428) != 1) return REC_TAIL;
+    /* IDA 40205: owner+0x428 != 1 → LABEL_798 `*v0 = 0` (kill; the port's plain exit
+     * kept the record alive: lapis-41f-50f f9680 slot #12) */
+    if (owner_read_i(owner, 0x428) != 1) {
+        scene1_records_b_tick_kill_slot(i);
+        return REC_TAIL;
+    }
 
     /* Engine L36577-81 — SE on AGE == 4 and AGE == 0x4b.  Raw asm:
      *   age == 4    → se_play(0x176)
