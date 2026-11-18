@@ -227,8 +227,11 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     4365448b ~45 inits + 0x30 / 0x34 cos/sin order): corpus 174 identical / 10 split (2026-11-18). Then the LABEL_798 kills
     (ad4bb070: 0x1e/0x88/0x9a owner gate, 0x2f joint gate) and the 0x77 / 0xa2 homing x87 (b9d3405f, 77df8f78) →
     **corpus 180 identical / 4 split / 1 no-flat, 0 regressions (2026-11-18, 77df8f78); every records B split closed.**
-    Open splits: hire-caillou f1667 popup, hire-griff f1797 actors, lapis-30f-story f15085 party (CONV_POSE_START), lapis-71f-80f
-    f39705 actors (`portblock S --at F-1,F` + `--watch-write`, pin the exe with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left:
+    Then the last 4: conversation pose in the town scene (2595259f, lapis-30f-story), delayed HP / SP restore +
+    popups FUN_004846e8 / FUN_004847b4 (b80e31bb, hire-caillou), records B 0x83 shop-walker nudge x87 (d3c55522,
+    hire-griff), actor AI types 42 / 43 FUN_004284ba (6f82f41b, lapis-71f-80f) →
+    **corpus 184 identical / 0 split / 1 no-flat (`_probe-dayend-rngcs`, legacy op), 0 regressions (2026-11-18, 6f82f41b).**
+    Debug a new split with `portblock S --at F-1,F` + `--watch-write` (pin the exe with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left:
     dead part_idx 1/2 arms of 0x23 / 0x29, signed modulo, 0x29 ground query z.
     Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).
     Tools: parallel `xvfb-run -a` raced onto one display (fixed 48ddb153); `RHOST_PORT_EXE` pins / overrides the port exe
