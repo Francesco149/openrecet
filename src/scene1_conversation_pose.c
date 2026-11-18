@@ -256,11 +256,17 @@ void scene1_conversation_pose_tick(void)
         return;
     }
 
-    if (player_ctrl_actor_char(0) == -1)   /* no live player (pre-HOUSE) */
+    /* no live player (pre-HOUSE).  The Lapis 30F town scene (work +0x2bcfd) runs
+     * with no actors (DAT_056da1cc..d4 = -1), yet retail's house branch writes the
+     * pose records + facing unconditionally and only the anim loop skips the -1
+     * actors (all_ida 93806..93911; lapis-30f-story f15085: party +0x930 / +0x988
+     * = 6 / 4, db05c = +pi/2) */
+    const int town = player_ctrl_town_scene_active();
+    if (player_ctrl_actor_char(0) == -1 && !town)
         return;
 
     int32_t *player_rec = player_ctrl_actor_record_mut(0);
-    int32_t *comp_rec   = (player_ctrl_actor_char(2) != -1)
+    int32_t *comp_rec   = (player_ctrl_actor_char(2) != -1 || town)
                           ? player_ctrl_actor_record_mut(2) : 0;
 
     float angle = 0.0f;
@@ -281,8 +287,9 @@ void scene1_conversation_pose_tick(void)
          * frame it entered the state; the engine ticks that same frame too.
          * NOT on the f406-entry hold frame — dead for anims (RE §21.28). */
         if (!f406_hold) {
-            chr_anim_tick(player_rec, player_ctrl_actor_char(0), 1.0f);
-            if (comp_rec)
+            if (player_ctrl_actor_char(0) != -1)
+                chr_anim_tick(player_rec, player_ctrl_actor_char(0), 1.0f);
+            if (comp_rec && player_ctrl_actor_char(2) != -1)
                 chr_anim_tick(comp_rec, player_ctrl_actor_char(2), 1.0f);
         }
         s_anims_ticked = 1;
