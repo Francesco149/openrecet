@@ -18,6 +18,7 @@
 #include "scene1_records.h"
 #include "scene1_intro_dialogue.h" /* FUN_0044ba2c */
 #include "party.h"
+#include "record_hit.h"         /* FUN_0042e791, FUN_0042e1a6 */
 #include "rng.h"                 /* FUN_00471089, j__rand */
 #include "scene1_camera.h"       /* FUN_0044b219 */
 #include "scene1_chr_sprite.h"   /* FUN_00482a71 */
@@ -6301,8 +6302,7 @@ void actor_pass(void)
                 float p = spill32((long double)AF(a, 0x434) * k0p1);
                 if (p < k1) p = 1.0f;
                 if (p > k20) p = 20.0f;
-                (void)p;
-                /* PORT-DEBT(stub, FUN_0042e791): the poison tick (ftol(p), 4) */
+                actor_damage(a, x87_ftol(p), 4);   /* FUN_0042e791 */
             }
         } else {
             AI(a, 0x20) = 0;
@@ -6345,7 +6345,7 @@ void actor_pass(void)
                 }
             }
             if (AI(a, 0xba0) == 0 && AI(a, ACT_INUSE) == 1 && AF(a, 0x42c) == k0) {
-                /* PORT-DEBT(stub, FUN_0042e1a6): the death (EXP, drops, the kill count) */
+                actor_kill(a);                     /* FUN_0042e1a6 */
             }
             if (AI(a, ACT_INUSE) == 2) {
                 actor_dying(a);              /* FUN_0042f7ad */

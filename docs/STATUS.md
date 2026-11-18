@@ -36,7 +36,7 @@ re-verification.
 14 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 59 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 57 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code with a `src/` marker (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
@@ -270,6 +270,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     popups FUN_004846e8 / FUN_004847b4 (b80e31bb, hire-caillou), records B 0x83 shop-walker nudge x87 (d3c55522,
     hire-griff), actor AI types 42 / 43 FUN_004284ba (6f82f41b, lapis-71f-80f) →
     **corpus 184 identical / 0 split / 1 no-flat (`_probe-dayend-rngcs`, legacy op), 0 regressions (2026-11-18, 6f82f41b).**
+    Then the actor tick's FUN_0042e791 poison call / FUN_0042e1a6 kill (were PORT-DEBT stubs; `elan-flurry-kill` filed:
+    the flurry holds enemies at HP 0, the blast kills; the tick's own kill not reached, poison dead in retail) →
+    **corpus 185 identical / 1 no-flat, first run against v2 Windows real-device goldens (185 made, 2026-11-18).**
     Debug a new split with `portblock S --at F-1,F` + `--watch-write` (pin the exe with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left:
     dead part_idx 1/2 arms of 0x23 / 0x29, signed modulo, 0x29 ground query z.
     Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).
