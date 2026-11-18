@@ -4663,8 +4663,9 @@ static rec_next_t body_0x77_or_0xa2(int i, int32_t type)
             if (owner_a) {
                 float ox = owner_read_f(owner_a, 0x20);
                 float oz = owner_read_f(owner_a, 0x28);
-                dx = ox - slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
-                dz = oz - slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+                /* fstp [ebp-0x8] / [ebp-0x18]: rounded (bossrush-lapis-r f30797) */
+                dx = spill32((long double)ox - slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X));
+                dz = spill32((long double)oz - slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z));
                 have_target = 1;
             }
         } else {
@@ -4675,8 +4676,9 @@ static rec_next_t body_0x77_or_0xa2(int i, int32_t type)
                     (const void *)(uintptr_t)(uint32_t)owner_b_int;
                 float ox = owner_read_f(owner_b, 0x3f0);
                 float oz = owner_read_f(owner_b, 0x3f8);
-                dx = ox - slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X);
-                dz = oz - slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z);
+                /* fstp [ebp-0x8] / [ebp-0x18]: rounded (bossrush-lapis-r f30797) */
+                dx = spill32((long double)ox - slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_X));
+                dz = spill32((long double)oz - slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z));
                 have_target = 1;
             }
         }
