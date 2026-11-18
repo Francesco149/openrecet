@@ -262,9 +262,12 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     the same day: records B x87 rounding (15644c65, e6af04f1), the house pose release (4c94750d: 6 house rows), the carpet
     collision slots (74b5b038). **127 scenarios < 20k frames: 124 identical**; left hire-caillou f1667 popup, hire-griff f1797
     actors, lapis-30f-story f15085 party. Long dungeon rows: 5 newly identical at 2aa00 (dungeon2-run, charme-arms,
-    dungeon1-clear + save, lapis-21f-30f + save, lapis-61f-70f + save); 21 re-triaging at HEAD. Open: bossrush-crystal-30f-54f
-    f21961 = `init_npc_84_96` (0x4473ba) plain float → ported from the disasm → identical 1..25938, next split f25939 recb; the sibling
-    spawn inits in `scene1_records_b_spawn.c` (~30 `bend` / `sinf` sites) share the pattern — check each against its disasm.
+    dungeon1-clear + save, lapis-21f-30f + save, lapis-61f-70f + save). Records B spawn-init x87 sweep (834a83dd `init_npc_84_96`,
+    4365448b ~45 inits + 0x30 / 0x34 cos/sin order): **corpus 174 identical / 10 split / 1 no-flat, 0 regressions** (2026-11-18).
+    Open splits: hire-caillou f1667 popup, hire-griff f1797 actors, lapis-30f-story f15085 party (CONV_POSE_START), lapis-71f-80f
+    f39705 actors; recb: lapis-41f-50f f9680, obsidian-41f-50f-finale f34763, bossrush-crystal-30f-54f f58152, bossrush-lapis-r
+    f30143, bossrush-obsidian-ending f28781, bossrush-crystal-c f83365 (`portblock S --at F-1,F` + `--watch-write`, pin the exe
+    with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left: dead part_idx 1/2 arms of 0x23 / 0x29, signed modulo, 0x29 ground query z.
     Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).
     Tools: parallel `xvfb-run -a` raced onto one display (fixed 48ddb153); `RHOST_PORT_EXE` pins / overrides the port exe
     (7de4ae99); Windows disk guard (9d0134d3).
