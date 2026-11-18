@@ -47,6 +47,7 @@
 #include "tables_chara.h"        /* DAT_073ae058 */
 #include "tables_enemy.h"        /* DAT_005c23f0 */
 #include "scene1_tutorial_dispatch.h" /* DAT_0438b928 / b924 */
+#include "scene1_intro_dialogue.h" /* FUN_0044ba2c */
 #include "x87.h"
 
 /* .rdata m32 operands */
@@ -3160,9 +3161,10 @@ void party_tick(void)
     party_pickups();                         /* FUN_0048cbf6 */
     if (mapcol_maptype() != 0 && !stage_gate_floor_is_checkpoint()) {
         if (g_ghost_timer > 0) ++g_ghost_timer;
-        if (PW(0x56db0bcu).f > k0 && g_ghost_timer >= 60 && rec != NULL && rec[0x2bd16] == 0) {
-            /* FUN_0044ba2c(19, 3, 0) — the first hurry-up dialogue;
-             * PORT-DEBT(stub, FUN_0044ba2c 19/3) */
+        if (PW(0x56db0bcu).f > k0 && g_ghost_timer >= 60 && rec != NULL && rec[0x2bd16] == 0 &&
+            !scene1_intro_dialogue_busy()) {
+            scene1_intro_dialogue_start_single(19, 3);   /* FUN_0044ba2c(19, 3, 0): the first hurry-up dialogue */
+            save_work_bank_at(save_work_active_slot())[0x2bd16] = 1;
         }
         char b[32];
         snprintf(b, sizeof b, "T %d   ", g_floor_timer[0]);

@@ -41,11 +41,11 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | 29 lost girl | (placeholder) | `FUN_0042da1d` | ported |
 | 30 Alouette | アルエット | `FUN_0042d676`; floor 99: `FUN_0044f009` (prop) | ported unverified; floor-99 prop verified `lapis-91f-100f` (identical + save) |
 | 31 | (placeholder) | `FUN_0042d392` | ported, unverified |
-| 34 wisp | ウィスプ | `FUN_0042ac16` | stub |
+| 34 wisp | ウィスプ | `FUN_0042ac16` | ported, verified `wisp-hurry-up` (identical; homing / curls / contact; despawns not reached) |
 | 35 / 36 moai | モアイ金 / 銀 | `FUN_0042cfd0` | ported (`actor_ai_turret`), 35 variant 0 verified `obsidian-11f-15f-ahrimans`, 36 (golem adds) `obsidian-16f-20f-golem` (identical + save); variant > 0 (octant trio) no recording |
 | 37–40 bombs | ボム* | `FUN_004293f0` | ported |
 | **41 Arma** | アルマ | **`FUN_00425c3f`**; floor 99: `FUN_0044eff5` (prop) | ported (`actor_ai_arma`), verified `lapis-41f-50f` (identical + save); floor-99 prop verified `lapis-91f-100f` (identical + save) |
-| 42 / 43 | ヒドラ / 親父 | `FUN_004284ba` (prop: `+0xb08 = +0xb04 = 1`) | stub |
+| 42 / 43 | ヒドラ / 親父 | `FUN_004284ba` (prop: `+0xb08 = +0xb04 = 1`) | ported, verified `lapis-71f-80f` |
 | 44–48 knights | *ナイト | `FUN_00427f59` | ported |
 | 49 black knight | ブラックナイト | `FUN_004279cf` | ported, verified `obsidian-41f-50f-finale` (identical + save) |
 | 50 / 51 skeletons | スケルトン* | default `FUN_00428213` (after `+0xb8c` → `+0xadc = 2`) | ported (`actor_ai_skeleton`), verified `obsidian-31f-40f-ohms` (drift, lunge record 12, two revives) |

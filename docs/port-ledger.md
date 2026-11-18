@@ -98,7 +98,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x485861 | FUN_00485861 | 280 | ✓ |  | customer_service.c, customer_service.h, dungeon_flow.c (+4) |
 | 0x48a331 | FUN_0048a331 | 23 | ✓ |  | dungeon_party.c, stage_post_load.h, xp_curve.c (+1) |
 | 0x48b3f6 | FUN_0048b3f6 | 663 | ✓ |  | dungeon_flow.c, dungeon_flow.h, scene1_actor_say.h (+2) |
-| 0x48b850 | FUN_0048b850 | 5030 | ✓ | stub | collision_resolve.c, dungeon_flow.c, dungeon_flow.h (+15) |
+| 0x48b850 | FUN_0048b850 | 5030 | ✓ | stub | actor_ai.c, collision_resolve.c, dungeon_flow.c (+16) |
 | 0x48fe43 | FUN_0048fe43 | 315 | ✓ |  | main.c, scene1_dungeon_clear_banner.c, scene1_dungeon_clear_banner.h (+1) |
 | 0x48ff93 | FUN_0048ff93 | 70 | ✓ |  | chara_equip.h, save_bank.c |
 | 0x48ffd9 | FUN_0048ffd9 | 67 | ✓ |  | save_bank.c, scene1_postload.c, scene1_postload.h (+3) |

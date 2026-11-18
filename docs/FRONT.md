@@ -234,6 +234,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     Then the actor tick's FUN_0042e791 poison call / FUN_0042e1a6 kill (were PORT-DEBT stubs; `elan-flurry-kill` filed:
     the flurry holds enemies at HP 0, the blast kills; the tick's own kill not reached, poison dead in retail) →
     **corpus 185 identical / 1 no-flat, first run against v2 Windows real-device goldens (185 made, 2026-11-18).**
+    Then the hurry-up wisps (`wisp-hurry-up` filed: Jade 1F idle until the floor timer runs out; was split f29701): the wisp AI
+    FUN_0042ac16 and the 19/3 dialogue call were PORT-DEBT stubs → identical every block; FUN_00442cef's run-end arm ported (dead in
+    retail, quirk 168). **Corpus 186 identical / 1 no-flat, 0 regressions (2026-11-18, port 52c814b7903c).**
     Debug a new split with `portblock S --at F-1,F` + `--watch-write` (pin the exe with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left:
     dead part_idx 1/2 arms of 0x23 / 0x29, signed modulo, 0x29 ground query z.
     Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).

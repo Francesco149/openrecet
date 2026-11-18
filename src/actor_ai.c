@@ -1069,6 +1069,76 @@ static void actor_ai_flier(actor_t *a)
     AF(a, 0x404) = spill32((long double)spill32(x87_crt_cos(h)) * speed + AF(a, 0x404));
 }
 
+/* FUN_0042ac16: the wisp (type 34; spawned by FUN_0048b850 off the player when
+ * the floor timer DAT_0438c85c runs out).  A fresh one spawns contact record 20
+ * and faces the player, rolls a turn side (+0xa60) and a phase (+0xa64).  Gone
+ * (+0x428 = 0) past 30 from the player or after 900 ticks, or past 35 from its
+ * spawn point.  Every even tick a sparkle (overlay 15).  State 0 on a 380-tick
+ * cycle: ticks 0..59 / 60..119 curl one way then the other (yaw ±0.02), then
+ * home (turn 0.03); pushed along the yaw at 0.02 + 0.005·sin(phase). */
+static void actor_ai_wisp(actor_t *a)
+{
+    static const float k30 = 30.0f, k35 = 35.0f, k256 = 256.0f;
+    static const float k0p005 = 0.004999999888241291f;   /* 0x5198c8 */
+    static const float k2p5 = 2.5f, k3 = 3.0f;
+    AI(a, 0xb04) = 1;
+    if (AI(a, 0xb8c) != 0) {
+        AI(a, 0xb8c) = 0;
+        scene1_record_b_spawn_npc(a, 20, 1);     /* FUN_00445a8c */
+        actor_turn_to_player(a, 1.0f);           /* FUN_0041f789 */
+        AI(a, 0xb54) = 1;
+        AI(a, 0xa60) = (int32_t)(rng_next15() & 1u);
+        AI(a, 0xa64) = (int32_t)(rng_next15() & 0xffu);
+    }
+    {
+        const float dx = spill32((long double)PX - AF(a, 0x3f0));
+        const float dz = spill32((long double)PZ - AF(a, 0x3f8));
+        const float d = spill32(crt_sqrt(spill64((long double)dz * dz + (long double)dx * dx)));
+        if (d > k30 || AI(a, 0xa58) > 900) {
+            AI(a, 0x428) = 0;
+            AI(a, 0xad0) = 0;
+            return;
+        }
+    }
+    AI(a, 0xa64) = (AI(a, 0xa64) + 1) & 0xff;
+    const float ph = (float)AI(a, 0xa64);
+    const float t = spill32((long double)ph * k_2pi / k256);
+    const float s = spill32(x87_crt_sin(t));
+    const float speed = spill32((long double)s * k0p005 + k0p02);
+    if (AI(a, 0xa58) % 2 == 0) {
+        const float z = AF(a, 0x3f8);
+        const float uy = rng_next_unit();        /* FUN_00471089: y first */
+        const float y = spill32(((long double)uy + uy + AF(a, 0x3f4)) + k2p5);
+        const float ux = rng_next_unit();
+        const float x = spill32(((long double)ux - k0p5) * k3 + AF(a, 0x3f0));
+        scene1_overlay_spawn(NULL, x, y, z, 15, k0p5, -1, 0, 0, 0);   /* FUN_004147d5 */
+    }
+    if (AI(a, 0xa54) == 0) {
+        actor_anim_set(a, 0);                    /* FUN_00482a51 */
+        const int32_t m = ++AI(a, 0xa58) % 380;
+        if (m < 120) {
+            const int up = m < 60 ? AI(a, 0xa60) == 0 : AI(a, 0xa60) == 1;
+            AF(a, 0x420) = spill32(up ? (long double)AF(a, 0x420) + k0p02
+                                      : (long double)AF(a, 0x420) - k0p02);
+        } else {
+            actor_turn_to_player(a, k0p03);
+        }
+        const float sn = spill32(x87_crt_sin(AF(a, 0x420)));
+        AF(a, 0x3fc) = spill32((long double)sn * speed + AF(a, 0x3fc));
+        const float cs = spill32(x87_crt_cos(AF(a, 0x420)));
+        AF(a, 0x404) = spill32((long double)cs * speed + AF(a, 0x404));
+    }
+    const float ox = AF(a, 0x414), oz = AF(a, 0x41c);
+    const float dx = spill32((long double)ox - AF(a, 0x3f0));
+    const float dz = spill32((long double)oz - AF(a, 0x3f8));
+    float d = spill32((long double)dz * dz + (long double)dx * dx);
+    if (d > 0.0f) d = spill32(crt_sqrt(d));
+    if (d > k35) {
+        AI(a, 0x428) = 0;
+        AI(a, 0xad0) = 0;
+    }
+}
+
 /* FUN_00428ae4: types 13 / 14 on foot — state 0 (+0xa54): pick a heading to a
  * random point 8 from the player, walk it 40 ticks at 0.02 (on the ground every
  * 9th tick a 0.6 hop, the heading re-rolled: a right angle or the dominant axis
@@ -5899,9 +5969,8 @@ void actor_ai_alive(actor_t *a)
             AI(a, 0xb08) = 1;
             AI(a, 0xb04) = 1;
             if (g_event_stage < 3) actor_anim_set(a, 0);   /* FUN_00482a51 */
-        } else {
-            /* PORT-DEBT(stub, FUN_0042f28c): the arms not yet ported (
-             * FUN_004262b7, FUN_0042ac16) */
+        } else if (type == 34) {
+            actor_ai_wisp(a);                    /* FUN_0042ac16 */
         }
     }
     if (AI(a, 0xa00) != 0) {

@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **45**
-- distinct retiring engine functions: **37**
+- total open debts: **44**
+- distinct retiring engine functions: **36**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 22 | wired call boundary, body incomplete |
+| stub | 21 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 7 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -44,7 +44,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0041ee24 | 1 |
 | FUN_0041f4a6 | 1 |
 | FUN_0042df55 | 1 |
-| FUN_0042f28c | 1 |
 | FUN_00432e50 | 1 |
 | FUN_00435dcd | 1 |
 | FUN_004427f1 | 1 |
@@ -68,7 +67,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (22)
+## stub (21)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -77,7 +76,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
 | FUN_0041ee24 | src/sim.c:775 | mode 3's callee |
 | FUN_0042df55 | src/actor_ai.c:126 | stages >= 20 index past the dungeon |
-| FUN_0042f28c | src/actor_ai.c:5903 | the arms not yet ported ( |
 | FUN_00434ceb | src/scene_guild.c:21 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:472 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
@@ -87,12 +85,12 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0044e08f | src/dungeon_flow.c:1149 | the +0x2bce2 story beat's setup (the |
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
 | FUN_00468ddc | src/customer_service.c:1263 | an index < -1 or >= 32 with its mod-32 bit |
-| FUN_004708f7 | src/dungeon_party.c:659 | the event-window pair (chars 0x2f / 0x30) |
+| FUN_004708f7 | src/dungeon_party.c:660 | the event-window pair (chars 0x2f / 0x30) |
 | FUN_00473c15 | src/scene1_preload.c:329 | the floor's render assets (see |
 | FUN_00473c15 | src/scene1_preload.c:375 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
 | FUN_0048a383 | src/record_hit.c:261 | the level-up of s_easydisp |
-| FUN_0048b850 da1bc | src/dungeon_party.c:3239 | the attack lunge (da1bc 1..ccb8) |
+| FUN_0048b850 da1bc | src/dungeon_party.c:3241 | the attack lunge (da1bc 1..ccb8) |
 | FUN_0048e49c | src/scene_day_end.c:169 | the |
 
 ## synthetic-data (0)
