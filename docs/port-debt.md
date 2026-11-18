@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **46**
-- distinct retiring engine functions: **38**
+- total open debts: **45**
+- distinct retiring engine functions: **37**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 23 | wired call boundary, body incomplete |
+| stub | 22 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 7 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -48,7 +48,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00432e50 | 1 |
 | FUN_00435dcd | 1 |
 | FUN_004427f1 | 1 |
-| FUN_00442cef | 1 |
 | FUN_0044b219 | 1 |
 | FUN_0044e08f | 1 |
 | FUN_00452809 | 1 |
@@ -69,7 +68,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (23)
+## stub (22)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -83,7 +82,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00434ceb | src/scene_guild.c:472 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
 | FUN_004427f1 | src/dungeon_flow.c:1423 | the +0x2bce2 story beat (the curtain |
-| FUN_00442cef | src/scene1_sim.c:379 | the run's end (FUN_00442c86, |
 | FUN_0044b219 | src/scene1_postload.c:384 | the camera shake reset, DAT_073de3a0 = 45 |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:398 | its b924 == 0x276 consumer, scene0/sub8), |
 | FUN_0044e08f | src/dungeon_flow.c:1149 | the +0x2bce2 story beat's setup (the |
@@ -145,5 +143,5 @@ _none_
 | render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:2321 | the eye / lookat writes); the |
 | render-coupled | FUN_0048f87c | src/scene_pause.c:1613 | the results screen's assets |
 | semantic-collision | FUN_00432e50 | src/collision_query.c:15 | the customer-service arm's ground |
-| structure | FUN_0048670f | src/scene1_sim.c:186 | one retail-shaped master tick. |
+| structure | FUN_0048670f | src/scene1_sim.c:191 | one retail-shaped master tick. |
 

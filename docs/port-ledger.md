@@ -52,10 +52,10 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x451874 | FUN_00451874 | 47 | ✓ |  | actor_ai.c, audio.h, audio_mci.c (+19) |
 | 0x4523e6 | FUN_004523e6 | 387 | ✓ |  | main.c, scene1_fps.c, scene1_fps.h |
 | 0x4526f5 | FUN_004526f5 | 276 | ✓ |  | customer_service.c, dungeon_flow.c, dungeon_results.c (+18) |
-| 0x45281c | FUN_0045281c | 151 | ✓ |  | customer_service.c, dungeon_flow.c, dungeon_results.c (+17) |
+| 0x45281c | FUN_0045281c | 151 | ✓ |  | customer_service.c, dungeon_flow.c, dungeon_results.c (+18) |
 | 0x4528b3 | FUN_004528b3 | 47 | ✓ |  | customer_service.c, dungeon_flow.c, dungeon_results.c (+11) |
 | 0x452917 | FUN_00452917 | 38 | ✓ |  | customer_service.c, main.c, scene.h (+2) |
-| 0x452cde | FUN_00452cde | 41 | ✓ |  | dungeon_flow.c, dungeon_results.c, music.c (+14) |
+| 0x452cde | FUN_00452cde | 41 | ✓ |  | dungeon_flow.c, dungeon_results.c, music.c (+15) |
 | 0x453147 | FUN_00453147 | 362 | ✓ |  | nowloading.c, nowloading.h, render_quad.h (+1) |
 | 0x4532df | FUN_004532df | 129 | ✓ |  | scene_pause.c, sim.c, sim.h |
 | 0x453e8f | FUN_00453e8f | 444 | ✓ |  | fade.c, fade.h, nowloading.h |

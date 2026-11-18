@@ -5326,6 +5326,13 @@ item. rhost `vender-sales-l16` f7689: the machine sells a Candy, the pair writte
 the counter sale before it. The port passed the machine's item (save DIFFER 5 bytes, bank/encyc_sold[130]
 493 vs 211); it now passes `s_b5a4`.
 
+## 168. FUN_00442cef's run-end arm is dead (`DAT_0438be9c > 120`)
+The floor-exit prompt counter DAT_0438be9c is written only as -1 / 0 / 1 / 119 / 120 and climbs by `++` only
+while < 118 (every writer in `all_ida.c`), so the arm
+`be9c > 120 && FUN_004528b3()` (0x442fd7: FUN_00442c86, FUN_0048f7f0, FUN_00474d92, deepest floor, +1 period,
+FUN_0045e028, scene 8 or the house via FUN_0048526d) never runs; the real return goes through FUN_004536c2 → the
+results screen FUN_0048f931. Ported as-is for structure (scene1_sim.c `stage_portal_prompt`).
+
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory

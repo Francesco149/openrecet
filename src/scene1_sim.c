@@ -53,7 +53,9 @@
 #include "choice_box.h"
 #include "dungeon_flow.h"
 #include "dungeon_objects.h"
+#include "d3d_pool.h"
 #include "dungeon_party.h"
+#include "dungeon_results.h"
 #include "fade.h"
 #include "floor_layout.h"
 #include "map_collision.h"
@@ -61,7 +63,9 @@
 #include "party.h"
 #include "save_work.h"
 #include "scene1_camera.h"
+#include "scene.h"
 #include "scene1_combat_sm.h"
+#include "scene1_day_close.h"
 #include "scene_pause.h"
 #include "scene_adv_guild.h"
 #include "stage_palette.h"
@@ -69,6 +73,7 @@
 #include "stage_gate.h"
 #include "stage_post_load.h"
 #include "title_save_dialog.h"
+#include "worker_load.h"
 #include "x87.h"
 
 #include "scene1_particles_tick.h"
@@ -376,9 +381,37 @@ static void stage_portal_prompt(uint8_t *rec)
             title_save_dialog_cursor_set_visible(0);
         }
         if (g_portal_prompt > 120 && fade_is_done()) {
-            /* PORT-DEBT(stub, FUN_00442cef): the run's end (FUN_00442c86,
-             * FUN_0048f7f0, FUN_00474d92, the deepest-floor / trips records,
-             * FUN_0045e028, the world map or FUN_0048526d) */
+            /* the run's end (0x442fd7..). Unreachable in retail: be9c's writers set
+             * -1 / 0 / 1 / 119 / 120 and the climb stops at 118; kept for structure. */
+            g_portal_prompt = 0;
+            dungeon_results_strip();                 /* FUN_00442c86 */
+            dungeon_results_unpack();                /* FUN_0048f7f0 */
+            /* FUN_00474d92: the same split as dungeon_results.c's results_leave */
+            d3d_pool_release_type(5);
+            sim_set_mode_9a0(0);
+            int32_t *deep = (int32_t *)(rec + 0x2c404 + 4u * (uint32_t)g_scene1_combat_stage_id);
+            if (*deep < stage_gate_get_next()) *deep = stage_gate_get_next();
+            int32_t *period = (int32_t *)(rec + 0x2c3f0);
+            ++*period;
+            shop_period_events_clear(rec);           /* FUN_0045e028 */
+            int32_t *extra = (int32_t *)(rec + 0x2ce08);
+            if (*extra == 1) {
+                *extra = 0;
+                ++*period;
+                shop_period_events_clear(rec);
+            }
+            if (*period < 4) {
+                g_scene_state = 8;
+            } else {
+                day_close_arm();                     /* DAT_0438b4e0 = 1 */
+                memcpy(&g_stage_b4dc, rec + 0x2cde0, 4);
+                scene1_house_relayout();             /* FUN_0048526d */
+                g_scene_state = 1;
+                const int32_t one = 1;
+                memcpy(rec + 0x2cdf4, &one, 4);
+            }
+            worker_load_spawn();                     /* FUN_00452cde */
+            fade_phase_out_start(0, 17);             /* FUN_0045281c(0, 17) */
         }
     }
 }
