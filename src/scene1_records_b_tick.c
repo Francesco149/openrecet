@@ -4647,7 +4647,7 @@ static rec_next_t body_0x77_or_0xa2(int i, int32_t type)
 
     /* asm 0x4408c8-0x4408da: ROT_X += 0.2 (unconditional). */
     float rot_x = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
-    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x + 0.2f);
+    slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, spill32((long double)rot_x + 0.2f));
 
     /* asm 0x4408dc-0x4408eb: per-type AGE threshold for motion block. */
     int     age_threshold = (type == 0xa2) ? 0x3c : 0x14;
@@ -4686,42 +4686,47 @@ static rec_next_t body_0x77_or_0xa2(int i, int32_t type)
 
             /* asm 0x440922-0x440990: kill-if-len<1.5 / normalize-if-len>1.0
              * (gated on (dx, dz) != (0, 0)). */
+            /* x87 as the disasm (lapis-41f-50f f30214, bossrush-lapis-r f30143: VEL_X 1 ulp):
+             * len = sqrt of the unrounded dz²+dx² (0x440948 fstp QWORD), rounded at 0x44095b */
             if (dx != 0.0f || dz != 0.0f) {
-                float len = sqrtf(dx * dx + dz * dz);
+                float len = spill32(sqrt(spill64((long double)dz * dz + (long double)dx * dx)));
                 if (len < 1.5f) {
                     scene1_records_b_tick_kill_slot(i);
                 }
                 if (len > 1.0f) {
-                    dx /= len;
-                    dz /= len;
+                    dx = spill32((long double)dx / len);
+                    dz = spill32((long double)dz / len);
                 }
             }
 
-            /* asm 0x440992-0x4409e9: VEL += factor * dxz. */
-            float factor = (float)(age - 0x14) * 0.002f + 0.001f;
-            float vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
-            float vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
-            vx += factor * dx;
-            vz += factor * dz;
+            /* asm 0x440992-0x4409e9: VEL += ((float)(age-0x14)*0.002 + 0.001) * d, one
+             * rounding at the store (the int→float converts through a float local). */
+            float age_f = spill32((long double)(age - 0x14));
+            float vx = spill32(((long double)age_f * 0.0020000000949949026L + 0.0010000000474974513L) * dx
+                               + slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X));
             slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vx);
+            float vz = spill32(((long double)age_f * 0.0020000000949949026L + 0.0010000000474974513L) * dz
+                               + slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z));
             slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vz);
 
-            /* asm 0x4409ec-0x440a60: clamp horizontal speed to 0.3. */
+            /* asm 0x4409ec-0x440a60: clamp horizontal speed to 0.3; the sum rounds to
+             * float before the CRT sqrt (0x440a1f), v*0.3/speed rounds once. */
             if (vx != 0.0f || vz != 0.0f) {
-                float speed = sqrtf(vx * vx + vz * vz);
+                float sum   = spill32((long double)vx * vx + (long double)vz * vz);
+                float speed = spill32(sqrt(spill64(sum)));
                 if (speed > 0.3f) {
                     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X,
-                               vx * 0.3f / speed);
+                               spill32((long double)vx * 0.30000001192092896L / speed));
                     slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z,
-                               vz * 0.3f / speed);
+                               spill32((long double)vz * 0.30000001192092896L / speed));
                 }
             }
 
             /* asm 0x440a63-0x440a78: 0.98 horizontal drag. */
             vx = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_X);
             vz = slot_get_f(i, SCENE1_RECORDS_B_OFF_VEL_Z);
-            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, vx * 0.98f);
-            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, vz * 0.98f);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, spill32((long double)vx * 0.98000001907348633L));
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, spill32((long double)vz * 0.98000001907348633L));
         }
     }
     (void)motion_ran;
