@@ -296,7 +296,7 @@
    "engine_fn": "FUN_0042e1a6",
    "desc": "the death (EXP, drops, the kill count)",
    "file": "src/actor_ai.c",
-   "line": 6343,
+   "line": 6348,
    "kind_known": true
   },
   {
@@ -304,7 +304,7 @@
    "engine_fn": "FUN_0042e791",
    "desc": "the poison tick (ftol(p), 4)",
    "file": "src/actor_ai.c",
-   "line": 6300,
+   "line": 6305,
    "kind_known": true
   },
   {
@@ -312,7 +312,7 @@
    "engine_fn": "FUN_0042f28c",
    "desc": "the arms not yet ported (",
    "file": "src/actor_ai.c",
-   "line": 5897,
+   "line": 5902,
    "kind_known": true
   },
   {

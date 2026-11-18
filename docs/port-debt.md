@@ -80,9 +80,9 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
 | FUN_0041ee24 | src/sim.c:775 | mode 3's callee |
 | FUN_0042df55 | src/actor_ai.c:125 | stages >= 20 index past the dungeon |
-| FUN_0042e1a6 | src/actor_ai.c:6343 | the death (EXP, drops, the kill count) |
-| FUN_0042e791 | src/actor_ai.c:6300 | the poison tick (ftol(p), 4) |
-| FUN_0042f28c | src/actor_ai.c:5897 | the arms not yet ported ( |
+| FUN_0042e1a6 | src/actor_ai.c:6348 | the death (EXP, drops, the kill count) |
+| FUN_0042e791 | src/actor_ai.c:6305 | the poison tick (ftol(p), 4) |
+| FUN_0042f28c | src/actor_ai.c:5902 | the arms not yet ported ( |
 | FUN_00434ceb | src/scene_guild.c:21 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:472 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |

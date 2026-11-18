@@ -5893,9 +5893,14 @@ void actor_ai_alive(actor_t *a)
         } else if (type == 26 || type == 32 || type == 33 || type == 62 || type == 63 ||
                    type == 65 || type == 66 || type >= 78 || type < 0) {
             actor_ai_skeleton(a);                /* FUN_0042f28c default: FUN_00428213 */
+        } else if (type == 42 || type == 43) {
+            /* FUN_004284ba (lapis-71f-80f f39705: +0xb04 / +0xb08 on a fresh pair) */
+            AI(a, 0xb08) = 1;
+            AI(a, 0xb04) = 1;
+            if (g_event_stage < 3) actor_anim_set(a, 0);   /* FUN_00482a51 */
         } else {
             /* PORT-DEBT(stub, FUN_0042f28c): the arms not yet ported (
-             * FUN_004262b7, FUN_0042ac16, FUN_004284ba) */
+             * FUN_004262b7, FUN_0042ac16) */
         }
     }
     if (AI(a, 0xa00) != 0) {
