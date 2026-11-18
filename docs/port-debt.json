@@ -440,7 +440,7 @@
    "engine_fn": "FUN_0048b850 da1bc",
    "desc": "the attack lunge (da1bc 1..ccb8)",
    "file": "src/dungeon_party.c",
-   "line": 3198,
+   "line": 3239,
    "kind_known": true
   },
   {

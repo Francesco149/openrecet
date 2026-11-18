@@ -98,7 +98,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00473c15 | src/scene1_preload.c:375 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
 | FUN_0048a383 | src/record_hit.c:261 | the level-up of s_easydisp |
-| FUN_0048b850 da1bc | src/dungeon_party.c:3198 | the attack lunge (da1bc 1..ccb8) |
+| FUN_0048b850 da1bc | src/dungeon_party.c:3239 | the attack lunge (da1bc 1..ccb8) |
 | FUN_0048e49c | src/scene_day_end.c:169 | the |
 
 ## synthetic-data (0)

@@ -3013,6 +3013,45 @@ static void party_warp_random_room(void)
     }
 }
 
+
+/* the active chara's record: &DAT_04510648 + bank * 0x2dfc8 + DAT_0438b7d8 * 0x6c */
+static int16_t chara_stat_i16(int off)
+{
+    const uint8_t *w = save_work_bank_at(save_work_active_slot());
+    int16_t v = 0;
+    if (w) memcpy(&v, w + 0x2ceb0 + 0x6c * chara_equip_get_current_chara() + off, 2);
+    return v;
+}
+
+/* FUN_004846e8: HP (db0bc) += n while alive, capped at +0x3c + +0x3e; the popup
+ * (kind 1) when show; returns the gain */
+static int32_t party_restore_hp(int32_t n, int32_t show)
+{
+    static const float k0p5 = 0.5f;   /* 0x51935c */
+    const int32_t hp0 = x87_ftol(PW(0x56db0bcu).f);
+    if (show)
+        popup_add(g_party.pos[0][0], spill32((long double)g_party.pos[0][1] + k0p5), g_party.pos[0][2], n, 1);
+    if (PW(0x56db0bcu).f > 0.0f)
+        PW(0x56db0bcu).f = spill32((long double)spill32((long double)n) + PW(0x56db0bcu).f);
+    const float max = spill32((long double)(chara_stat_i16(0x3e) + chara_stat_i16(0x3c)));
+    if (PW(0x56db0bcu).f > max) PW(0x56db0bcu).f = max;
+    return x87_ftol((long double)PW(0x56db0bcu).f - spill32((long double)hp0));
+}
+
+/* FUN_004847b4: SP (db0c0) += n, capped at +0x40 + +0x42; the popup (kind 6) when
+ * show; returns the gain */
+static int32_t party_restore_sp(int32_t n, int32_t show)
+{
+    static const float k0p5 = 0.5f;   /* 0x51935c */
+    const int32_t sp0 = x87_ftol(PW(0x56db0c0u).f);
+    if (show)
+        popup_add(g_party.pos[0][0], spill32((long double)g_party.pos[0][1] + k0p5), g_party.pos[0][2], n, 6);
+    PW(0x56db0c0u).f = spill32((long double)spill32((long double)n) + PW(0x56db0c0u).f);
+    const float max = spill32((long double)(chara_stat_i16(0x42) + chara_stat_i16(0x40)));
+    if (PW(0x56db0c0u).f > max) PW(0x56db0c0u).f = max;
+    return x87_ftol((long double)PW(0x56db0c0u).f - spill32((long double)sp0));
+}
+
 /* FUN_0048b850's splash: type 145, SE 322 and, unless the stage says not
  * (+0x1b38), four drops of type 17 on the water line (z's rand first) */
 static void water_splash(void)
@@ -3109,10 +3148,12 @@ void party_tick(void)
         return;
     }
     if (PW(0x56dafecu).i > 0 && --PW(0x56dafecu).i == 0) {
-        PW(0x56daeb4u).i = 20;   /* PORT-DEBT(stub, FUN_004846e8) */
+        PW(0x56daeb4u).i = 20;
+        party_restore_hp(PW(0x56dafe4u).i, 1);   /* FUN_004846e8 */
     }
     if (PW(0x56daff0u).i > 0 && --PW(0x56daff0u).i == 0) {
-        PW(0x56daeb4u).i = 20;   /* PORT-DEBT(stub, FUN_004847b4) */
+        PW(0x56daeb4u).i = 20;
+        party_restore_sp(PW(0x56dafe8u).i, 1);   /* FUN_004847b4 (hire-caillou f1667: the kind-6 popup) */
     }
     party_status_tick();                     /* FUN_004897c6 */
     party_state_tick();                      /* FUN_0048cdcc */
