@@ -5636,24 +5636,25 @@ static rec_next_t body_0x83(int i)
             memcpy(&rpy, &rec[-0xd], sizeof rpy);
             memcpy(&rpz, &rec[-0xc], sizeof rpz);
 
-            float dx = spx - rpx;
-            float dy = spy - rpy;
-            float dz = spz - rpz;
+            /* 0x43f5d0..: deltas round at their locals; len = sqrt of the unrounded
+             * z²+y²+x² (fstp QWORD), rounded; v += d/len*0.03 rounds once at the
+             * store (hire-griff f1797: actor +0x3fc / +0x400 1 ulp) */
+            float dx = spill32((long double)spx - rpx);
+            float dy = spill32((long double)spy - rpy);
+            float dz = spill32((long double)spz - rpz);
 
-            /* Engine fmul cascade: (dz² + dy²) + dx². */
-            float lensq = (dz * dz + dy * dy) + dx * dx;
-            /* Engine fcomp 0.0 + `jbe` — skip when lensq <= 0. */
-            if (!(lensq > 0.0f)) continue;
-            float len = sqrtf(lensq);
+            float len = spill32(sqrt(spill64((long double)dz * dz + (long double)dy * dy
+                                             + (long double)dx * dx)));
+            if (!(len > 0.0f)) continue;
 
             float rvx, rvy, rvz;
             memcpy(&rvx, &rec[-0xb], sizeof rvx);
             memcpy(&rvy, &rec[-0xa], sizeof rvy);
             memcpy(&rvz, &rec[-0x9], sizeof rvz);
 
-            rvx += (dx / len) * 0.03f;
-            rvy += (dy / len) * 0.03f;
-            rvz += (dz / len) * 0.03f;
+            rvx = spill32((long double)dx / len * 0.029999999329447746L + rvx);
+            rvy = spill32((long double)dy / len * 0.029999999329447746L + rvy);
+            rvz = spill32((long double)dz / len * 0.029999999329447746L + rvz);
 
             memcpy(&rec[-0xb], &rvx, sizeof rvx);
             memcpy(&rec[-0xa], &rvy, sizeof rvy);
