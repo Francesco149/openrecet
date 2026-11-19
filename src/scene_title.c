@@ -295,7 +295,12 @@ static void scene_title_settings_step(scene_title_anim_t *anim,
      * branch). */
     if (pressed & (TITLE_INPUT_A | TITLE_INPUT_B)) {
         audio_play_se_by_id(TITLE_SE_CONFIRM);
-        anim->settings_dirty = (anim->settings_dirty == 1) ? 2 : 3;
+        if (anim->settings_dirty == 1) {
+            anim->settings_dirty = 2;
+            title_save_dialog_cursor_set_visible(0);   /* LABEL_213: FUN_00435612 on the press (all_ida 112158) */
+        } else {
+            anim->settings_dirty = 3;                  /* the cursor goes in the exit handler, next tick */
+        }
         return;
     }
 
