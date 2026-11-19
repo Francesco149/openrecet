@@ -250,7 +250,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).
     Tools: parallel `xvfb-run -a` raced onto one display (fixed 48ddb153); `RHOST_PORT_EXE` pins / overrides the port exe
     (7de4ae99); Windows disk guard (9d0134d3).
-    `headless-check` needs v2 win goldens first (none yet).
+    `headless-check --target wine` vs the v2 Windows goldens: 62 / 189 actor-block DIFFs from the CPU vendor (Windows AMD, maximus /
+    bunker Intel; D3DX8 SSE), RNG identical; `--target win` is the gate (rhost README, 2026-11-19).
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; **minion slowdowns + exhaustion: `ahriman-exhaust`, `ohm-exhaust` (2026-11-16)

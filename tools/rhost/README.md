@@ -60,6 +60,11 @@ python3 tools/rhost/rhost.py run house-idle --frames 200 --extra=" --d3d-probe" 
   the window is message-only. Gate: `headless-check` — **100/100 IDENTICAL to the real-device goldens** (per-tick
   RNG, anchors, inputs, save bytes; 2026-11-10). After a change to `rh_dev.c`: `headless-check`; after a change to
   rhost's core (tick hook, heap, files, handles): `headless-check --real` too.
+  **v2 goldens (block hashes) are CPU-vendor specific:** the Windows box is AMD (Ryzen 9 5900X), maximus and bunker
+  Intel; D3DX8's SSE math (`engine-quirks` "D3DX8 math") gives the actor block different low bits, so `headless-check
+  --target wine` vs the Windows goldens shows `DIFF rng tick … 4:` rows (2026-11-19: 62 of 189, RNG / anchors / frames
+  identical) that `--target win` does not (2/2 of them identical). Gate headless changes with `--target win`; wine
+  triage reads `goldens/headless/` made on Intel (bunker).
 - Under wine, headless runs use their own prefix (`RHOST_WINEPREFIX_HL`, default
   `/mnt/ephemeral/openrecet/prefix-headless`, made on first use): they start without an X display, and a wineserver's
   first process fixes the desktop driver for all — a display-less desktop made every Xvfb run in the shared prefix
