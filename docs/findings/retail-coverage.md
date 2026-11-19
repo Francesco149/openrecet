@@ -38,3 +38,21 @@ debug paths is unreached.**
   FUN_0040cf88 (BGM loop), font / input / init paths the harness does not exercise
 
 Re-run: `rhost.py corpus --headless -j 8 --coverage <list>`; the per-scenario `coverage.txt` names the first frame.
+
+## Basic blocks (2026-11-19, later)
+
+`tools/rhost/where.py blocks` lists the block starts of the game code by **recursive descent** from each function's
+entry (30,183 blocks; a linear sweep also "decodes" the switch tables inside function ranges — an INT3 there is read as
+data, never executed / restored, and two test runs diverged: `scene=15` game exit at f1343). With the descent list the
+corpus (194 scenarios, batch `rhost-runs/20261119-135920-corpus`) ends every scenario on the same frame + RNG as the
+plain run.
+
+**24,844 / 30,183 blocks hit (82.3 %).** 772 ported functions have unhit blocks (4,201 in all); the most:
+FUN_004176ff (render pass, 322), FUN_0043ae20 (records B tick, 258 — record types / states no recording spawns),
+FUN_00475270 (the stage loader, 200), FUN_0040fb3a (particles, 147), FUN_00462403 (the customer master tick, 133),
+FUN_0044376a (124), FUN_0045edaa (the customer roster, 114), FUN_0043a5d9 (dungeon objects, 68), FUN_00463cfb (orders, 64),
+FUN_00461792 (the seller, 61), FUN_004986ee (61), FUN_0043865e (the record state machine, 53).
+
+Query: `where.py FUN_x` (each block: how many scenarios hit it, the first scenario @ frame), `where.py FUN_x --unhit`
+(only the unhit blocks with their first instruction), `where.py --top N`. Index: `/mnt/ephemeral/openrecet/coverage/
+bb-latest.json.gz` (rebuild: `where.py blocks F`, `rhost.py corpus --headless -j 8 --coverage F`, `where.py index BATCH F`).

@@ -87,6 +87,10 @@ python3 tools/rhost/rhost.py run house-idle --frames 200 --extra=" --d3d-probe" 
 - The game's `MessageBoxA` is logged and answered (never blocks a batch); `PostQuitMessage` / `ExitProcess` log
   their caller; an access violation logs registers + the retail return addresses on the stack.
 
+### Coverage (`where.py`)
+`python3 tools/rhost/where.py FUN_x [--unhit] | --top N` — which recording reaches a retail block (index from a
+`corpus --coverage` run over the recursive-descent block list; `docs/findings/retail-coverage.md`).
+
 ### Goldens and triage (`docs/plans/free-play-capture.md` FPC-2 / FPC-3)
 ```sh
 python3 tools/rhost/rhost.py golden [SCEN..|--only RE] [--refresh]   # retail's side of the port commands, once
