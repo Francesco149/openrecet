@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **39**
-- distinct retiring engine functions: **30**
+- total open debts: **38**
+- distinct retiring engine functions: **29**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 14 | wired call boundary, body incomplete |
+| stub | 13 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 7 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -51,7 +51,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00465db4 | 1 |
 | FUN_00468ddc | 1 |
 | FUN_0046c9a2 | 1 |
-| FUN_004708f7 | 1 |
 | FUN_00473c03 | 1 |
 | FUN_00485f8c | 1 |
 | FUN_0048e49c | 1 |
@@ -61,7 +60,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (14)
+## stub (13)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -74,7 +73,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:398 | its b924 == 0x276 consumer, scene0/sub8), |
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
 | FUN_00468ddc | src/customer_service.c:1264 | an index < -1 or >= 32 with its mod-32 bit |
-| FUN_004708f7 | src/dungeon_party.c:660 | the event-window pair (chars 0x2f / 0x30) |
 | FUN_00473c15 | src/scene1_preload.c:329 | the floor's render assets (see |
 | FUN_00473c15 | src/scene1_preload.c:375 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |

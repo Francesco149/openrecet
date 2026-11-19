@@ -39,7 +39,8 @@
 #include "scene1_per_frame_open.h" /* FUN_0041331d */
 #include "scene1_records_b_spawn.h" /* FUN_0044376a */
 #include "scene1_spawn.h"        /* FUN_00447f4f */
-#include "sim.h"                 /* DAT_073dddd0 */
+#include "sim.h"
+#include "story_visitor.h"       /* FUN_004708f7 */                 /* DAT_073dddd0 */
 #include "scene1_combat_sm.h"    /* DAT_0438b4c8 */
 #include "stage_gate.h"          /* FUN_0043195d */
 #include "stage_post_load.h"     /* DAT_0438b4d0 */
@@ -657,8 +658,7 @@ void dungeon_event_actor_tick(void)
         if (g_party.chr[i] != -1)
             chr_anim_tick(g_party.rec[i], g_party.chr[i], 1.0f);
     party_event_follow();
-    /* PORT-DEBT(stub, FUN_004708f7): the event-window pair (chars 0x2f / 0x30)
-     * of work flag +0x2bcd8 — house-only */
+    story_visitor_aux_tick();                    /* FUN_004708f7 (gated on work +0x2bcd8 itself) */
     ++PW(0x56db054u).i;
 }
 

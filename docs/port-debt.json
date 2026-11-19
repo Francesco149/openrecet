@@ -2,9 +2,9 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 39,
+  "total": 38,
   "by_kind": {
-   "stub": 14,
+   "stub": 13,
    "synthetic-data": 0,
    "simplified": 7,
    "hardcode": 1,
@@ -22,7 +22,7 @@
    "semantic-collision": 1,
    "structure": 1
   },
-  "retiring_engine_fns": 30,
+  "retiring_engine_fns": 29,
   "by_engine_fn": {
    "FUN_00473c15": 3,
    "FUN_00474d92": 3,
@@ -45,7 +45,6 @@
    "FUN_00465db4": 1,
    "FUN_00468ddc": 1,
    "FUN_0046c9a2": 1,
-   "FUN_004708f7": 1,
    "FUN_00473c03": 1,
    "FUN_00485f8c": 1,
    "FUN_0048e49c": 1,
@@ -327,14 +326,6 @@
    "desc": "an index < -1 or >= 32 with its mod-32 bit",
    "file": "src/customer_service.c",
    "line": 1264,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_004708f7",
-   "desc": "the event-window pair (chars 0x2f / 0x30)",
-   "file": "src/dungeon_party.c",
-   "line": 660,
    "kind_known": true
   },
   {
