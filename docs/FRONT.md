@@ -264,6 +264,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     **Retail coverage** (`findings/retail-coverage.md`, 2026-11-19): the corpus executes ≈ 606 of 636 KB of game code; every
     unreached sim function is a debug path; 39 PORTED functions no recording verifies → probe targets (Charme's skills 5 / 6,
     the missed-order customer b5a8 5, the adv-guild unpause, display-menu confirm cancel, …).
+    `charme-skills` filed: identical on the first triage (gate row). ☐ rd: `undo` after a 6-press `tap` reported the old
+    frame but the live state stayed at the later one (driver report 2026-11-19; `rewind --to` worked).
     Debug a new split with `portblock S --at F-1,F` + `--watch-write` (pin the exe with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left:
     dead part_idx 1/2 arms of 0x23 / 0x29, signed modulo, 0x29 ground query z.
     Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).
