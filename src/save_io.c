@@ -324,3 +324,15 @@ int save_io_commit_slot(int slot)
      * redirect keeps replays off the user's real save). */
     return save_io_write_arena("save.dat", "_save.dat");
 }
+
+int save_io_clear_all(void)
+{
+    /* FUN_004902aa: the header magic DAT_056e5770 = 0, FUN_004901c2 re-seeds the
+     * whole arena (every bank fresh), the arena -> the working copy, then
+     * save.dat alone (fopen "wb", no _save.dat) */
+    uint8_t *h = save_bank_header_bytes();
+    if (h) memset(h, 0, 4);
+    save_bank_init_all();
+    save_work_sync_from_save();
+    return save_io_write_arena("save.dat", NULL);
+}

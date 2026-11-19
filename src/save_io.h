@@ -118,6 +118,10 @@ int save_io_write_arena(const char *primary, const char *backup);
  * Pure-C. */
 int save_io_commit_slot(int slot);
 
+/* FUN_004902aa: clear all data (the title Options' "Clearing all data" Yes):
+ * the arena re-seeded fresh, written to save.dat only. */
+int save_io_clear_all(void);
+
 /* Redirect ALL subsequent save_io_write_arena output into `dir` (writes go to
  * <dir>/<basename> instead of the cwd's real save.dat/_save.dat). Pass NULL or
  * "" to clear. Used by the TAS harness so replaying a trace NEVER overwrites the

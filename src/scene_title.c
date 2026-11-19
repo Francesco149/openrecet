@@ -16,6 +16,7 @@
  * every slot owned by this module.
  */
 
+#include "choice_box.h"
 #include "scene_title.h"
 
 #include <math.h>
@@ -279,12 +280,27 @@ static void scene_title_settings_step(scene_title_anim_t *anim,
 {
     const int row = (int)anim->submenu_cursor;
 
-    /* Row 5 + A: clear-data prompt. Engine opens a modal via
-     * FUN_00434def; we play the entry SE and consume the press but
-     * don't actually trigger any clear (no save IO). The next frame
-     * will re-check `pressed` — A is a rising edge so it doesn't
-     * re-fire. */
+    /* The clear-data confirm (DAT_09643548, all_ida 112119): Yes → FUN_004902aa
+     * (every save wiped, save.dat written) and the settings count as changed
+     * (LABEL_186: DAT_09643560 = 1); No → back to the row. Either way the hand
+     * snaps back to the row (FUN_00435693). */
+    if (anim->clear_prompt) {
+        const int r = choice_box_poll(pressed, 1);              /* FUN_00434ed2(1) */
+        if (r == CB_OPT0) {
+            anim->clear_prompt = 0;
+            save_io_clear_all();                                /* FUN_004902aa */
+            title_save_dialog_cursor_snap(168.0f, (float)(40 * row) + 168.0f);
+            anim->settings_dirty = 1;
+        } else if (r == CB_OPT1) {
+            title_save_dialog_cursor_snap(168.0f, (float)(40 * row) + 168.0f);
+            anim->clear_prompt = 0;
+        }
+        return;
+    }
+    /* Row 5 + A: "Clearing all data. Are you sure?" (FUN_00434def(msg, 0, 1)) */
     if (row == SETTINGS_ROW_CLEAR && (pressed & TITLE_INPUT_A)) {
+        choice_box_open("Clearing all data. Are you sure?", 0, 1);
+        anim->clear_prompt = 1;
         audio_play_se_by_id(TITLE_SE_CONFIRM);
         return;
     }
@@ -345,19 +361,26 @@ static void scene_title_settings_exit_handler(scene_title_anim_t *anim,
     if (anim->submenu_state != 2) return;
     if (anim->settings_dirty != 2 && anim->settings_dirty != 3) return;
 
-    if (anim->settings_dirty == 2) {
-        /* Engine: FUN_004905a8(-1) writes save.dat + _save.dat. Save
-         * IO not ported yet — sliders are kept in audio_fade module
-         * state and rebuild from recet.ini next boot. Documented as
-         * a deferred follow-up. */
-    }
+    if (anim->settings_dirty == 2)
+        save_io_commit_slot(-1);       /* FUN_004905a8(-1): the header (the options) → save.dat + _save.dat */
 
     anim->select_phase     = 0;
     anim->menu_folding_out = 1;        /* start slide-OUT */
-    /* Engine calls FUN_00435612 (cursor sprite off) + FUN_0049a43d
-     * (rebuild main menu). Our menu is pre-built and reused; turn the
-     * shared hand cursor off so it doesn't bleed onto the main menu. */
+    /* FUN_00435612 (the hand off) + FUN_0049a43d: the main menu rebuilt from
+     * the arena — a "Clear Save Data" Yes drops Continue (rd probe
+     * title-options-save-clear f247: 5 items → 4) */
     title_save_dialog_cursor_set_visible(0);
+    if (menu == &g_scene_title_menu) {
+        scene_title_save_t sv;
+        int old[SCENE_TITLE_MENU_MAX];
+        memcpy(old, g_scene_title_menu.items, sizeof old);
+        save_io_scan_for_title_menu(&sv);
+        scene_title_menu_init(&sv, &g_scene_title_menu);
+        /* FUN_0049a43d writes only the rows it builds: the slots past the new
+         * count keep the old list's codes */
+        for (int i = g_scene_title_menu.count; i < SCENE_TITLE_MENU_MAX; i++)
+            g_scene_title_menu.items[i] = old[i];
+    }
 
     /* Seek main-menu cursor to the OPTIONS row (code 2). Engine
      * mirrors this so the user returns to the row they entered from. */

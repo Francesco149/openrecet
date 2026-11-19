@@ -5686,6 +5686,7 @@
     "src/scene_gameover.c",
     "src/scene_guild.c",
     "src/scene_pause.c",
+    "src/scene_title.c",
     "src/sim.c",
     "src/skip_event.c",
     "src/skip_event.h"
@@ -19241,6 +19242,8 @@
    "quality_flags": [],
    "src": [
     "src/save_bank.h",
+    "src/save_io.c",
+    "src/save_io.h",
     "src/save_work.c",
     "src/save_work.h",
     "src/scene_title.c"

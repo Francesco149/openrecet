@@ -87,6 +87,7 @@ typedef struct {
     int      submenu_state;     /* DAT_09643524 */
     uint32_t submenu_cursor;    /* DAT_09643530 */
     int      settings_dirty;    /* DAT_09643560 */
+    int      clear_prompt;      /* DAT_09643548: the "Clearing all data" confirm is up */
 
     /* ── Survival difficulty selector (title item code 6) ──
      *

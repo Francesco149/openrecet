@@ -564,6 +564,15 @@ static const int32_t *layout_dword(uint32_t va)
     /* Move Tables' carried cells DAT_074b28d8 + the layout grid DAT_074b28e8 */
     if (shop_display_state_va(va)) return shop_display_state_va(va);
     if (scene_guild_dbg_va(va)) return scene_guild_dbg_va(va);
+    /* the title menu: codes DAT_09643358[8], count DAT_09643510, cursor DAT_09643540 */
+    if (va >= 0x9643358u && va < 0x9643358u + 4u * SCENE_TITLE_MENU_MAX)
+        return &g_scene_title_menu.items[(va - 0x9643358u) / 4];
+    if (va == 0x9643510u) return &g_scene_title_menu.count;
+    if (va == 0x9643540u) return (const int32_t *)(const void *)&g_scene_title_anim.cursor_pos;
+    if (va == 0x9643520u) return (const int32_t *)(const void *)&g_scene_title_anim.cursor_anim;
+    if (va == 0x9643524u) return &g_scene_title_anim.submenu_state;
+    if (va == 0x9643548u) return &g_scene_title_anim.clear_prompt;
+    if (va == 0x9643560u) return &g_scene_title_anim.settings_dirty;
     for (size_t k = 0; k < sizeof k_flow / sizeof k_flow[0]; k++)
         if (k_flow[k].va == va) return k_flow[k].p;
     return NULL;
