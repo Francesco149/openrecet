@@ -256,8 +256,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     (7de4ae99); Windows disk guard (9d0134d3).
     `headless-check --target wine` vs the v2 Windows goldens: 62 / 189 actor-block DIFFs from the CPU vendor (Windows AMD, maximus /
     bunker Intel; D3DX8 SSE), RNG identical; `--target win` is the gate (rhost README, 2026-11-19).
-    `--target win` (2026-11-19): **188/189**; the one DIFF, `intro-iv2-v3` (legacy trace: calltrace / caprange / phasepin ops),
-    is headless 874 draws vs real-device 873 at f71 — also at 842c1a90 (before that day's changes), so not a regression; ☐ chase it.
+    `--target win` (2026-11-19): **188/189 → 189/189**: the one DIFF, `intro-iv2-v3` (f71 874 vs 873 draws), was a stale golden —
+    today's real-device and headless replays agree (1,016 draws at f71, `det -n 4` PASS); `golden --refresh` → identical.
   - ★ next:
     0. **boss arms**: per boss, a driver exercises its card's arms checklist from the boss-floor frame of a played
        scenario (done: crown slime, mushroom king, Charme; **minion slowdowns + exhaustion: `ahriman-exhaust`, `ohm-exhaust` (2026-11-16)
