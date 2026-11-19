@@ -2,9 +2,9 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 38,
+  "total": 36,
   "by_kind": {
-   "stub": 13,
+   "stub": 11,
    "synthetic-data": 0,
    "simplified": 7,
    "hardcode": 1,
@@ -22,12 +22,11 @@
    "semantic-collision": 1,
    "structure": 1
   },
-  "retiring_engine_fns": 29,
+  "retiring_engine_fns": 28,
   "by_engine_fn": {
    "FUN_00473c15": 3,
    "FUN_00474d92": 3,
    "FUN_0042df55": 2,
-   "FUN_00434ceb": 2,
    "FUN_0044bd0d": 2,
    "FUN_0048670f": 2,
    "0x43e...": 1,
@@ -278,22 +277,6 @@
    "desc": "the BGM stream's loop (FUN_0040cf88,",
    "file": "src/movie.c",
    "line": 102,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_00434ceb",
-   "desc": "the \"Item limit reached\" box.",
-   "file": "src/scene_guild.c",
-   "line": 21,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_00434ceb",
-   "desc": "the message box is unported.",
-   "file": "src/scene_guild.c",
-   "line": 472,
    "kind_known": true
   },
   {

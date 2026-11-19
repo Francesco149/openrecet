@@ -26,6 +26,7 @@ probe report says which it used. Played saves from the owner's free-play capture
 | `2afe7fb42617` | `64d43650865f` | `--set 0xb100=15` (HUD 16) | vending-level16, change-tables-l16, vender-sales-l16 (through the scenario) |
 | `352c146ab865` | `2afe7fb42617` | `--set 0xb100=16` (HUD 17) | item-storage-l17 |
 | `b4766a99d74b` | `78c391141547` | `--set 0xaf3d=0x00010101` (bank byte `+0x2bcf7` = 0: event 12/4 not yet seen) | lapis-60f-event-12-4 |
+| `3f9c0a2684a2` | `175794a5f61c` | `--add-item 1001x15000` (15,000 copies of item 1001, one slot each: 15,032 held, past the guild's 15,000 Buy limit) | guild-item-limit |
 | `bbdbe357822b` | `824053720e01` | `--set 0xaf38=0x00000101` (bank bytes `+0x2bce2` = `+0x2bce3` = 0: the Obsidian first-trip cutscene not yet seen) | obsidian-first-trip |
 | `15b20dc3c34e` | `6809401b79a9` | `--set 0xaf3f=0` (bank byte `+0x2bcff` = 0: Lapis 100F's long intro not yet seen) | lapis-100f-long-intro |
 | `2f2f2203a65d` | `2e4388a2cfe2` | `--gold 1000000` (the day-35 final payment can be paid → the ending → Endless) | bossrush-obsidian |

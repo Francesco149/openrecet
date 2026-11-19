@@ -9,7 +9,7 @@ save whose slot holds a large gold value.  Gold is bank dword 3
 
 Usage:
   python3 tools/craft_pix_save.py --base tests/scenarios/_saves/<sha>.sav.gz \
-      [--bank N] [--gold 9999999] [--set DWORD=VALUE ..] [--add-item ID[+N] ..]
+      [--bank N] [--gold 9999999] [--set DWORD=VALUE ..] [--add-item ID[+P][xN] ..]
       [--loadout early|mid|late|rush|crystal [--keep-level]] [--list-loadouts]
 
 --set patches any bank dword (index and value: decimal or 0x hex; layout in
@@ -53,9 +53,9 @@ def checksum(buf: bytes, base: int) -> int:
     return sum(struct.unpack_from(f"<{F_CHECKSUM - 1}I", buf, base)) & 0xffffffff
 
 
-def add_item(buf: bytearray, base: int, val: int) -> int:
-    """Put `val` into the first empty inventory slot (bank dwords 6..20005); returns the slot index."""
-    for d in range(6, 6 + 20000):
+def add_item(buf: bytearray, base: int, val: int, start: int = 0) -> int:
+    """Put `val` into the first empty inventory slot at or after `start` (bank dwords 6..20005); returns the slot index."""
+    for d in range(6 + start, 6 + 20000):
         if struct.unpack_from("<I", buf, base + d * 4)[0] == 0xffffffff:
             struct.pack_into("<I", buf, base + d * 4, val)
             return d - 6
@@ -86,9 +86,14 @@ def craft(buf: bytearray, bank: int | None = None, gold: int | None = None, sets
         struct.pack_into("<I", buf, base + d * 4, v & 0xffffffff)
         notes.append(f"dword {d:#x}: {old} -> {v}")
     for it in add_items:
+        it, _, rep = it.partition("x")           # ID[+P]xN: N copies, one slot each
         iid, _, plus = it.partition("+")
-        slot = add_item(buf, base, (int(iid, 0) << 6) | (int(plus or "0", 0) & 0x3f))
-        notes.append(f"item {iid}{'+' + plus if plus else ''} -> bag slot {slot}")
+        n = int(rep or "1", 0)
+        first = None
+        for _ in range(n):
+            slot = add_item(buf, base, (int(iid, 0) << 6) | (int(plus or "0", 0) & 0x3f), 0 if first is None else slot + 1)
+            first = slot if first is None else first
+        notes.append(f"item {iid}{'+' + plus if plus else ''}" + (f" x{n} -> bag slots {first}..{slot}" if n > 1 else f" -> bag slot {slot}"))
     if loadout is not None:
         if loadout not in craft_loadouts.PRESETS:
             raise SystemExit(f"--loadout {loadout}: one of {', '.join(craft_loadouts.PRESETS)}")
@@ -128,8 +133,8 @@ def main() -> int:
     ap.add_argument("--bank", type=int, help="slot to patch (default: the header's last-saved slot)")
     ap.add_argument("--gold", type=int)
     ap.add_argument("--set", action="append", default=[], metavar="DWORD=VALUE", help="patch a bank dword (repeatable)")
-    ap.add_argument("--add-item", action="append", default=[], metavar="ID[+N]",
-                    help="put an item into the first empty bag slot (bank dwords 6..20005 hold id<<6 | plus; repeatable)")
+    ap.add_argument("--add-item", action="append", default=[], metavar="ID[+P][xN]",
+                    help="put an item into the first empty bag slot (bank dwords 6..20005 hold id<<6 | plus P; xN = N copies, one slot each; repeatable)")
     ap.add_argument("--loadout", choices=sorted(craft_loadouts.PRESETS), help="boss-test preset (tools/craft_loadouts.py)")
     ap.add_argument("--keep-level", action="store_true", help="with --loadout: leave Louie's level as it is")
     ap.add_argument("--list-loadouts", action="store_true", help="print the presets and exit")
