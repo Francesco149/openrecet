@@ -1135,6 +1135,40 @@ static void griff_floor_setup(int32_t floor, const uint8_t *rec)
     }
 }
 
+/* FUN_0044e08f's +0x2bce2 arm (asm 0x44e0c5..0x44e198; the first trip into
+ * Obsidian Tower, stage type 20): the party in a diagonal from the floor origin
+ * (x + i, z + 5 - i; anim 0), facing 0; DAT_0438c148 = 1 (one-room collision);
+ * three movers (the curtains): mover k = 1..3 at (-40, 0, -40), mesh slot k,
+ * on, f6c8 1.0, on[50 + k] 100, slot[50 + k] 0 — the third switched off again
+ * (DAT_0438c15c = on[3] = 0) until the beat's tick 230. */
+static void d3_first_trip_setup(void)
+{
+    static const float k5 = 5.0f, km40 = -40.0f;   /* 0x51953c, 0x519660 */
+    for (int32_t i = 0; i != 3; i++) {
+        const float fi = spill32((long double)i);
+        g_party.pos[i][0] = spill32((long double)fi + g_scene1_stage_player_default_pos[0]);
+        g_party.pos[i][1] = g_scene1_stage_player_default_pos[1];
+        g_party.pos[i][2] = spill32(((long double)g_scene1_stage_player_default_pos[2] + k5) - fi);
+        party_anim_set(g_party.rec[i], 0);          /* FUN_00482a51 */
+        g_party.rec[i][6] = 0;
+        PW(0x56db05cu).f = 0.0f;
+    }
+    g_mapcol_movers.on[0] = 3;                      /* DAT_0438c150 */
+    g_floor_c148 = 1;                               /* DAT_0438c148 */
+    for (int32_t k = 1; k <= 3; k++) {
+        g_mapcol_movers.x[k] = km40;
+        g_mapcol_movers.y[k] = 0.0f;
+        g_mapcol_movers.z[k] = km40;
+        g_mapcol_movers.f6c8[k] = 1.0f;
+        g_mapcol_movers.f790[k] = 0.0f;
+        g_mapcol_movers.on[k] = 1;
+        g_mapcol_movers.on[50 + k] = 100;
+        g_mapcol_movers.slot[50 + k] = 0;
+        g_mapcol_movers.slot[k] = k;
+    }
+    g_mapcol_movers.on[3] = 0;                      /* DAT_0438c15c */
+}
+
 /* FUN_0044e08f: dungeon 3's floor setup — Griff's floors 29 / 49, a checkpoint
  * floor's arena FUN_0044cc80(1) (floor 19: first the golem parts 61..63 at
  * (-40, -12, -35), state 8, the 2nd / 3rd with +0xa04 = 0); b8a4 = 0. */
@@ -1146,9 +1180,7 @@ void dungeon3_stage_setup(void)
     const uint8_t *rec = save_work_bank_at(save_work_active_slot());
     const int32_t floor = stage_gate_get_next();
     if (rec != NULL && rec[0x2bce2] != 0) {
-        /* PORT-DEBT(stub, FUN_0044e08f): the +0x2bce2 story beat's setup (the
-         * party row 5 back, DAT_0438c148 = 1, the DAT_0438c150.. curtain rows,
-         * DAT_0438c15c = 0) — no recording reaches it */
+        d3_first_trip_setup();
     } else if (floor == 29 || floor == 49) {
         griff_floor_setup(floor, rec);
     } else if (floor % 5 == 4) {
@@ -1411,7 +1443,61 @@ static void griff49_floor_event(uint8_t *rec)
     }
 }
 
-/* The dungeon-3 arm of FUN_004427f1 (asm 0x44e3f8..0x44ecc3): the +0x2bcf8
+/* FUN_004427f1's dungeon-3 +0x2bce2 beat (asm 0x44e41e..0x44e5d1): the fixed
+ * curtain camera (yaw 0, lookat (-40, 3.5, -30), eye (-40, 12, -55)), unlocked,
+ * camera class 1; every 200 ticks from 100 the spawn type 96; at 200 iv7_6
+ * (story mode 2: the beat's tail skipped this tick); at 230 the
+ * fade (1, 60) and the third curtain on; at 260 the shake (140, 4, 4, 0.5) and
+ * SE 369; from 230 slot[53] = 0; ticks 260..399 the curtains part (mover 2
+ * x - 0.02, mover 1 x + 0.02); past 400 the pad lock 4; at 460 the flag
+ * cleared, +0x2bce3 = 1, and the floor reloads with the stage of floor + 1
+ * (FUN_0045bcea, the floor restored) through FUN_00452f16. */
+static void d3_first_trip_event(uint8_t *rec)
+{
+    static const float km40 = -40.0f, k3p5 = 3.5f, km30 = -30.0f, k12 = 12.0f, km55 = -55.0f;
+    static const float k0p02 = 0.019999999552965164f, k0p5 = 0.5f;   /* 0x5198dc, 0x51935c */
+    const int32_t t = g_event_tick;
+    g_scene1_camera_yaw = 0.0f;                     /* DAT_073de39c */
+    const float look[3] = { km40, k3p5, km30 }, eye[3] = { km40, k12, km55 };
+    scene1_camera_set_lookat(look);                 /* DAT_0438cc50..58 */
+    scene1_camera_set_eye(eye);                     /* DAT_0438cc38..40 */
+    g_ctrl_lock = 0;                                /* DAT_0438b8b0 */
+    g_scene1_camera_stage_class = 1;                /* DAT_0438b4e8 */
+    if (t % 200 == 100)
+        scene1_spawn(0, 0.0f, 0.0f, 0.0f, 96, 1.0f, 1);    /* FUN_00447f4f */
+    if (t == 200) {
+        if (work_mode(rec) == 2) return;
+        scene1_intro_dialogue_start_single(7, 6);   /* FUN_0044ba2c(7, 6, 0) */
+    }
+    if (t == 230) {
+        fade_phase_out_start(1, 60);                /* FUN_0045281c */
+        g_mapcol_movers.on[3] = 1;                  /* DAT_0438c15c */
+    }
+    if (t == 260) {
+        camera_shake(140, 4, 4, k0p5);              /* FUN_0044b219 */
+        audio_play_se_by_id(369);                   /* FUN_00499519 */
+    }
+    if (t >= 230) g_mapcol_movers.slot[53] = 0;     /* DAT_0438c3b4 */
+    if (t >= 260 && t < 400) {
+        g_mapcol_movers.x[2] = spill32((long double)g_mapcol_movers.x[2] - k0p02);
+        g_mapcol_movers.x[1] = spill32((long double)g_mapcol_movers.x[1] + k0p02);
+    }
+    if (t > 400) g_ctrl_lock = 4;
+    if (t == 460) {
+        const int32_t cur = g_stage_b4dc, floor = stage_gate_get_next();
+        stage_gate_set_next(floor + 1);
+        rec[0x2bce2] = 0;
+        rec[0x2bce3] = 1;
+        adv_guild_set_stage(rec);                   /* FUN_0045bcea */
+        stage_gate_set_next(floor);
+        const int32_t next = g_stage_b4dc;
+        g_stage_b4dc = cur;
+        sim_stage_load_request(next, 0, 0, floor);  /* FUN_00452f16 */
+    }
+}
+
+/* The dungeon-3 arm of FUN_004427f1 (asm 0x44e3f8..0x44ecc3): the +0x2bce2
+ * first-trip beat (d3_first_trip_event), the +0x2bcf8
  * return beat (the type-20 stage after the 50F clear: unlocked, iv7_14 at 200
  * unless story mode 2, at 300 the flag cleared and the last floor's return
  * — be9c 120, bea8 1, be98 3); floor 29 / 49 → Griff's timelines, a
@@ -1420,8 +1506,8 @@ static void dungeon3_event_tick(void)
 {
     uint8_t *rec = save_work_bank_at(save_work_active_slot());
     const int32_t floor = stage_gate_get_next();
-    /* PORT-DEBT(stub, FUN_004427f1): the +0x2bce2 story beat (the curtain
-     * camera, iv7_6 at 200, the stage reload at 460) — no recording sets it */
+    if (rec != NULL && rec[0x2bce2] != 0)
+        d3_first_trip_event(rec);
     if (rec != NULL && rec[0x2bcf8] != 0) {
         g_ctrl_lock = 0;
         if (g_event_tick == 200 && work_mode(rec) != 2)

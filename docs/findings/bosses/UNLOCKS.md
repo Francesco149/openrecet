@@ -212,8 +212,9 @@ same lines apply — its 0xaf13 / 0xaf14 / 0xaf38.. are identical; 0xb103 is 19 
   IDA 65600..65910) key on their own "seen" bytes, not on the roster — they still fire later in a crafted save
   (an unexpected cutscene in a shop session, not in a dungeon). The day > 35 trigger of 12/2 / 12/3 is off with
   0x2bcf2 / 0x2bcf3 set.
-- **The type-20 cutscene stage** (0x2bce2 / 0x2bcf8): `FUN_0042df55`'s list for a stage index ≥ 20 is unresolved
-  (`ROSTER.md` §4); the 50F clear always goes through it (0x2bcf8). Prefer 0x2bce3 = 1 for the first trip.
+- **The type-20 cutscene stage** (0x2bce2 / 0x2bcf8): stage index 19, no static spawns (`ROSTER.md`); the 50F clear
+  always goes through it (0x2bcf8). The first trip (0x2bce3 = 0) is recorded and port-identical: `obsidian-first-trip`
+  (`probes/obsidian-first-trip.md`); 0x2bce3 = 1 skips it.
 - **0x2bcfe / 0x2bcfd** (Lapis mid-story resume): writer / reader not traced — leave 0.
 - **Arma hired before 12/20**: the roster byte alone lists her; item 3408 is not in the bag (only the true-card
   flag reads it). Hiring Griff (id 6) against Griff's floors, or Arma against type 41: nothing in the setups tests

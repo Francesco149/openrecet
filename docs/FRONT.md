@@ -237,6 +237,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     Then the hurry-up wisps (`wisp-hurry-up` filed: Jade 1F idle until the floor timer runs out; was split f29701): the wisp AI
     FUN_0042ac16 and the 19/3 dialogue call were PORT-DEBT stubs → identical every block; FUN_00442cef's run-end arm ported (dead in
     retail, quirk 168). **Corpus 186 identical / 1 no-flat, 0 regressions (2026-11-18, port 52c814b7903c).**
+    Then the Obsidian first-trip cutscene (`obsidian-first-trip` filed, crafted `bbdbe357822b`: +0x2bce2 / +0x2bce3 = 0;
+    the old port split f638): FUN_0044e08f's +0x2bce2 arm and FUN_004427f1's d3 +0x2bce2 beat were PORT-DEBT stubs →
+    identical every block, ticks 1..3735; the cutscene stage is index 19, so FUN_0042df55's ≥ 20 read (ported for
+    structure) is unreachable there. Obsidian + Boss Rush triage 14/14 identical (2026-11-19, port 531c8f82a499).
     Debug a new split with `portblock S --at F-1,F` + `--watch-write` (pin the exe with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left:
     dead part_idx 1/2 arms of 0x23 / 0x29, signed modulo, 0x29 ground query z.
     Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).
