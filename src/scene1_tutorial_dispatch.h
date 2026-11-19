@@ -1,34 +1,18 @@
 /*
- * scene1_tutorial_dispatch.h — focused port of the FUN_0044bd0d story-event
- * scheduler's two shop-display tutorial branches (iv1_5 / iv1_6).
+ * scene1_tutorial_dispatch.h — FUN_0044bd0d, the house story / tutorial
+ * scheduler (0x44bd0d, 2723 B, all_ida 49399), whole: survival's opener, the
+ * day-8 visitor's scene (FUN_00470a46), the day-9 f488 morning (iv0_8 at b924
+ * 630), iv9_1, the iv7_1 second-week morning, the b928 / b924 < 190 morning
+ * hold, iv1_1 / iv1_2 / iv12_1, then LABEL_44: iv1_4, iv0_6, iv1_17 / iv1_18,
+ * iv2_15 / iv2_14, iv0_17, iv12_2 / iv12_3, iv4_4 / iv4_5, iv1_5 / iv1_6, iv1_7
+ * and the iv1_8 → iv2_1 → iv2_2 → iv2_3 (day advance) → iv2_5 → iv2_6 chain.
+ * Each arm fires once, while no dialogue runs (DAT_0438b1c8 == 0).  It draws no
+ * LCG.  The "OHA:%4d" sprintf is a debug text line (no state).
+ * Arm-by-arm checked against all_ida 2026-11-19 (flag offsets included).
  *
- * FUN_0044bd0d (all.c:45406-45818, 2723 B) is the master per-frame tutorial /
- * scenario scheduler.  It consumes NO shared LCG (verified) and its activation
- * helper FUN_00452d07 only sets the dialogue gate + spawns the load thread, so a
- * FOCUSED port of just the iv1_5/iv1_6 branches is RNG-neutral.  Each branch, when
- * its placement condition flag is set and its per-slot done-flag is clear and no
- * dialogue is active (DAT_0438b1c8 == 0), activates the corresponding script:
- *
- *   iv1_5 (scene 1, sub 5): item placed in the window counters (row 0)
- *                           → DAT_0450f3fb set by the placement confirm (D1)
- *   iv1_6 (scene 1, sub 6): every display stand filled
- *                           → DAT_0450f3fd set by the placement confirm (D1)
- *   iv1_7 (scene 1, sub 7): the post-tutorial wrap-up ("And that is, essentially,
- *                           how it goes…") → DAT_0450f400 set by the sell-tutorial
- *                           cs leave/dissolve (FUN_00462403 @0x462403, mirrored in
- *                           customer_service.c).  P2 of the customer-service arc.
- *
- * iv1_5/iv1_6 are if/else-if (iv1_5 has priority); iv1_7 is an independent check
- * after them (retail likewise).  The no-dialogue gate serialises all three, so
- * each fires only after the previous has finished (retail: ord 770 → 1483 → the
- * post-haggle wrap-up).
- *
- * PORT-DEBT(focused, FUN_0044bd0d): the outer DAT_0450f454 "all early tutorials
- * done" gate, the DAT_0450f455 / DAT_0450fb88 alternate gate, and the rest of the
- * scenario chain past iv1_7 (iv1_8 "sit at the counter" = DAT_0450f402, the scene
- * 2/4/12 dialogues) are not ported — only the iv1_5/iv1_6/iv1_7 branches.  The
- * per-slot done-flags below make each fire exactly once regardless of the missing
- * outer gate.
+ * PORT-DEBT(render-coupled, FUN_00452809): the arms that call FUN_00452809 arm
+ * the blackout DAT_0438bf74 (a full-screen quad, render only; the port derives
+ * it in scene1_intro_dialogue_blackout_active for the prologue only).
  */
 #ifndef OPENRECET_SCENE1_TUTORIAL_DISPATCH_H
 #define OPENRECET_SCENE1_TUTORIAL_DISPATCH_H

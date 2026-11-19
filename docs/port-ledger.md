@@ -374,10 +374,10 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x451ea7 | FUN_00451ea7 | 1343 | ✓ |  | audio_mci.h |
 | 0x452569 | FUN_00452569 | 312 | ✓ |  | prewindow.c, prewindow.h |
 | 0x4526ab | FUN_004526ab | 74 | ✓ |  | fade.c, fade.h, sim.c |
-| 0x452809 | FUN_00452809 | 11 | ✓ |  | scene1_intro_dialogue.c, scene1_tutorial_dispatch.c, scene_adv_guild.c (+1) |
+| 0x452809 | FUN_00452809 | 11 | ✓ |  | scene1_intro_dialogue.c, scene1_tutorial_dispatch.c, scene1_tutorial_dispatch.h (+2) |
 | 0x4528e2 | FUN_004528e2 | 47 | ✓ |  | fade.h, scene1_sim.c |
 | 0x452911 | FUN_00452911 | 6 | ✓ |  | esc_dispatch.c, esc_dispatch.h, music.c (+2) |
-| 0x452d07 | FUN_00452d07 | 55 | ✓ |  | main.c, nowloading.c, scene1_intro_dialogue.c (+8) |
+| 0x452d07 | FUN_00452d07 | 55 | ✓ |  | main.c, nowloading.c, scene1_intro_dialogue.c (+7) |
 | 0x452d3e | FUN_00452d3e | 71 | ✓ |  | customer_service.c, main.c, scene_buy.h (+1) |
 | 0x452d85 | FUN_00452d85 | 60 | ✓ |  | scene1_preload.h, scene_walls.h, worker_load.c |
 | 0x452dc1 | FUN_00452dc1 | 60 | ✓ |  | scene1_player_ctrl.c, scene_floor.h, worker_load.c |
@@ -469,7 +469,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x461c00 | FUN_00461c00 | 1753 | ✓ |  | customer_service.c, customer_service.h, tables_tuto.h |
 | 0x4622d9 | FUN_004622d9 | 227 | ✓ |  | customer_service.c |
 | 0x4623bc | FUN_004623bc | 71 | ✓ |  | customer_service.c |
-| 0x462403 | FUN_00462403 | 5618 | ✓ |  | customer_seller.h, customer_service.c, customer_service.h (+6) |
+| 0x462403 | FUN_00462403 | 5618 | ✓ |  | customer_seller.h, customer_service.c, customer_service.h (+5) |
 | 0x4639f5 | FUN_004639f5 | 774 | ✓ |  | customer_service.c |
 | 0x463cfb | FUN_00463cfb | 3371 | ✓ |  | customer_service.c, customer_service.h |
 | 0x464a26 | FUN_00464a26 | 202 | ✓ |  | customer_service.c |
@@ -547,7 +547,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4706ea | FUN_004706ea | 525 | ✓ |  | scene1_actor_say.h, scene1_day_close.c, scene1_player_ctrl.h (+2) |
 | 0x4708f7 | FUN_004708f7 | 121 | ✓ |  | dungeon_party.c, scene1_conversation_pose.c, story_visitor.c (+1) |
 | 0x470970 | FUN_00470970 | 214 | ✓ |  | scene1_conversation_pose.c, scene1_conversation_pose.h, story_visitor.c (+1) |
-| 0x470a46 | FUN_00470a46 | 766 | ✓ |  | scene1_conversation_pose.c, scene1_conversation_pose.h, scene1_tutorial_dispatch.c (+2) |
+| 0x470a46 | FUN_00470a46 | 766 | ✓ |  | scene1_conversation_pose.c, scene1_conversation_pose.h, scene1_tutorial_dispatch.c (+3) |
 | 0x470d44 | FUN_00470d44 | 292 | ✓ |  | scene1_bg_npc.h, scene1_shop_walker.c |
 | 0x471050 | FUN_00471050 | 11 | ✓ |  | main.c, prewindow.h, rng.h |
 | 0x471089 | FUN_00471089 | 34 | ✓ |  | actor_ai.c, actor_table.c, customer_haggle.c (+19) |

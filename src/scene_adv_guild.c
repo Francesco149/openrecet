@@ -255,7 +255,7 @@ static void adv_guild_enter(void)
  * done (out to the world map).  The caller runs only while no dialogue runs
  * (DAT_0438b1c8 == 0), so both arms always start their script: DAT_06a4706c
  * = 0, DAT_0438b1b8 = 0, DAT_005c7a2c/30 = 2/7 or 2/8, gate 2,
- * FUN_00452d07(1).  PORT-DEBT(stub, FUN_00452809): the blackout (DAT_0438bf74)
+ * FUN_00452d07(1).  PORT-DEBT(render-coupled, FUN_00452809): the blackout (DAT_0438bf74, a draw quad)
  * and the mode-1 load fades, as at the guild's iv1_3. */
 static int adv_guild_intro(uint8_t *bb)
 {

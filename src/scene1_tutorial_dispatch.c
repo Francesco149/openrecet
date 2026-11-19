@@ -117,9 +117,8 @@ static int g_iv2_beat_ctr    = 0;   /* DAT_0438b924       */
 #define TUT_MODE2_ALT_DWORD    (0x2de34 / 4)   /* dword 46989 — survival opener 19 vs 18 */
 
 /* FUN_0044bd0d's dispatch: DAT_005c7a2c/30 = grp/idx, DAT_0438b1c8 = 2,
- * FUN_00452d07(mode).  The port's start_single owns the load bracket; the
- * worker `mode` (what runs at the dialogue's end) and the FUN_00452809
- * blackout arms are PORT-DEBT(blackout-tut-dispatch) as before. */
+ * FUN_00452d07(mode) = scene1_intro_dialogue_start(grp, idx, mode)
+ * (_start_single = mode 0).  The FUN_00452809 blackout: see the header. */
 static int tut_idle(void) { return !scene1_intro_dialogue_busy(); }
 
 /* FUN_0044bd0d (0x44bd0d, 2723 B, all_ida 49399): the house story / tutorial
@@ -394,8 +393,8 @@ void scene1_beat_master_prologue(void)
 {
     /* FUN_0048670f 0x486b7d-0x486c1b, all under SHOP_DAY >= 9 (dormant through
      * the tutorial days): at the morning (b928 == 1, b924 == 0) the day-9 f488
-     * morning-cutscene arm (story mode only;
-     * PORT-DEBT(stub, FUN_0044bd0d): its b924 == 0x276 consumer, scene0/sub8),
+     * morning-cutscene arm (story mode only; its b924 == 630 consumer, iv0_8,
+     * is scene1_tutorial_dispatch_tick's f488 arm),
      * the daily NPC-schedule pass FUN_00490e56(0) and the daily news
      * FUN_00436623; at b924 191 the news ticker arms (b92c = 1). */
     uint32_t *bank = save_work_dwords_at(save_work_active_slot());

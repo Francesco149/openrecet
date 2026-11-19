@@ -15,7 +15,7 @@
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 14,
-  "port_debt": 46,
+  "port_debt": 45,
   "verified": 81,
   "stubbed": 10,
   "ported": 761,
@@ -8384,6 +8384,7 @@
    "src": [
     "src/scene1_intro_dialogue.c",
     "src/scene1_tutorial_dispatch.c",
+    "src/scene1_tutorial_dispatch.h",
     "src/scene_adv_guild.c",
     "src/scene_guild.c"
    ],
@@ -8596,7 +8597,6 @@
     "src/scene1_intro_dialogue.c",
     "src/scene1_intro_dialogue.h",
     "src/scene1_tutorial_dispatch.c",
-    "src/scene1_tutorial_dispatch.h",
     "src/scene_adv_guild.c",
     "src/scene_sc1.h",
     "src/sim.c",
@@ -11229,8 +11229,7 @@
     "src/scene1_camera.h",
     "src/scene1_day_close.h",
     "src/scene1_player_ctrl.c",
-    "src/scene1_player_ctrl.h",
-    "src/scene1_tutorial_dispatch.h"
+    "src/scene1_player_ctrl.h"
    ],
    "status": "ported"
   },
@@ -13603,6 +13602,7 @@
     "src/scene1_conversation_pose.c",
     "src/scene1_conversation_pose.h",
     "src/scene1_tutorial_dispatch.c",
+    "src/scene1_tutorial_dispatch.h",
     "src/story_visitor.c",
     "src/story_visitor.h"
    ],

@@ -4,7 +4,7 @@
  "counts": {
   "total": 36,
   "by_kind": {
-   "stub": 11,
+   "stub": 9,
    "synthetic-data": 0,
    "simplified": 7,
    "hardcode": 1,
@@ -15,19 +15,18 @@
    "actor-table-split": 1,
    "continue-arm": 1,
    "deferred": 1,
-   "focused": 1,
    "house-teardown": 1,
    "oob": 3,
-   "render-coupled": 7,
+   "render-coupled": 10,
    "semantic-collision": 1,
    "structure": 1
   },
-  "retiring_engine_fns": 28,
+  "retiring_engine_fns": 27,
   "by_engine_fn": {
+   "FUN_00452809": 3,
    "FUN_00473c15": 3,
    "FUN_00474d92": 3,
    "FUN_0042df55": 2,
-   "FUN_0044bd0d": 2,
    "FUN_0048670f": 2,
    "0x43e...": 1,
    "FUN_00405b1a": 1,
@@ -38,7 +37,6 @@
    "FUN_0041f4a6": 1,
    "FUN_00432e50": 1,
    "FUN_00435dcd": 1,
-   "FUN_00452809": 1,
    "FUN_004536cb": 1,
    "FUN_00457714": 1,
    "FUN_00465db4": 1,
@@ -77,14 +75,6 @@
    "desc": "box_pos_mode/off (DAT_005c7984/80) are",
    "file": "src/scene1_dialogue_run.c",
    "line": 132,
-   "kind_known": false
-  },
-  {
-   "kind": "focused",
-   "engine_fn": "FUN_0044bd0d",
-   "desc": "the outer DAT_0450f454 \"all early tutorials",
-   "file": "src/scene1_tutorial_dispatch.h",
-   "line": 26,
    "kind_known": false
   },
   {
@@ -133,6 +123,30 @@
    "desc": "the menu, note, lecture and",
    "file": "src/scene1_player_ctrl.c",
    "line": 1739,
+   "kind_known": false
+  },
+  {
+   "kind": "render-coupled",
+   "engine_fn": "FUN_00452809",
+   "desc": "the arms that call FUN_00452809 arm",
+   "file": "src/scene1_tutorial_dispatch.h",
+   "line": 13,
+   "kind_known": false
+  },
+  {
+   "kind": "render-coupled",
+   "engine_fn": "FUN_00452809",
+   "desc": "the blackout (DAT_0438bf74, a draw quad)",
+   "file": "src/scene_adv_guild.c",
+   "line": 258,
+   "kind_known": false
+  },
+  {
+   "kind": "render-coupled",
+   "engine_fn": "FUN_00452809",
+   "desc": "the blackout quad, as at the tutorial sites).",
+   "file": "src/scene_guild.c",
+   "line": 586,
    "kind_known": false
   },
   {
@@ -285,22 +299,6 @@
    "desc": "modes outside 0..5 read the caps past",
    "file": "src/stage_post_load.c",
    "line": 222,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_0044bd0d",
-   "desc": "its b924 == 0x276 consumer, scene0/sub8),",
-   "file": "src/scene1_tutorial_dispatch.c",
-   "line": 398,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_00452809",
-   "desc": "the blackout (DAT_0438bf74)",
-   "file": "src/scene_adv_guild.c",
-   "line": 258,
    "kind_known": true
   },
   {
