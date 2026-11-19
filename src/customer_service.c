@@ -44,6 +44,7 @@
 #include "scene1_player_ctrl.h"   /* player_ctrl_cc08_enter_freeroam (b520 leave → cc08=1) */
 #include "scene1_day_close.h"     /* day_close_begin (shop-full leave), FUN_0045e028 */
 #include "scene1_walker_pass_init.h" /* g_scene1_walker_phase2_count (DAT_0438bfb4) */
+#include "record_hit.h"          /* DAT_0438b1a0 g_s_easydisp */
 #include "scene1_shop_walker.h"   /* in-shop browsing-customer NPCs (FUN_0046f8ba/892) */
 #include "scene1_particles_tick.h" /* g_scene1_player_pos (DAT_056da1d8) — the leave hop-down reposition */
 #include "choice_box.h"           /* the ESC "Cancelling tutorial?" prompt (FUN_0045e6a5) */
@@ -2618,10 +2619,8 @@ static void cs_sale_commit_stats_fx(int sign)
         else           bank[CS_SALE_STAT_DWORD_OFF] -= (uint32_t)(pct + root);
     }
 
-    /* DAT_0438b1a0 (ini s_easydisp, default 0) gates the fx — same
-     * stand-in pattern as scene1_shop_walker_helpers.c. */
-    static int s_cs_easydisp;                       /* DAT_0438b1a0 */
-    if (s_cs_easydisp == 0)
+    /* DAT_0438b1a0 (recet.ini s_easydisp) gates the fx */
+    if (g_s_easydisp == 0)
         scene1_pfo_table_a_alloc_projected(304.0f, 128.0f, 100, 1.0f, -1, 4);
 
     audio_play_se_by_id(0x17b);                     /* FUN_00499519(0x17b) */
@@ -4394,17 +4393,17 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
      * 0x3c; SE 0x17b on its 2nd frame.  A customer whose item sits in a special
      * display slot (b564) gets the screen sparkles: template 0x3b at a random
      * (304,128)±32 every even b5b4 from b5a0 38 on (2 LCG draws each), and one
-     * template 0x3d burst at b5a0 29.  DAT_0438b1a0 (easydisp) = 0. */
+     * template 0x3d burst at b5a0 29; neither under DAT_0438b1a0 (s_easydisp). */
     if (s_b5a0 > 0) {
         static const float k_half = 0.5f, k_spread = 64.0f, k_cx = 304.0f, k_cy = 128.0f,
                            k_scale = 0.8f;
-        if (s_b5a0 >= 0x26 && s_b564 != 0 && s_b5b4 % 2 == 0) {
+        if (s_b5a0 >= 0x26 && s_b564 != 0 && s_b5b4 % 2 == 0 && g_s_easydisp == 0) {
             float x = spill32(((long double)rng_next_unit() - k_half) * k_spread + k_cx);
             float y = spill32(((long double)rng_next_unit() - k_half) * k_spread + k_cy);
             cs_screen_particle(x, y, 0x3b, k_scale, -1, 0);   /* FUN_00414766 */
         }
         if (s_b5a0 < 0x3c) {
-            if (s_b564 != 0 && s_b5a0 == 0x1d)
+            if (s_b564 != 0 && s_b5a0 == 0x1d && g_s_easydisp == 0)
                 cs_screen_particle(k_cx, k_cy, 0x3d, 1.0f, -1, 0);
             if (++s_b5a0 == 2)
                 audio_play_se_by_id(0x17b);

@@ -2,9 +2,9 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 42,
+  "total": 40,
   "by_kind": {
-   "stub": 17,
+   "stub": 15,
    "synthetic-data": 0,
    "simplified": 7,
    "hardcode": 1,
@@ -22,7 +22,7 @@
    "semantic-collision": 1,
    "structure": 1
   },
-  "retiring_engine_fns": 33,
+  "retiring_engine_fns": 31,
   "by_engine_fn": {
    "FUN_00473c15": 3,
    "FUN_00474d92": 3,
@@ -40,7 +40,6 @@
    "FUN_0041f4a6": 1,
    "FUN_00432e50": 1,
    "FUN_00435dcd": 1,
-   "FUN_0044b219": 1,
    "FUN_00452809": 1,
    "FUN_004536cb": 1,
    "FUN_00457714": 1,
@@ -50,7 +49,6 @@
    "FUN_004708f7": 1,
    "FUN_00473c03": 1,
    "FUN_00485f8c": 1,
-   "FUN_0048b850 da1bc": 1,
    "FUN_0048e49c": 1,
    "FUN_0048f87c": 1,
    "FUN_00490e56": 1,
@@ -217,7 +215,7 @@
    "engine_fn": "FUN_00465db4",
    "desc": "<D1>'s length is DAT_0730b274 =",
    "file": "src/customer_service.c",
-   "line": 1568,
+   "line": 1569,
    "kind_known": true
   },
   {
@@ -318,14 +316,6 @@
   },
   {
    "kind": "stub",
-   "engine_fn": "FUN_0044b219",
-   "desc": "the camera shake reset, DAT_073de3a0 = 45",
-   "file": "src/scene1_postload.c",
-   "line": 384,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
    "engine_fn": "FUN_0044bd0d",
    "desc": "its b924 == 0x276 consumer, scene0/sub8),",
    "file": "src/scene1_tutorial_dispatch.c",
@@ -345,7 +335,7 @@
    "engine_fn": "FUN_00468ddc",
    "desc": "an index < -1 or >= 32 with its mod-32 bit",
    "file": "src/customer_service.c",
-   "line": 1263,
+   "line": 1264,
    "kind_known": true
   },
   {
@@ -378,14 +368,6 @@
    "desc": "the dungeon loader arm (FUN_00474a9a's",
    "file": "src/scene_adv_guild.c",
    "line": 381,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_0048b850 da1bc",
-   "desc": "the attack lunge (da1bc 1..ccb8)",
-   "file": "src/dungeon_party.c",
-   "line": 3241,
    "kind_known": true
   },
   {

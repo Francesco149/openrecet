@@ -39,7 +39,7 @@ above the search's `--time-limit` (default 60 s + 6 s refine; 300 s is safe).
 ## Commands
 
 ```
-rd new R --from fresh | SCENARIO[@F] | RUN[:CK|@F] | end:SCENARIO | save:SHA    [--force] [--ini sec.key=v,..]
+rd new R --from fresh | SCENARIO[@F] | RUN[:CK|@F] | end:SCENARIO | save:SHA    [--force] [--ini sec.key=v,..]   # a task's `ini:` line
 rd play R "SPEC" [--until EXPR] [--avoid EXPR] [--watch EXPR,EXPR] [--every N] [--rows N]
 rd tap R "A" [--n 40] [--gap 8] [--until EXPR] [--text]   # (A .*gap) x n: advance dialogue, mash a menu;
                                                           # --text = a transcript (the new rows before each press)

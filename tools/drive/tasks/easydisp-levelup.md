@@ -1,12 +1,13 @@
 ---
 name: easydisp-levelup
-start: dungeon0-full@F --ini setup.s_easydisp=1   (F = the first Jade Way frame with control; the driver finds it)
+start: dungeon0-full@3935   # the first Hall of Trials 1F frame with control
+ini: setup.s_easydisp=1     # rd new --ini (the movie keeps it)
 steps:
   - the recet.ini override is live: s32(0x438b1a0) == 1
   - in the dungeon with control: scene == 1 and s32(0x438b4dc) >= 4 and lock == -1
-  - an enemy killed, its EXP credited straight to the leader (no orbs): s32(bank + 0x2ceb0 + 0x6c * s32(0x438b7d8) + 0x44) > E0
-  - a level-up through that path: s32(bank + 0x2ceb0 + 0x6c * s32(0x438b7d8)) > L0
-  - one more kill after the level-up (the EXP keeps landing): s32(bank + 0x2ceb0 + 0x6c * s32(0x438b7d8) + 0x44) > E1
+  - an enemy killed, its EXP credited straight to the leader (no orbs): s32(bank + 0x2ceb0 + 0x6c * s32(0x438b7d8) + 0x44) >= 10   # a kill (a hit alone pays +1)
+  - a level-up through that path: s32(bank + 0x2ceb0 + 0x6c * s32(0x438b7d8)) > 0
+  - one more kill after the level-up (the EXP keeps landing): s32(bank + 0x2ceb0 + 0x6c * s32(0x438b7d8) + 0x44) > 365
 forbid:
   - back at the title: scene == 0 and frame > 400
   - game over: scene == 2
@@ -17,9 +18,8 @@ EXP orbs: each would-be orb adds 10 EXP (20 on floor event 2) straight to the le
 directly (all_ida 29694). The party's Dark Soul aura overlays are also skipped. The port stubbed the level-up call
 (PORT-DEBT FUN_0048a383, `src/record_hit.c`); no recording ran with the flag.
 
-Start: `./rd new easydisp-levelup --from dungeon0-full@F --ini setup.s_easydisp=1`, F = the first frame on Jade Way
-1F with control (find it with a scratch run from `dungeon0-full`; the trace is a human recording, the replay under the
-override may differ from the original after F — that is fine, the movie is ours from F). Check step 1 first; if
+Start: `./rd new easydisp-levelup --from dungeon0-full@3935 --ini setup.s_easydisp=1` (Hall of Trials 1F, control at
+3935; 3511 is the load tick). Check step 1 first; if
 `s32(0x438b1a0)` is 0 the override did not reach retail: stop and report.
 
 Record at the start: L0 = the leader's level, E0 = EXP, the next threshold (+0x4c). Kill enemies with aimed swings

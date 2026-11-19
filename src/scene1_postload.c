@@ -60,6 +60,7 @@
 #include "save_work.h"        /* the active working record */
 #include "scene1_actor_say.h"      /* actor_say_stage_reset (DAT_0438b764/b76c) */
 #include "scene1_bg_npc.h"         /* scene1_bg_npc_stage_reset (FUN_0046f1e9) */
+#include "scene1_render.h"    /* DAT_073de3a0 */
 #include "scene1_camera.h"    /* g_scene1_camera_char_mode */
 #include "scene1_chr_sprite.h"     /* CHR_ACTOR_FACING */
 #include "scene1_companion_ctrl.h"/* scene1_companion_ctrl_reset (actor-2 bob) */
@@ -380,9 +381,14 @@ void scene1_postload_stage_entry_init(void)
      * collision flag (floor_layout_generate sets it) must not outlive it —
      * Lapis 25F (group 15) → 26F, lapis-21f-30f f24040 */
     g_floor_c148 = 0;
-    /* the camera yaw DAT_073de39c = 0 (the house arm sets π below);
-     * PORT-DEBT(stub, FUN_0044b219): the camera shake reset, DAT_073de3a0 = 45 */
+    /* FUN_0044b219(0, 0, 0, 0): the camera shake off; the camera yaw
+     * DAT_073de39c = 0 (the house arm sets π below); the fov DAT_073de3a0 = 45
+     * (all_ida 37010..37012) */
+    camera_shake(0, 0, 0, 0.0f);
     g_scene1_camera_yaw = 0.0f;
+#ifdef _WIN32
+    scene1_render_set_fov_deg(45.0f);
+#endif
     /* L8-L84: the scene BSS resets the port mirrors — the actor-say bubble
      * driver (b764/b76c), the counter-menu slides (b74c/b750/b754), the news
      * ticker (b92c), the camera snap flag (cc68).  b924 = 0 has no port mirror outside the iv2 beat. */

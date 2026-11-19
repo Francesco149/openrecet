@@ -596,7 +596,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x474e7a | FUN_00474e7a | 153 | ✓ |  | main.c |
 | 0x474f14 | FUN_00474f14 | 58 | ✓ |  | lnkdatas_hash.c, lnkdatas_hash.h, storage.c |
 | 0x474f4f | FUN_00474f4f | 801 | ✓ |  | main.c, scene1_overlay.h, scene1_overlay_table.c (+3) |
-| 0x475270 | FUN_00475270 | 19645 | ✓ |  | actor_ai.c, customer_dialogue.c, customer_dialogue.h (+37) |
+| 0x475270 | FUN_00475270 | 19645 | ✓ |  | actor_ai.c, customer_dialogue.c, customer_dialogue.h (+38) |
 | 0x479f4d | FUN_00479f4d | 43 | ✓ |  | item_use.c, scene1_dialogue.c, tables.c (+3) |
 | 0x479f78 | FUN_00479f78 | 1227 | ✓ |  | chr_sprite_meta.c, chr_sprite_meta.h, chr_sprite_meta_load.c (+1) |
 | 0x47a474 | FUN_0047a474 | 912 | ✓ |  | main.c, recet_ini.c, recet_ini.h |

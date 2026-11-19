@@ -5333,6 +5333,13 @@ while < 118 (every writer in `all_ida.c`), so the arm
 FUN_0045e028, scene 8 or the house via FUN_0048526d) never runs; the real return goes through FUN_004536c2 → the
 results screen FUN_0048f931. Ported as-is for structure (scene1_sim.c `stage_portal_prompt`).
 
+## 169. The party's lunge timer DAT_056da1bc is dead (FUN_0048b850 0x48c134)
+FUN_0048b850's arm for `da1bc` ≥ 1 (tick 1: dash reset, `daac0` = 0.2, `db0f4` = 5; ticks 1..14: push along the
+facing at DAT_0438ccbc · 0.01 = 0.3; tick 10: SE 346; ticks 11..24: dust 43 / splash 145; 0 at DAT_0438ccb8 = 35)
+never runs: the only stores to 0x56da1bc are the stage reset (0x437779) and 0x48d224 (`eax` = 0), plus the arm's own
+`++`. A `--watch-write 56da1bc` over the corpus (2026-11-19, 187 runs, 48,679 writes) saw only those two sites, all 0.
+Its 0.97 damping branch in the same function is dead with it. Ported for structure (`party_lunge_tick`).
+
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory

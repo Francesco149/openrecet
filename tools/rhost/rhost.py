@@ -987,7 +987,9 @@ def run_port(a, batch, bdir, name, save, flat, frames, extra=(), fetch=(), files
         args.insert(args.index("--turbo") + 1, "--silent-audio")
     args = (["--save-override", pw + "\\seed.dat"] if save else ["--save-fresh"]) + args
     # the retail run's recet.ini overrides (a trace's {"ini"} op): the port reads the same file
-    ini = trace_ini(os.path.join(bdir, name, "trace.jsonl")) or trace_ini(flat)
+    # (a flattened trace drops the op: fall back to the scenario's own trace)
+    ini = trace_ini(os.path.join(bdir, name, "trace.jsonl")) or trace_ini(flat) or \
+        trace_ini(os.path.join(scen_dir(name), "trace.jsonl"))
     if ini:
         put_ini(pdir_l, ini)
         args = ["--ini", pw + "\\recet.ini"] + args
@@ -1998,7 +2000,7 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
                                       "obsidian-16f-20f-golem", "obsidian-21f-30f-griff",
                                       "obsidian-31f-40f-ohms", "obsidian-41f-50f-finale", "lapis-1f-10f", "lapis-11f-20f",
                                       "lapis-21f-30f", "lapis-30f-story", "lapis-31f-40f", "ending-week5-paid",
-                                      "newgame-plus", "survival-start", "survival-hell-start", "lapis-41f-50f", "lapis-51f-60f", "lapis-61f-70f", "lapis-60f-event-12-4", "lapis-71f-80f", "lapis-81f-90f", "lapis-91f-100f", "crystal-1f-20f", "lapis-100f-long-intro", "crystal-21f-30f", "bossrush-jade-amber", "bossrush-obsidian-ending", "bossrush-lapis-r", "bossrush-crystal-30f-54f", "ahriman-exhaust", "ohm-exhaust", "bossrush-crystal-c", "elan-flurry-kill", "wisp-hurry-up", "obsidian-first-trip")])
+                                      "newgame-plus", "survival-start", "survival-hell-start", "lapis-41f-50f", "lapis-51f-60f", "lapis-61f-70f", "lapis-60f-event-12-4", "lapis-71f-80f", "lapis-81f-90f", "lapis-91f-100f", "crystal-1f-20f", "lapis-100f-long-intro", "crystal-21f-30f", "bossrush-jade-amber", "bossrush-obsidian-ending", "bossrush-lapis-r", "bossrush-crystal-30f-54f", "ahriman-exhaust", "ohm-exhaust", "bossrush-crystal-c", "elan-flurry-kill", "wisp-hurry-up", "obsidian-first-trip", "easydisp-levelup")])
 
 
 GATE_KEYS = ("save:", "anchors:", "first ", "window", "IDENTICAL", "frames with", "error", "scp failed")

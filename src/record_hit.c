@@ -257,9 +257,8 @@ void actor_kill(actor_t *a)
     }
     if (straight && m) {
         int32_t x, nx; memcpy(&x, m + 0x44, 4); memcpy(&nx, m + 0x4c, 4);
-        if (x >= nx) {
-            /* PORT-DEBT(stub, FUN_0048a383): the level-up of s_easydisp */
-        }
+        if (x >= nx)
+            party_level_up(m);              /* FUN_0048a383 (all_ida 29694) */
     }
     if (AI(a, 0xb40) != 0) { (void)rng_next15(); return; }
     /* the drop roll: rand % 1000 against the five DAT_0438bef4 weights */

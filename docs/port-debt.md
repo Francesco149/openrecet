@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **42**
-- distinct retiring engine functions: **33**
+- total open debts: **40**
+- distinct retiring engine functions: **31**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 17 | wired call boundary, body incomplete |
+| stub | 15 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 7 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -46,7 +46,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0041f4a6 | 1 |
 | FUN_00432e50 | 1 |
 | FUN_00435dcd | 1 |
-| FUN_0044b219 | 1 |
 | FUN_00452809 | 1 |
 | FUN_004536cb | 1 |
 | FUN_00457714 | 1 |
@@ -56,7 +55,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004708f7 | 1 |
 | FUN_00473c03 | 1 |
 | FUN_00485f8c | 1 |
-| FUN_0048b850 da1bc | 1 |
 | FUN_0048e49c | 1 |
 | FUN_0048f87c | 1 |
 | FUN_00490e56 | 1 |
@@ -64,7 +62,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (17)
+## stub (15)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -75,15 +73,13 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00434ceb | src/scene_guild.c:21 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:472 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
-| FUN_0044b219 | src/scene1_postload.c:384 | the camera shake reset, DAT_073de3a0 = 45 |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:398 | its b924 == 0x276 consumer, scene0/sub8), |
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
-| FUN_00468ddc | src/customer_service.c:1263 | an index < -1 or >= 32 with its mod-32 bit |
+| FUN_00468ddc | src/customer_service.c:1264 | an index < -1 or >= 32 with its mod-32 bit |
 | FUN_004708f7 | src/dungeon_party.c:660 | the event-window pair (chars 0x2f / 0x30) |
 | FUN_00473c15 | src/scene1_preload.c:329 | the floor's render assets (see |
 | FUN_00473c15 | src/scene1_preload.c:375 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
-| FUN_0048b850 da1bc | src/dungeon_party.c:3241 | the attack lunge (da1bc 1..ccb8) |
 | FUN_0048e49c | src/scene_day_end.c:169 | the |
 
 ## synthetic-data (0)
@@ -96,7 +92,7 @@ _none_
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_004536cb | src/sim.c:506 | retail freezes the *entire |
-| FUN_00465db4 | src/customer_service.c:1568 | <D1>'s length is DAT_0730b274 = |
+| FUN_00465db4 | src/customer_service.c:1569 | <D1>'s length is DAT_0730b274 = |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:442 | the engine teardown also restores the |
 | FUN_00490e56 | src/guild_stock.c:43 | the other runtime globals it crosses |
 | FUN_004cdd9f | src/math3d.c:29 | only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only). |

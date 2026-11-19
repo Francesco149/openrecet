@@ -36,7 +36,7 @@ re-verification.
 14 VAs are referenced in src/ but absent from the function table
 (indirect/vtable targets or sub-helpers) — see `port-ledger.json` `orphan_refs`.
 
-**Port debt:** 52 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
+**Port debt:** 50 `PORT-DEBT(...)` markers — MVP/synthetic shortcuts
 inside code with a `src/` marker (they silently cap structural parity).
 Registry: `port-debt.md` / `.json`; retirement plan: `plans/un-mvp-structural-parity.md`.
 
@@ -280,6 +280,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     the old port split f638): FUN_0044e08f's +0x2bce2 arm and FUN_004427f1's d3 +0x2bce2 beat were PORT-DEBT stubs →
     identical every block, ticks 1..3735; the cutscene stage is index 19, so FUN_0042df55's ≥ 20 read (ported for
     structure) is unreachable there. Obsidian + Boss Rush triage 14/14 identical (2026-11-19, port 531c8f82a499).
+    Then recet.ini overrides per trace (`{"ini"}` op, `rd new --ini`, port `--ini`) and `easydisp-levelup` filed (s_easydisp = 1,
+    Hall of Trials 1F, a level-up by kill EXP): FUN_0048a383's s_easydisp call + the flag's RNG gates (walk dust, Tear's sparkle, shop
+    sparkles / sale fx / roster) → identical every block; the lunge timer da1bc is dead (quirk 169, ported for structure); post-load's
+    shake reset. **Corpus 187 identical / 1 no-flat, 0 regressions (2026-11-19).**
     Debug a new split with `portblock S --at F-1,F` + `--watch-write` (pin the exe with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left:
     dead part_idx 1/2 arms of 0x23 / 0x29, signed modulo, 0x29 ground query z.
     Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).

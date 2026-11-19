@@ -435,7 +435,7 @@ void party_follow_tick(void)
 sparkle:
     /* DAT_0438b8f8 (or every tick) is only ever written 0 (FUN_00436f97) */
     if (g_floor_intro == 0 && g_party.scale_xz[2] > k0 && g_party.scale_y[2] > k0 &&
-        PW(0x56db054u).i % 4 == 0) {
+        PW(0x56db054u).i % 4 == 0 && g_s_easydisp == 0) {   /* recet.ini s_easydisp: no sparkle (all_ida 99485) */
         const float a = spill32((long double)spill32((long double)g_party.rec[2][6]) * k_2pi / k8 - g_scene1_camera_yaw);
         const double ad = a;
         const float s = spill32(x87_crt_sin(ad));
@@ -1203,7 +1203,7 @@ static void level_burst(void)
 }
 
 /* FUN_0048a383: a level-up of party member `m` (at 98: the EXP is capped) */
-static void party_level_up(uint8_t *m)
+void party_level_up(uint8_t *m)
 {
     int32_t lv;
     memcpy(&lv, m, 4);
@@ -3070,6 +3070,63 @@ static void water_splash(void)
     }
 }
 
+/* FUN_0048b850's da1bc arm (0x48c134..0x48c31d): the lunge — tick 1 resets
+ * the dash, ticks 1..14 push along the facing at DAT_0438ccbc · 0.01, tick 10
+ * plays SE 346, ticks 11..24 kick up dust / splash, back to 0 at DAT_0438ccb8.
+ * Dead in retail (engine-quirks §169): nothing stores a nonzero da1bc (the only
+ * stores are the stage reset 0x437779 and 0x48d224, both 0; a write watch over
+ * the corpus, 187 runs / 48,679 writes, saw only 0) — ported for structure.
+ * ccb8 / ccbc are boot constants (FUN_00475270: 35 / 30, no other writer). */
+static void party_lunge_tick(void)
+{
+    static const int32_t k_ccb8 = 35, k_ccbc = 30;
+    static const float k0p2 = 0.2f, k0p1f = 0.1f, k0p15 = 0.15000000596046448f;
+    int32_t *t = &PW(0x56da1bcu).i;
+    if (*t < 1) return;
+    if (*t == 1) {
+        PW(0x56db0f4u).i = 5;
+        g_party.vel[0][1] = k0p2;                     /* daac0 */
+        if (PW(0x56daafcu).i != 0) {
+            PW(0x56daafcu).i = 0; PW(0x56daaf8u).i = 0; PW(0x56daaf0u).f = 0.0f;
+            PW(0x56daaf4u).i = 0; PW(0x56daae8u).i = 0;
+        }
+    }
+    if (*t < 15) {
+        const float acc = spill32((long double)(float)k_ccbc * k0p01);
+        const float yaw = PW(0x56db05cu).f;
+        const float sn = spill32(x87_crt_sin(yaw));
+        g_party.vel[0][0] = spill32((long double)sn * acc + g_party.vel[0][0]);
+        const float cs = spill32(x87_crt_cos(yaw));
+        g_party.vel[0][2] = spill32((long double)cs * acc + g_party.vel[0][2]);
+    }
+    if (*t == 10) audio_play_se_by_id(346);
+    if (*t > 10) {
+        if (PW(0x56daafcu).i != 0) {
+            PW(0x56daafcu).i = 0; PW(0x56daaf8u).i = 0; PW(0x56daaf0u).f = 0.0f;
+            PW(0x56daaf4u).i = 0; PW(0x56daae8u).i = 0;
+        }
+        if (*t < 25 && g_s_easydisp == 0) {
+            const float *p = g_party.pos[0];
+            float sc, x, y, z; int type;
+            if (g_party.hit[0].flag == 1) {          /* in water: a splash */
+                sc = spill32((long double)rng_next_unit() * k0p2 + k0p1f);
+                type = 145;
+                z = spill32(((long double)rng_next_unit() - k0p5) * k1p5 + p[2]);
+                y = g_party.hit[0].slope_h;
+                x = spill32(((long double)rng_next_unit() - k0p5) * k1p5 + p[0]);
+            } else {                                  /* dust */
+                sc = k0p15;
+                type = 43;
+                z = spill32(((long double)rng_next_unit() - k0p5) * k0p5 + p[2]);
+                y = spill32((long double)p[1] + k0p2);
+                x = spill32(((long double)rng_next_unit() - k0p5) * k0p5 + p[0]);
+            }
+            scene1_spawn(0, x, y, z, type, sc, 1);   /* FUN_00447f4f */
+        }
+    }
+    if (++*t >= k_ccb8) *t = 0;
+}
+
 /* FUN_0048b850 on a dungeon floor */
 void party_tick(void)
 {
@@ -3237,9 +3294,8 @@ void party_tick(void)
         if ((PW(0x56db054u).i & 0x1f) == 0)
             scene1_overlay_spawn(&g_party, 0.0f, 0.0f, 0.0f, 22, 0.699999988079071f, -1, 0, 1, 0);
     }
-    if (PW(0x56db048u).i != 1) {
-        /* PORT-DEBT(stub, FUN_0048b850 da1bc): the attack lunge (da1bc 1..ccb8) */
-    }
+    if (PW(0x56db048u).i != 1)
+        party_lunge_tick();
     const int32_t was_wet = g_party.hit[0].flag;   /* DAT_056daed8 before the move */
     party_move();                            /* FUN_00483170 */
     /* the water splash (hit flag 1 = water above): leaving the surface upward
@@ -3287,13 +3343,13 @@ void party_tick(void)
         if (s > k0p1) {
             static const float k0p125 = 0.125f;
             const float *p = g_party.pos[0];
-            if ((PW(0x56db054u).i & 0xf) == 0) {
+            if (g_s_easydisp == 0 && (PW(0x56db054u).i & 0xf) == 0) {   /* recet.ini s_easydisp: no dust */
                 const float z = spill32(((long double)rng_next_unit() - k0p5) * k0p5 + p[2]);
                 const float y = spill32((long double)p[1] + k0p5);
                 const float x = spill32(((long double)rng_next_unit() - k0p5) * k0p5 + p[0]);
                 scene1_spawn(0, x, y, z, 0xe, k0p125, 1);
             }
-            if (PW(0x56db034u).i == 1) {
+            if (g_s_easydisp == 0 && PW(0x56db034u).i == 1) {
                 const float z = spill32(((long double)rng_next_unit() - k0p5) * k0p5 + p[2]);
                 const float y = spill32((long double)p[1] + k0p5);
                 const float x = spill32(((long double)rng_next_unit() - k0p5) * k0p5 + p[0]);

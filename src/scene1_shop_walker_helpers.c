@@ -9,6 +9,7 @@
  * composer; future per-pass body ports (A/B/C/E/G) will add siblings.
  */
 
+#include "record_hit.h"          /* DAT_0438b1a0 g_s_easydisp */
 #include "scene1_shop_walker.h"
 
 #include <math.h>
@@ -582,8 +583,6 @@ static int     s_cs_spawned;                    /* DAT_073a8bac */
  * the exact frame the port's spawn/retarget draws diverge from retail's. */
 static unsigned s_cs_last_draws;
 
-/* DAT_0438b1a0 — config `s_easydisp` (default 0 → roster build enabled). */
-static int     s_cs_easydisp;                   /* DAT_0438b1a0 */
 
 /* helpers ───────────────────────────────────────────────────────────────── */
 
@@ -652,7 +651,7 @@ int32_t *scene1_customer_npc_slot(int idx)
 void scene1_customer_npc_roster_build(const int32_t *session_list)
 {
     s_cs_cap = 0;                                       /* DAT_005c7dd0 = 0 */
-    if (s_cs_easydisp != 0 || session_list == NULL)
+    if (g_s_easydisp != 0 || session_list == NULL)   /* DAT_0438b1a0 */
         return;
 
     for (int li = 0; li < 0x14; li++) {                 /* iVar3 != 0x14 */
