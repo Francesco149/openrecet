@@ -17,7 +17,7 @@ run stage `s32(0x438b4d4)`, start floor (dungeon 5) `s32(0x438b4d8)`, event stag
 | floor events (per tick) | `FUN_004427f1` → stage type ≤ 4 `FUN_0044bd0d` (house), d0 `FUN_0044c9ba`, d1 `FUN_0044d47d`, d2 inline (floor 29 `FUN_0044db3c`, else `%5 == 4` → `FUN_0044d0a4(1)`), **d3 inline**, d4 `FUN_00450877` (floor 99 → `FUN_0044f13d`), else `FUN_00451546` | |
 | generic boss-floor setup / event | `FUN_0044cc80(kind)` / `FUN_0044d0a4(portals)` | see `boss-floor-common.md` |
 | actor tick | `FUN_00430c6d`: `+0x428 == 1` → `FUN_0042f28c` (alive AI switch on `+0x424`), `== 2` → `FUN_0042f7ad` (death arms); types 62 / 63 / 65 / 66 never reach either (own branch: follow parent `+0xa04`, detach, fall) | |
-| stage static spawn list | `FUN_0042df55`: `DAT_0052c068[stage·1000 + i·10]`, 100 × 40-byte rows per stage, 20 stages in `.data` (all rows −2 / −1 = empty). Stage index ≥ 20 reads past the table into `DAT_0053f8e8` = the parsed enemylist sections (0x52c068 + 20·4000 = 0x53f8e8) | which stage INDEX the type-20 cutscene stage has: **not resolved** (needs `s32(0x438b4dc)` at runtime) |
+| stage static spawn list | `FUN_0042df55`: `DAT_0052c068[stage·1000 + i·10]`, 100 × 40-byte rows per stage, 20 stages in `.data` (all rows −2 / −1 = empty). Stage index ≥ 20 reads past the table into `DAT_0053f8e8` = the parsed enemylist sections (0x52c068 + 20·4000 = 0x53f8e8) | the type-20 cutscene stage is **index 19** (`obsidian-first-trip`: `s32(0x438b4dc)` = 19) → empty; only an id missing from the stage list returns 20. Port: `actor_stage_spawns` (the ≥ 20 path ported for structure) |
 | level | `FUN_0041f319(type)`: d0 `floor`; d1 `floor/2+2`; d2 `floor/3+6`; d3 `floor/4+16`; d4 `floor/5+25`; d5 `ftol((floor<30 ? floor : floor−30)·1.7+50)`; boss run d: the same formula on `5·floor−145` | HP = table HP·(1+0.2·lv) (`FUN_0041f903`) |
 | stage tileset | `FUN_0045bc7f`: `DAT_005c5ae8[30·dungeon + floor/5 (+1 on the last floor)]`; d5 floors ≥ 30: `DAT_005c64d8[floor−30]`, overrides 37 → 15, 45 → 19, 58 → 17, 59 → 5; `FUN_0045bcea`: bank+0x2bce2 or +0x2bcf8 set → stage type 20 | |
 
@@ -225,8 +225,6 @@ MA = 0 on every row (see `boss-floor-common.md`).
 
 ## 4. Not resolved
 
-- `FUN_0042df55` for stage index ≥ 20: the rows alias the parsed enemylist; whether the type-20 cutscene stage has
-  index ≥ 20 at runtime (and what then spawns) needs `s32(0x438b4dc)` on that stage.
 - Mob checkpoint floors (d3 24 / 34, d4 44 / 64 / 74 / 84 / 94): which placement fills them — not traced.
 - d0's floor-4 events (2/9, 2/11 in `FUN_0044c9ba`) not read beyond the fee-flag test.
 

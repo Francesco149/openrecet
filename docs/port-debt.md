@@ -11,19 +11,19 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **44**
-- distinct retiring engine functions: **36**
+- total open debts: **43**
+- distinct retiring engine functions: **34**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 21 | wired call boundary, body incomplete |
+| stub | 18 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 7 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
-> ⚠️  **15 tag(s) use an unknown kind**: actor-table-split (1), continue-arm (1), deferred (1), focused (1), house-teardown (1), oob (1), render-coupled (7), semantic-collision (1), structure (1).
+> ⚠️  **17 tag(s) use an unknown kind**: actor-table-split (1), continue-arm (1), deferred (1), focused (1), house-teardown (1), oob (3), render-coupled (7), semantic-collision (1), structure (1).
 > Valid kinds: stub, synthetic-data, simplified, hardcode, scaffold, force-flag.
 
 ## By retiring engine function
@@ -32,6 +32,7 @@ the answer to *"what's still faked in code that looks done?"*
 |-----------|-----------:|
 | FUN_00473c15 | 3 |
 | FUN_00474d92 | 3 |
+| FUN_0042df55 | 2 |
 | FUN_00434ceb | 2 |
 | FUN_0044bd0d | 2 |
 | FUN_0048670f | 2 |
@@ -43,12 +44,9 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004161c7 | 1 |
 | FUN_0041ee24 | 1 |
 | FUN_0041f4a6 | 1 |
-| FUN_0042df55 | 1 |
 | FUN_00432e50 | 1 |
 | FUN_00435dcd | 1 |
-| FUN_004427f1 | 1 |
 | FUN_0044b219 | 1 |
-| FUN_0044e08f | 1 |
 | FUN_00452809 | 1 |
 | FUN_004536cb | 1 |
 | FUN_00457714 | 1 |
@@ -67,7 +65,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (21)
+## stub (18)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -75,14 +73,11 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0040a765 | src/scene1_hud.c:412 | the pages of entries 8 (news summary) and |
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
 | FUN_0041ee24 | src/sim.c:775 | mode 3's callee |
-| FUN_0042df55 | src/actor_ai.c:126 | stages >= 20 index past the dungeon |
 | FUN_00434ceb | src/scene_guild.c:21 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:472 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |
-| FUN_004427f1 | src/dungeon_flow.c:1423 | the +0x2bce2 story beat (the curtain |
 | FUN_0044b219 | src/scene1_postload.c:384 | the camera shake reset, DAT_073de3a0 = 45 |
 | FUN_0044bd0d | src/scene1_tutorial_dispatch.c:398 | its b924 == 0x276 consumer, scene0/sub8), |
-| FUN_0044e08f | src/dungeon_flow.c:1149 | the +0x2bce2 story beat's setup (the |
 | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74) |
 | FUN_00468ddc | src/customer_service.c:1263 | an index < -1 or >= 32 with its mod-32 bit |
 | FUN_004708f7 | src/dungeon_party.c:660 | the event-window pair (chars 0x2f / 0x30) |
@@ -133,9 +128,11 @@ _none_
 | focused | FUN_0044bd0d | src/scene1_tutorial_dispatch.h:26 | the outer DAT_0450f454 "all early tutorials |
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:829 | the engine frees the shop |
 | oob | 0x43e... | src/scene1_records_b_tick.c:3258 | types >= 64 read past DAT_005c23f0 into |
+| oob | FUN_0042df55 | src/actor_ai.c:147 | rows past the enemylist |
+| oob | FUN_0042df55 | src/actor_ai.c:185 | a type outside enemy.txt reads past DAT_005c241c |
 | render-coupled | FUN_00409925 | src/scene1_player_ctrl.c:1739 | the menu, note, lecture and |
 | render-coupled | FUN_00457714 | src/scene1_walker_pass_init.c:522 | the movers (DAT_0438c150, |
-| render-coupled | FUN_00474d92 | src/dungeon_flow.c:2641 | the |
+| render-coupled | FUN_00474d92 | src/dungeon_flow.c:2727 | the |
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |
 | render-coupled | FUN_00485f8c | src/scene1_player_ctrl.c:1415 | the carried table's items (drawn |
 | render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:2321 | the eye / lookat writes); the |

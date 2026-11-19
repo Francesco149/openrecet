@@ -36,6 +36,8 @@
 #include "stage_post_load.h"     /* DAT_0438b4d0 */
 #include "stage_palette.h"
 #include "tables_enemy.h"        /* DAT_005c23f0 */
+#include "tables_enemylist.h"    /* DAT_0053f8e8 (FUN_0042df55 past its table) */
+#include "actor_table.h"
 #include "x87.h"
 
 int32_t g_popup[32][7];
@@ -118,13 +120,82 @@ void popup_add(float x, float y, float z, int32_t value, int32_t kind)
     }
 }
 
-/* FUN_0042df55: the stage's static spawn list DAT_0052c068 (100 × 40 bytes per
- * stage) — stages 0..19 carry none (entries -2 / -1). */
+/* FUN_0042df55 (asm 0x42df55..0x42e1a5): the stage's static spawn list
+ * DAT_0052c068 (100 rows × 40 bytes per stage), once per stage load.  Stages
+ * 0..19 carry none (a -1 row first, or -2 skips then -1).  A stage index >= 20
+ * reads past the table into the parsed enemylist DAT_0053f8e8 (0x52c068 +
+ * 20·4000): retail never gets there — the story cutscene stage (id 20) is index
+ * 19, and only an id missing from the stage list returns 20 (FUN_0047fa4f) —
+ * ported for structure.  A row: +0 flag (-2 skip, -1 end), +4 pos, +0x10 type,
+ * +0x14 count (a ring of radius 6 when != 1), +0x18 level, +0x20 / +0x24. */
+static int32_t s_spawn_7c8c64;     /* DAT_007c8c64: never reset */
+
 void actor_stage_spawns(void)
 {
+    static const float k2pi = 6.2831855f, k6 = 6.0f, k0p2 = 0.2f, k1 = 1.0f, k0p1 = 0.1f;
+    static const float kpi = 3.1415927f;
     if (g_actor_spawn_done == 0 && g_stage_b4dc >= 20) {
-        /* PORT-DEBT(stub, FUN_0042df55): stages >= 20 index past the dungeon
-         * rows into the next .data block (non-empty lists there) */
+        const uint8_t *tab = (const uint8_t *)g_enemylist.sections;
+        const size_t tab_n = sizeof g_enemylist.sections;
+        const uint8_t *w = save_work_bank_at(save_work_active_slot());
+        const actor_stage_t st = { g_scene1_combat_stage_id, stage_gate_get_next(),
+                                   stage_post_load_get_mode_b4d0(), g_ghost_count,
+                                   w ? w[0x2bc57] : 0 };
+        for (int32_t i = 0; i != 100; i++) {
+            const size_t off = (size_t)(g_stage_b4dc - 20) * 4000u + (size_t)i * 40u;
+            if (off + 40u > tab_n)
+                break;   /* PORT-DEBT(oob, FUN_0042df55): rows past the enemylist */
+            int32_t row[10];
+            memcpy(row, tab + off, sizeof row);
+            if (row[0] == -2) continue;
+            if (row[0] == -1) break;
+            if (row[5] == 0) continue;
+            uint32_t n = 0;
+            do {
+                actor_t *a = actor_alloc(&st);                      /* FUN_0041f4a6 */
+                if (a != NULL) {
+                    float rp[3];
+                    memcpy(rp, &row[1], sizeof rp);
+                    act_seti(a, ACT_TYPE, row[4]);
+                    if (n == 0) act_seti(a, 0xb1c, row[8]);
+                    act_setf(a, ACT_HOME + 0, rp[0]);
+                    act_setf(a, ACT_HOME + 4, rp[1]);
+                    act_setf(a, ACT_HOME + 8, rp[2]);
+                    if (row[5] == 1) {
+                        act_setf(a, ACT_POS + 0, rp[0]);
+                        act_setf(a, ACT_POS + 4, rp[1]);
+                        act_setf(a, ACT_POS + 8, rp[2]);
+                    } else {
+                        const float ang = spill32((long double)spill32((long double)(int32_t)n) * k2pi
+                                                  / spill32((long double)row[5]));
+                        act_setf(a, ACT_POS + 0, spill32((long double)spill32(sin((double)ang)) * k6 + rp[0]));
+                        act_setf(a, ACT_POS + 4, rp[1]);
+                        act_setf(a, ACT_POS + 8, spill32((long double)spill32(cos((double)ang)) * k6 + rp[2]));
+                    }
+                    act_seti(a, ACT_INUSE, 1);
+                    act_seti(a, 0xb30, i);
+                    act_setf(a, 0xa9c, g_party.pos[0][0]);          /* DAT_056da1d8 */
+                    act_seti(a, 0xb34, (int32_t)n);
+                    act_setf(a, 0xaa4, g_party.pos[0][2]);          /* DAT_056da1e0 */
+                    act_seti(a, ACT_PHASE_RND, g_actor_spawn_order[s_spawn_7c8c64++ & 7]);
+                    act_seti(a, ACT_LEVEL, row[6]);
+                    act_seti(a, 0xaec, row[9]);
+                    const float scale = spill32((long double)spill32((long double)row[6]) * k0p2 + k1);
+                    const int32_t t = act_geti(a, ACT_TYPE);
+                    /* PORT-DEBT(oob, FUN_0042df55): a type outside enemy.txt reads past DAT_005c241c */
+                    const int32_t hp = (t >= 0 && t < ENEMY_COUNT) ? g_enemy[t].hp : 0;
+                    float mx = spill32((long double)spill32((long double)hp) * scale);
+                    act_setf(a, ACT_HP_MAX, mx);
+                    if (st.weak_enemies) act_setf(a, ACT_HP_MAX, spill32((long double)mx * k0p1));
+                    act_seti(a, 0xaf4, 1);
+                    act_setf(a, ACT_HP, act_getf(a, ACT_HP_MAX));
+                    act_seti(a, 0xafc, row[0]);
+                    act_seti(a, 0xb00, g_actor_spawn_serial++);
+                    act_setf(a, ACT_YAW, kpi);
+                }
+                ++n;
+            } while (n != (uint32_t)row[5]);
+        }
     }
     ++g_actor_spawn_done;
 }

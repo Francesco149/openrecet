@@ -2,9 +2,9 @@
  "_generated_by": "tools/gen_port_debt.py",
  "_note": "DERIVED FILE \u2014 do not edit by hand; run the generator. Tracks MVP/synthetic shortcuts INSIDE ported code (PORT-DEBT tags), the gap the port-ledger can't see. Pure function of src/, so idempotent (safe for pre-commit --check).",
  "counts": {
-  "total": 44,
+  "total": 43,
   "by_kind": {
-   "stub": 21,
+   "stub": 18,
    "synthetic-data": 0,
    "simplified": 7,
    "hardcode": 1,
@@ -17,15 +17,16 @@
    "deferred": 1,
    "focused": 1,
    "house-teardown": 1,
-   "oob": 1,
+   "oob": 3,
    "render-coupled": 7,
    "semantic-collision": 1,
    "structure": 1
   },
-  "retiring_engine_fns": 36,
+  "retiring_engine_fns": 34,
   "by_engine_fn": {
    "FUN_00473c15": 3,
    "FUN_00474d92": 3,
+   "FUN_0042df55": 2,
    "FUN_00434ceb": 2,
    "FUN_0044bd0d": 2,
    "FUN_0048670f": 2,
@@ -37,12 +38,9 @@
    "FUN_004161c7": 1,
    "FUN_0041ee24": 1,
    "FUN_0041f4a6": 1,
-   "FUN_0042df55": 1,
    "FUN_00432e50": 1,
    "FUN_00435dcd": 1,
-   "FUN_004427f1": 1,
    "FUN_0044b219": 1,
-   "FUN_0044e08f": 1,
    "FUN_00452809": 1,
    "FUN_004536cb": 1,
    "FUN_00457714": 1,
@@ -120,6 +118,22 @@
    "kind_known": false
   },
   {
+   "kind": "oob",
+   "engine_fn": "FUN_0042df55",
+   "desc": "rows past the enemylist",
+   "file": "src/actor_ai.c",
+   "line": 147,
+   "kind_known": false
+  },
+  {
+   "kind": "oob",
+   "engine_fn": "FUN_0042df55",
+   "desc": "a type outside enemy.txt reads past DAT_005c241c",
+   "file": "src/actor_ai.c",
+   "line": 185,
+   "kind_known": false
+  },
+  {
    "kind": "render-coupled",
    "engine_fn": "FUN_00409925",
    "desc": "the menu, note, lecture and",
@@ -140,7 +154,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the",
    "file": "src/dungeon_flow.c",
-   "line": 2641,
+   "line": 2727,
    "kind_known": false
   },
   {
@@ -281,14 +295,6 @@
   },
   {
    "kind": "stub",
-   "engine_fn": "FUN_0042df55",
-   "desc": "stages >= 20 index past the dungeon",
-   "file": "src/actor_ai.c",
-   "line": 126,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
    "engine_fn": "FUN_00434ceb",
    "desc": "the \"Item limit reached\" box.",
    "file": "src/scene_guild.c",
@@ -313,14 +319,6 @@
   },
   {
    "kind": "stub",
-   "engine_fn": "FUN_004427f1",
-   "desc": "the +0x2bce2 story beat (the curtain",
-   "file": "src/dungeon_flow.c",
-   "line": 1423,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
    "engine_fn": "FUN_0044b219",
    "desc": "the camera shake reset, DAT_073de3a0 = 45",
    "file": "src/scene1_postload.c",
@@ -333,14 +331,6 @@
    "desc": "its b924 == 0x276 consumer, scene0/sub8),",
    "file": "src/scene1_tutorial_dispatch.c",
    "line": 398,
-   "kind_known": true
-  },
-  {
-   "kind": "stub",
-   "engine_fn": "FUN_0044e08f",
-   "desc": "the +0x2bce2 story beat's setup (the",
-   "file": "src/dungeon_flow.c",
-   "line": 1149,
    "kind_known": true
   },
   {

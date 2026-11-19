@@ -203,7 +203,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x41ee24 | FUN_0041ee24 | 365 | ✓ |  | sim.c |
 | 0x41f319 | FUN_0041f319 | 340 | ✓ |  | actor_table.h, scene1_combat_sm.h |
 | 0x41f46d | FUN_0041f46d | 57 | ✓ |  | record_hit.h, scene1_combat_sm.h |
-| 0x41f4a6 | FUN_0041f4a6 | 690 | ✓ |  | actor_table.h |
+| 0x41f4a6 | FUN_0041f4a6 | 690 | ✓ |  | actor_ai.c, actor_table.h |
 | 0x41f759 | FUN_0041f759 | 48 | ✓ |  | actor_ai.c |
 | 0x41f789 | FUN_0041f789 | 378 | ✓ |  | actor_ai.c |
 | 0x41f903 | FUN_0041f903 | 308 | ✓ |  | actor_ai.c, actor_table.h, dungeon_flow.c (+3) |
@@ -325,7 +325,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x44376a | FUN_0044376a | 8538 | ✓ |  | dungeon_party.c, main.c, party.h (+7) |
 | 0x4458c4 | FUN_004458c4 | 456 | ✓ |  | record_hit.c |
 | 0x445a8c | FUN_00445a8c | 8952 | ✓ |  | actor_ai.c, scene1_records.h, scene1_records_b_spawn.c (+2) |
-| 0x447f4f | FUN_00447f4f | 11826 | ✓ |  | actor_ai.c, dungeon_objects.c, dungeon_party.c (+14) |
+| 0x447f4f | FUN_00447f4f | 11826 | ✓ |  | actor_ai.c, dungeon_flow.c, dungeon_objects.c (+15) |
 | 0x44ad81 | FUN_0044ad81 | 367 | ✓ |  | dungeon_flow.c, dungeon_objects.c, dungeon_objects.h (+1) |
 | 0x44aef0 | FUN_0044aef0 | 96 | ✓ |  | record_hit.c, scene1_records.h, scene1_records_c_spawn.c (+2) |
 | 0x44af50 | FUN_0044af50 | 419 | ✓ |  | dungeon_flow.c, scene1_records_c_spawn.c, scene1_records_c_spawn.h |
@@ -630,7 +630,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x47f2f6 | FUN_0047f2f6 | 372 | ✓ |  | dungeon_party.c, party_roster.h, scene_pause.c (+2) |
 | 0x47f46a | FUN_0047f46a | 338 | ✓ |  | scene1_sim.c, scene_pause.c, scene_pause.h |
 | 0x47f5bc | FUN_0047f5bc | 1171 | ✓ |  | anchor_trace.h, save_picker.h, scene_gameover.c (+2) |
-| 0x47fa4f | FUN_0047fa4f | 39 | ✓ |  | scene_adv_guild.c, stage_palette.h |
+| 0x47fa4f | FUN_0047fa4f | 39 | ✓ |  | actor_ai.c, scene_adv_guild.c, stage_palette.h |
 | 0x47fa76 | FUN_0047fa76 | 462 | ✓ |  | dungeon_party.h, encyclopedia.h, scene_pause.c (+2) |
 | 0x47fc44 | FUN_0047fc44 | 596 | ✓ |  | audio_fade.h, scene_pause.c, scene_pause.h (+1) |
 | 0x47fe98 | FUN_0047fe98 | 168 | ✓ |  | scene_pause.c |
@@ -799,7 +799,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x499200 | FUN_00499200 | 219 | ✓ |  | audio.c, audio.h, music.c (+1) |
 | 0x49933c | FUN_0049933c | 439 | ✓ |  | actor_ai.c, audio.c, audio.h (+12) |
 | 0x4994f3 | FUN_004994f3 | 38 | ✓ |  | audio.c, audio.h |
-| 0x499519 | FUN_00499519 | 23 | ✓ |  | actor_ai.c, audio.c, audio.h (+24) |
+| 0x499519 | FUN_00499519 | 23 | ✓ |  | actor_ai.c, audio.c, audio.h (+25) |
 | 0x499538 | FUN_00499538 | 20 | ✓ |  | music.h |
 | 0x49954c | FUN_0049954c | 20 | ✓ |  | music.h |
 | 0x499560 | FUN_00499560 | 15 |  |  | music.c, music.h, scene_title.c |

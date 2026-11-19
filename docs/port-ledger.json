@@ -15,7 +15,7 @@
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 14,
-  "port_debt": 54,
+  "port_debt": 53,
   "verified": 81,
   "stubbed": 10,
   "ported": 760,
@@ -3432,6 +3432,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/actor_table.h"
    ],
    "status": "ported"
@@ -7018,6 +7019,7 @@
    "quality_flags": [],
    "src": [
     "src/actor_ai.c",
+    "src/dungeon_flow.c",
     "src/dungeon_objects.c",
     "src/dungeon_party.c",
     "src/main.c",
@@ -16570,6 +16572,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/actor_ai.c",
     "src/scene_adv_guild.c",
     "src/stage_palette.h"
    ],
@@ -21088,6 +21091,7 @@
     "src/audio_se_names.h",
     "src/choice_box.c",
     "src/customer_service.c",
+    "src/dungeon_flow.c",
     "src/dungeon_objects.c",
     "src/dungeon_party.c",
     "src/dungeon_results.c",
