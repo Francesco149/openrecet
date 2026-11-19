@@ -306,7 +306,7 @@ int encyclopedia_update(void)
     /* detail overlay open (A on a discovered cell). */
     if (pressed & 0x40u) {
         int disp  = g_enc_col + (g_enc_row + cat * 0x14) * 3;
-        int sidx  = g_enc_index[disp + cat * ENC_CAT_CELLS];
+        int sidx  = g_enc_index[disp];   /* disp already holds cat·60 (0x49f4a4..b8: index[60·cat + 3·row + col]) */
         int16_t iid = g_enc_slot[sidx + cat * ENC_CAT_CELLS];
         if (iid >= 0) {
             display_menu_set_highlight(iid << 6);   /* FUN_00468286: DAT_0734b998 + the owned recount */
