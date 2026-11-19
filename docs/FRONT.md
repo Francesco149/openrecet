@@ -245,6 +245,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     Hall of Trials 1F, a level-up by kill EXP): FUN_0048a383's s_easydisp call + the flag's RNG gates (walk dust, Tear's sparkle, shop
     sparkles / sale fx / roster) → identical every block; the lunge timer da1bc is dead (quirk 169, ported for structure); post-load's
     shake reset. **Corpus 187 identical / 1 no-flat, 0 regressions (2026-11-19).**
+    Then the dead mode-3 staff roll (quirk 170) and FUN_0048407f's dungeon FUN_004708f7 call ported; FUN_0044bd0d confirmed
+    whole and the skip prompt's freeze confirmed (stale debts retired); `guild-item-limit` filed (crafted 15,032 items): the guild's
+    FUN_00434ceb box ported. **Blind spot:** the v2 tick hash covers no menu / box state — the old port triaged identical there;
+    `gates` now has a `portstate` kind (retail VAs vs state_va mirrors every frame) for such rows.
     Debug a new split with `portblock S --at F-1,F` + `--watch-write` (pin the exe with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left:
     dead part_idx 1/2 arms of 0x23 / 0x29, signed modulo, 0x29 ground query z.
     Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).
