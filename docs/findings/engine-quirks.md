@@ -5340,6 +5340,15 @@ never runs: the only stores to 0x56da1bc are the stage reset (0x437779) and 0x48
 `++`. A `--watch-write 56da1bc` over the corpus (2026-11-19, 187 runs, 48,679 writes) saw only those two sites, all 0.
 Its 0.97 damping branch in the same function is dead with it. Ported for structure (`party_lunge_tick`).
 
+## 170. Mode 3, the staff roll, is dead (FUN_0041ee24, load FUN_004736bd + FUN_0041edf1)
+The load worker's case 3 loads `bmp/end/ending_bg` + `end_screen01..` and FUN_0041ee24 runs a 6,240-tick roll
+(×10 / ×40 with buttons 0x20 / 0x40 held), events 6/4 and 6/5, then a save prompt whose text at 0x52b854 is the
+Japanese build's Shift-JIS "クリアデータを保存しますか？" ("Save the clear data?") — untranslated. Nothing enters it: no
+constant 3 reaches any store to DAT_0438b1c0 or DAT_06a499a8 (the pause-resume copy), and a `--watch-write 438b1c0`
+over ending-week5-paid, bossrush-obsidian-ending, title-extras, endless-first-days, newgame-plus and week5-gameover
+(2026-11-19) saw only 0..2, 6..9, 0xb, 0xd..0xf. The English ending goes through mode 7 (FUN_0049db8a). Its skip flag
+DAT_09643570 has no writer either. Ported for structure (`scene_staff_roll_tick`).
+
 ## x87 precision: CW 0x027F, spill-only rounding (2026-10-13)
 Retail runs in-game with x87 CW 0x027F (53-bit precision; measured under rhost on Win11
 and wine). MSVC6 keeps FP intermediates in ST0 and rounds only where it spills to memory

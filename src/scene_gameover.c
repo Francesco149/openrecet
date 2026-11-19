@@ -335,3 +335,96 @@ void scene_ending_tick(void)
     }
     if (s_step < 4) ++s_step;
 }
+
+/* ── Mode 3: the staff roll (FUN_0041edf1 load init, FUN_0041ee24 tick) ──
+ * Dead in retail (engine-quirks §170): nothing stores 3 into DAT_0438b1c0 /
+ * DAT_06a499a8 (no constant 3 reaches any register store; a write watch over
+ * the ending / title / NG+ / Endless / game-over scenarios saw 0..2, 6..9,
+ * 0xb, 0xd..0xf), and its save prompt is the Japanese build's Shift-JIS
+ * "クリアデータを保存しますか？" (0x52b854).  Ported for structure.
+ * The roll counter DAT_0076b96c climbs 1 / tick (10 with button 0x20 held,
+ * 40 with 0x40) to 6240, the fade at 6120; then events 6/4 (6242) and 6/5
+ * (6243) unless DAT_09643570 (never written: 0) skips to the exit; 6244
+ * opens the save prompt, 6245 polls it (Yes: the file's word DAT_056e5788 = 1,
+ * work byte +0x2bc91 = 1, save the slot; No: the word, save the header) and
+ * fades; 6246 waits for the fade, then back to the title (mode 0). */
+static int32_t s_roll_t;      /* DAT_0076b96c */
+static const int32_t s_9643570 = 0;   /* DAT_09643570: no writer in retail */
+
+static void staff_roll_load_cb(void)  /* load worker case 3: FUN_004736bd (textures) + FUN_0041edf1 */
+{
+    s_roll_t = 0;
+    title_save_dialog_cursor_snap(32.0f, -64.0f);   /* FUN_00435693 */
+}
+
+void scene_staff_roll_install(void)
+{
+    worker_load_set_cb(3, staff_roll_load_cb);
+}
+
+static void staff_roll_exit(void)
+{
+    g_scene_state = 0;
+    /* FUN_00473760: the roll's textures released — render side */
+    worker_load_spawn();                            /* FUN_00452cde */
+    fade_phase_out_start(0, 60);                    /* FUN_0045281c */
+}
+
+void scene_staff_roll_tick(void)
+{
+    int32_t t = s_roll_t;
+    if (t < 6240) {
+        int n = 1;
+        const uint16_t cur = g_sim_buttons[0].cur;  /* DAT_073dddd0 */
+        if (cur & 0x20) n = 10;
+        if (cur & 0x40) n = 40;
+        for (; n != 0; --n) {
+            if (t == 6120) {
+                fade_phase1_start(0, 120);          /* FUN_004526f5 */
+                t = s_roll_t;
+            }
+            if (t < 6240) s_roll_t = ++t;
+        }
+        return;
+    }
+    if (t >= 6244) {
+        if (t == 6244) {
+            choice_box_open("\x83N\x83\x8a\x83" "A\x83" "f\x81[\x83^\x82\xf0\x95\xdb\x91\xb6\x82\xb5\x82\xdc\x82\xb7\x82\xa9\x81H",
+                            0, 0);                  /* FUN_00434def(0x52b854) */
+        } else if (t == 6246) {
+            if (fade_is_done()) staff_roll_exit();  /* FUN_004528b3 */
+            return;
+        } else {
+            const int r = choice_box_poll(g_sim_buttons[0].pressed, 0);   /* FUN_00434ed2(0) */
+            title_save_dialog_anim_tick();          /* FUN_004356cd */
+            uint8_t *h = save_arena_base();
+            if (r == CB_OPT0) {
+                if (h != NULL) { h[0x18] = 1; h[0x19] = 0; }            /* DAT_056e5788 (word) */
+                uint8_t *w = work();
+                if (w != NULL) w[0x2bc91] = 1;                          /* DAT_0450f429 */
+                save_io_commit_slot(save_work_active_slot());           /* FUN_004905a8(DAT_0438b1e0) */
+            } else if (r == CB_OPT1) {
+                if (h != NULL) { h[0x18] = 1; h[0x19] = 0; }
+                save_io_commit_slot(-1);
+            } else {
+                return;
+            }
+            fade_phase1_start(0, 120);
+        }
+        ++s_roll_t;
+        return;
+    }
+    if (s_9643570 != 0) {
+        staff_roll_exit();
+        return;
+    }
+    if (t == 6242) {
+        scene1_intro_dialogue_start(6, 4, 1);       /* FUN_0044ba2c */
+        t = s_roll_t;
+    }
+    if (t == 6243) {
+        scene1_intro_dialogue_start(6, 5, 1);
+        t = s_roll_t;
+    }
+    s_roll_t = t + 1;
+}

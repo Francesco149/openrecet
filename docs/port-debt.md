@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **40**
-- distinct retiring engine functions: **31**
+- total open debts: **39**
+- distinct retiring engine functions: **30**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 15 | wired call boundary, body incomplete |
+| stub | 14 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 7 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -42,7 +42,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0040a765 | 1 |
 | FUN_0040cea6 | 1 |
 | FUN_004161c7 | 1 |
-| FUN_0041ee24 | 1 |
 | FUN_0041f4a6 | 1 |
 | FUN_00432e50 | 1 |
 | FUN_00435dcd | 1 |
@@ -62,14 +61,13 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (15)
+## stub (14)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_00405b1a | src/scene1_render.c:338 | unported, with the sun sprite FUN_00405d70 |
 | FUN_0040a765 | src/scene1_hud.c:412 | the pages of entries 8 (news summary) and |
 | FUN_0040cea6 | src/movie.c:102 | the BGM stream's loop (FUN_0040cf88, |
-| FUN_0041ee24 | src/sim.c:775 | mode 3's callee |
 | FUN_00434ceb | src/scene_guild.c:21 | the "Item limit reached" box. |
 | FUN_00434ceb | src/scene_guild.c:472 | the message box is unported. |
 | FUN_00435dcd | src/stage_post_load.c:222 | modes outside 0..5 read the caps past |

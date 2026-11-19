@@ -8,19 +8,19 @@
   "inv_instrumented_full": 81,
   "inv_instrumented_stub": 10,
   "inv_implemented": 0,
-  "inv_source_referenced": 760,
-  "inv_discovered": 1697,
-  "referenced_or_better": 851,
+  "inv_source_referenced": 761,
+  "inv_discovered": 1696,
+  "referenced_or_better": 852,
   "pct_referenced_or_better": 33.4,
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 14,
-  "port_debt": 50,
+  "port_debt": 49,
   "verified": 81,
   "stubbed": 10,
-  "ported": 760,
-  "unported": 1697,
-  "touched": 851,
+  "ported": 761,
+  "unported": 1696,
+  "touched": 852,
   "pct_touched": 33.4,
   "pct_verified": 0.0
  },
@@ -3283,6 +3283,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene_gameover.c",
+    "src/scene_gameover.h",
     "src/worker_load.h"
    ],
    "status": "ported"
@@ -3304,6 +3306,8 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene_gameover.c",
+    "src/scene_gameover.h",
     "src/sim.c"
    ],
    "status": "ported"
@@ -5890,6 +5894,7 @@
     "src/main.c",
     "src/scene1_counter_menu.c",
     "src/scene1_display_menu.c",
+    "src/scene_gameover.c",
     "src/scene_guild.c",
     "src/scene_pause.c",
     "src/scene_title.c",
@@ -5919,6 +5924,7 @@
    "quality_flags": [],
    "src": [
     "src/dungeon_results.c",
+    "src/scene_gameover.c",
     "src/scene_pause.c",
     "src/scene_title.c",
     "src/sim.c",
@@ -14762,6 +14768,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene_gameover.c",
     "src/worker_load.h"
    ],
    "status": "ported"
@@ -14772,18 +14779,20 @@
    "size": 9,
    "is_thunk": false,
    "is_call_target": true,
-   "inventory_state": "discovered",
+   "inventory_state": "source-referenced",
    "runtime_state": null,
    "evidence": {
     "discovered": true,
-    "source_referenced": false,
+    "source_referenced": true,
     "implemented": false,
     "instrumented": false,
     "instrumented_stub": false
    },
    "quality_flags": [],
-   "src": [],
-   "status": "unported"
+   "src": [
+    "src/scene_gameover.c"
+   ],
+   "status": "ported"
   },
   {
    "va": "0x473769",

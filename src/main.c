@@ -1761,6 +1761,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     scene_worldmap_init(g_dev);
     scene_guild_init(g_dev);   /* mode-6 Merchant's Guild — worker_load case 6 */
     scene_adv_guild_init(g_dev);   /* mode-11 Adventurers' Guild — worker_load case 11 */
+    scene_staff_roll_install();     /* mode 3, the staff roll — worker_load case 3 (dead in retail) */
     scene_town_event_init(g_dev);  /* modes 13..16, the town visits — worker_load cases 13..16 */
     scene_table_init(g_dev);
     scene_sc1_init(g_dev);

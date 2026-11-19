@@ -28,6 +28,8 @@ void scene_gameover_tick(void);                           /* FUN_0049d8a4 */
 void scene_gameover_restart_reset(uint8_t *w, int keep);  /* FUN_0049d55c */
 void scene_ending_enter(void);                            /* FUN_0049da9e */
 void scene_ending_tick(void);                             /* FUN_0049db8a */
+void scene_staff_roll_install(void);                      /* load worker case 3 → FUN_0041edf1 */
+void scene_staff_roll_tick(void);                         /* FUN_0041ee24 (mode 3; dead in retail) */
 int32_t scene_ending_picker_up(void);   /* DAT_09643580 */
 
 int32_t scene_gameover_step(void);     /* DAT_09643584 */

@@ -11,7 +11,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 ## Summary
 
 - non-thunk engine functions: **2548** (of 2620 incl. thunks)
-- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 760, discovered 1697 → 851 referenced-or-better (33.4%)
+- **inventory:** instrumented **91** (81 full + 10 stub), implemented 0, source-referenced 761, discovered 1696 → 852 referenced-or-better (33.4%)
 - **runtime:** 0 proven (0.0%) — no runtime evidence bound
 - orphan refs (in src/, not in function table): 14
 
@@ -39,7 +39,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x434d6a | FUN_00434d6a | 85 | ✓ |  | scene1_player_ctrl.c, scene_gameover.c, scene_guild.c (+5) |
 | 0x435117 | FUN_00435117 | 615 | ✓ |  | main.c, scene1_hud.c, scene_adv_guild.c (+4) |
 | 0x43537e | FUN_0043537e | 660 | ✓ | stub | choice_box.c, choice_box.h, customer_service_render.c (+9) |
-| 0x4356cd | FUN_004356cd | 67 | ✓ |  | dungeon_results.c, scene_pause.c, scene_title.c (+4) |
+| 0x4356cd | FUN_004356cd | 67 | ✓ |  | dungeon_results.c, scene_gameover.c, scene_pause.c (+5) |
 | 0x435747 | FUN_00435747 | 300 | ✓ |  | choice_box.c, choice_box.h, dungeon_results.c (+9) |
 | 0x435c98 | FUN_00435c98 | 309 | ✓ |  | chara_equip.h, chara_skills.h, dungeon_results.c (+10) |
 | 0x435dcd | FUN_00435dcd | 494 | ✓ |  | record_hit.c, stage_post_load.c, stage_post_load.h |
@@ -116,7 +116,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
 
-## source-referenced (760) — a FUN_<va> mention in src/ — NOT a port claim
+## source-referenced (761) — a FUN_<va> mention in src/ — NOT a port claim
 
 | VA | name | size | call-target | flags | src |
 |----|------|-----:|:-----------:|-------|-----|
@@ -199,8 +199,8 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4161c7 | FUN_004161c7 | 4925 | ✓ |  | main.c, save_bank.h, scene1_pass_f.c (+8) |
 | 0x417504 | FUN_00417504 | 506 | ✓ |  | main.c, scene1_hud.c, scene1_hud.h (+2) |
 | 0x4176ff | FUN_004176ff | 30395 | ✓ |  | main.c, scene1_effects.c, scene1_effects.h (+3) |
-| 0x41edf1 | FUN_0041edf1 | 35 | ✓ |  | worker_load.h |
-| 0x41ee24 | FUN_0041ee24 | 365 | ✓ |  | sim.c |
+| 0x41edf1 | FUN_0041edf1 | 35 | ✓ |  | scene_gameover.c, scene_gameover.h, worker_load.h |
+| 0x41ee24 | FUN_0041ee24 | 365 | ✓ |  | scene_gameover.c, scene_gameover.h, sim.c |
 | 0x41f319 | FUN_0041f319 | 340 | ✓ |  | actor_table.h, scene1_combat_sm.h |
 | 0x41f46d | FUN_0041f46d | 57 | ✓ |  | record_hit.h, scene1_combat_sm.h |
 | 0x41f4a6 | FUN_0041f4a6 | 690 | ✓ |  | actor_ai.c, actor_table.h |
@@ -298,7 +298,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x43561a | FUN_0043561a | 11 | ✓ |  | customer_service.c, encyclopedia.c, main.c (+10) |
 | 0x435625 | FUN_00435625 | 6 | ✓ |  | scene_pause.c, skip_event.c, title_save_dialog.c (+1) |
 | 0x435644 | FUN_00435644 | 79 | ✓ |  | encyclopedia.c, scene_pause.c, skip_event.c (+2) |
-| 0x435693 | FUN_00435693 | 58 | ✓ |  | customer_service.c, main.c, scene1_counter_menu.c (+9) |
+| 0x435693 | FUN_00435693 | 58 | ✓ |  | customer_service.c, main.c, scene1_counter_menu.c (+10) |
 | 0x435710 | FUN_00435710 | 55 | ✓ |  | customer_service.c, scene1_counter_menu.c, scene1_display_menu.c (+8) |
 | 0x43609b | FUN_0043609b | 27 | ✓ |  | main.c |
 | 0x436180 | FUN_00436180 | 50 |  |  | news_daily.c, news_daily.h |
@@ -573,7 +573,8 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x473618 | FUN_00473618 | 80 | ✓ |  | scene_day_end.c, scene_day_end.h, scene_pause.c |
 | 0x473668 | FUN_00473668 | 9 | ✓ |  | scene_day_end.c, scene_pause.c |
 | 0x473672 | FUN_00473672 | 9 | ✓ |  | dungeon_results.c |
-| 0x4736bd | FUN_004736bd | 163 | ✓ |  | worker_load.h |
+| 0x4736bd | FUN_004736bd | 163 | ✓ |  | scene_gameover.c, worker_load.h |
+| 0x473760 | FUN_00473760 | 9 | ✓ |  | scene_gameover.c |
 | 0x473769 | FUN_00473769 | 258 | ✓ |  | scene_guild.c, scene_guild.h, worker_load.h |
 | 0x47386b | FUN_0047386b | 9 | ✓ |  | scene_guild.c |
 | 0x473874 | FUN_00473874 | 245 | ✓ |  | scene_adv_guild.c, scene_adv_guild.h, worker_load.h |

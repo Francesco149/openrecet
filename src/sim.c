@@ -755,7 +755,7 @@ void sim_step_a(void)
             scene_gameover_tick();
         break;
 
-    case 3:    /* dialog    (engine FUN_0041ee24) */
+    case 3:    /* the staff roll (engine FUN_0041ee24; dead in retail) */
     case 7:    /* the ending  (engine FUN_0049db8a) */
         /* LABEL_106 (modes 2..3 and 6..8): FUN_00406584 → FUN_0040fb3a → the
          * callee while no dialogue runs.  The ending's money roll after the
@@ -771,8 +771,8 @@ void sim_step_a(void)
         if (g_scene_state == 7) {
             if (!scene1_intro_dialogue_busy())
                 scene_ending_tick();     /* FUN_0049db8a */
-        } else {
-            /* PORT-DEBT(stub, FUN_0041ee24): mode 3's callee */
+        } else if (!scene1_intro_dialogue_busy()) {
+            scene_staff_roll_tick();     /* FUN_0041ee24 (dead in retail, engine-quirks §170) */
         }
         break;
 
