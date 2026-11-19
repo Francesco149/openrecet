@@ -18,7 +18,7 @@
  *     dead in retail — nothing writes DAT_09642c00 = 3 — and not ported.
  *     PORT-DEBT(guild-fusion): the Fusion option
  *     (modes 5/6 + the recipe list, FUN_004916a7 / 00469155 / 00469118 /
- *     004132c1); PORT-DEBT(stub, FUN_00434ceb): the "Item limit reached" box.
+ *     004132c1); the "Item limit reached" box (FUN_00434ceb, owned >= 15,000).
  *   FUN_0049174e @ 0x49174e  — scene init (via FUN_00490e16 at the world-map
  *     exit): the menu reset, work 0xb382/0xb381 = 1, the option table.
  *   FUN_004918b0 @ 0x4918b0  — builds the option-type table _DAT_09640624
@@ -468,8 +468,7 @@ static void guild_buy_open_qty_overlay(uint32_t *bank, int sel)
     const uint8_t *bb = (const uint8_t *)bank;
     int owned = display_menu_owned_count(bank);                 /* FUN_00491b16 */
     if (owned >= 15000 && sel == 0) {
-        /* FUN_00434ceb("Item limit reached, cannot buy any more.") —
-         * PORT-DEBT(stub, FUN_00434ceb): the message box is unported. */
+        title_save_dialog_message_open("Item limit reached, cannot buy any more.");   /* FUN_00434ceb */
         return;
     }
     if (bb[GUILD_FIRSTLEAVE_DONE_OFF] == 0 && (int32_t)bank[SAVE_BANK_FIELD_ITEM_COUNT] >= 10) {
@@ -584,7 +583,7 @@ static int guild_entry_events(uint32_t *bank)
     if ((int32_t)bank[SAVE_BANK_FIELD_GAME_MODE] == 2)
         return 0;
     /* first visit: mark seen + the iv1_3 cutscene (FUN_0044ba2c(1,3,1)) +
-     * FUN_00452809 (PORT-DEBT(stub, FUN_00452809), as at the tutorial sites). */
+     * FUN_00452809 (PORT-DEBT(render-coupled, FUN_00452809): the blackout quad, as at the tutorial sites). */
     if (bb[GUILD_FIRSTVISIT_OFF] == 0) {
         bb[GUILD_FIRSTVISIT_OFF] = 1;
         scene1_intro_dialogue_start(1, 3, 1);

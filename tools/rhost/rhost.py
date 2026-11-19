@@ -2006,6 +2006,9 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
 GATE_KEYS = ("save:", "anchors:", "first ", "window", "IDENTICAL", "frames with", "error", "scp failed")
 
 
+# state the v2 tick hash does not cover (menus / boxes): retail VAs vs the port's state_va mirrors, every frame
+GATES += [("portstate", "guild-item-limit", "9642c00,438b148")]   # guild mode, the message-box counter (FUN_00434ceb)
+
 def gate_rows(a):
     only = re.compile(a.only) if a.only else None
     return [(kind, scen, *win) for kind, scen, *win in GATES if not (only and not only.search(f"{kind} {scen}"))]
@@ -2018,12 +2021,14 @@ def cmd_gates(a):
     if a.jobs > 1 and len(rows) > 1:
         return gates_parallel(a, rows)
     import contextlib, copy, io
-    fns = {"portsave": cmd_portsave, "portanchors": cmd_portanchors, "portrng": cmd_portrng}
+    fns = {"portsave": cmd_portsave, "portanchors": cmd_portanchors, "portrng": cmd_portrng, "portstate": cmd_portstate}
     fails = 0
     for kind, scen, *win in rows:
         b = copy.copy(a)
         b.scenario = scen
         b.window, b.context = (win[0] if win else "1:end"), 3
+        if kind == "portstate":           # the row's 3rd field is the VA list; the whole run is compared
+            b.va, b.window, b.floats, b.changes = win[0], None, False, False
         buf = io.StringIO()
         try:
             with contextlib.redirect_stdout(buf):
@@ -2074,6 +2079,8 @@ def gates_parallel(a, rows):
                "--wine-timeout", str(a.wine_timeout)]
         if kind == "portrng":
             cmd += ["--window", win[0] if win else "1:end"]
+        if kind == "portstate":
+            cmd += ["--va", win[0]]
         if a.extra:
             cmd += ["--extra", a.extra]
         t = time.time()
@@ -2156,6 +2163,9 @@ def cmd_portstate(a):
             if f in R and f in P:
                 mark = " *" if any(R[f].get(v) != P[f].get(v) for v in vas) else ""
                 print(f"  f{f:<6d} " + "  ".join(f"{v}={R[f].get(v)}|{P[f].get(v)}" for v in vas) + mark)
+    # the one-line verdict (gates show it)
+    print(f"first state diff f{min(firsts)} ({len(firsts)} of {len(vas)} VAs)" if firsts
+          else f"IDENTICAL state: {len(vas)} VAs over {len(common_f)} frames")
     return 1 if firsts else 0
 
 
