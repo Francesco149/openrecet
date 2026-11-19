@@ -140,6 +140,8 @@ python3 tools/rhost/rhost.py session-test SCEN            # the loop end to end,
   `meta.json`; a PASSed piece's end save goes into the end-save cache. `golden` / `triage` include the pieces
   (`--only '^pt-'`); `corpus` / `gates` stay on `tests/scenarios`.
 
+A trace may carry recet.ini overrides as a header op `{"ini": "setup.s_easydisp=1,..."}` (after `savefile`; `rd new --ini` writes it): rhost writes the canonical recet.ini with them into the retail run dir and hands the port the same file (`--ini PATH`). The op is part of the trace, so the golden / end-save keys cover it.
+
 `--watch-write VA[,VA..]` (≤ 4 dwords) arms x86 debug registers (write traps, set on every
 thread through a helper thread's SetThreadContext) and logs each write to `watchwrite.log`:
 `ww fN VA=newvalue eip=<after the store> < return addresses` (the EBP chain); `--ww-frames A:B`

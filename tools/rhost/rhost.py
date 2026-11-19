@@ -431,6 +431,55 @@ def scenario_inputs(name):
     return tr, save
 
 
+def trace_ini(tr):
+    """a trace's {"ini": "section.key=value,..."} op (recet.ini overrides), or None"""
+    if not tr or not os.path.exists(tr):
+        return None
+    for line in open(tr):
+        line = line.strip()
+        if line.startswith("{") and '"ini"' in line:
+            d = json.loads(line)
+            if "ini" in d:
+                return d["ini"]
+        if line.startswith('{"frame"'):
+            break
+    return None
+
+
+def ini_text(overrides):
+    """rhost's canonical recet.ini with OVERRIDES ("section.key=value,...") applied (a missing key is added)"""
+    lines = open(os.path.join(HERE, "recet.ini")).read().splitlines()
+    for o in filter(None, (x.strip() for x in (overrides or "").split(","))):
+        m = re.fullmatch(r"(\w+)\.(\w+)=(-?\w+)", o)
+        if not m:
+            raise SystemExit(f"ini override {o!r}: want section.key=value")
+        sec, key, val = m.groups()
+        cur, at, end = None, None, None
+        for i, l in enumerate(lines):
+            h = re.fullmatch(r"\[(\w+)\]", l.strip())
+            if h:
+                if cur == sec and end is None:
+                    end = i
+                cur = h.group(1)
+            elif cur == sec and l.split("=", 1)[0].strip().lower() == key.lower():
+                at = i
+        if at is not None:
+            lines[at] = f"{key}={val}"
+        elif cur == sec or end is not None:
+            lines.insert(end if end is not None else len(lines), f"{key}={val}")
+        else:
+            lines += [f"[{sec}]", f"{key}={val}"]
+    return "\r\n".join(lines) + "\r\n"
+
+
+def put_ini(dst_dir, overrides):
+    """recet.ini into DST_DIR: the canonical one, or with a trace's overrides"""
+    if overrides:
+        open(os.path.join(dst_dir, "recet.ini"), "w", newline="").write(ini_text(overrides))
+    else:
+        shutil.copy(os.path.join(HERE, "recet.ini"), dst_dir)
+
+
 def save_bytes(path):
     if path.endswith(".gz"):
         return gzip.open(path, "rb").read()
@@ -564,7 +613,7 @@ def make_batch(a, runs, tag):
     for name, trace, masks, save in runs:
         rdir = os.path.join(bdir, name)
         os.makedirs(rdir)
-        shutil.copy(os.path.join(HERE, "recet.ini"), rdir)
+        put_ini(rdir, trace_ini(trace))
         if os.path.exists(VOLATILE):
             shutil.copy(VOLATILE, rdir)
         if save:
@@ -937,6 +986,11 @@ def run_port(a, batch, bdir, name, save, flat, frames, extra=(), fetch=(), files
     if not os.environ.get("PORT_AUDIO"):
         args.insert(args.index("--turbo") + 1, "--silent-audio")
     args = (["--save-override", pw + "\\seed.dat"] if save else ["--save-fresh"]) + args
+    # the retail run's recet.ini overrides (a trace's {"ini"} op): the port reads the same file
+    ini = trace_ini(os.path.join(bdir, name, "trace.jsonl")) or trace_ini(flat)
+    if ini:
+        put_ini(pdir_l, ini)
+        args = ["--ini", pw + "\\recet.ini"] + args
     log = os.path.join(bdir, name, "rhost.log")
     m = re.search(rf"^frame (\d{{3,}}) .* {ENV_VA:x}=(-?\d+)", open(log, errors="replace").read(), re.M) \
         if os.path.exists(log) else None

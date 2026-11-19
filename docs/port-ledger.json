@@ -15,7 +15,7 @@
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 14,
-  "port_debt": 53,
+  "port_debt": 52,
   "verified": 81,
   "stubbed": 10,
   "ported": 760,
@@ -18442,6 +18442,7 @@
    "quality_flags": [],
    "src": [
     "src/dungeon_party.c",
+    "src/dungeon_party.h",
     "src/record_hit.c",
     "src/xp_curve.h"
    ],

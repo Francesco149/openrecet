@@ -263,7 +263,8 @@ static int line_is_skippable_op(const char *p, const char *end)
     while (p < end && *p != '"') p++;
     if (p >= end) return 0;
     size_t klen = (size_t)(p - ks);
-    return klen == 8 && memcmp(ks, "savefile", 8) == 0;
+    return (klen == 8 && memcmp(ks, "savefile", 8) == 0) ||
+           (klen == 3 && memcmp(ks, "ini", 3) == 0);
 }
 
 int input_trace_parse_buf(const char *buf, size_t len, struct input_trace *out)

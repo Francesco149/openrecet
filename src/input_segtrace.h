@@ -387,6 +387,12 @@ struct input_segtrace {
     char     savefile[256];
     int      has_savefile;
 
+    /* Optional recet.ini overrides, from a `{"ini":"sec.key=v,..."}` op.
+     * Applied by the harness (rhost patches retail's run-dir recet.ini and
+     * hands the port the same file via --ini); stored only. */
+    char     ini[256];
+    int      has_ini;
+
     /* Optional two-tier capture cadence, from a `{"capstride":N}` op (Trace
      * Studio v2 D3). Trace-global (last declaration wins). When >1, a {caprange}
      * window captures only every Nth frame from its start (base+S, base+S+N, …) —

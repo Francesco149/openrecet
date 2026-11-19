@@ -11,12 +11,12 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **43**
-- distinct retiring engine functions: **34**
+- total open debts: **42**
+- distinct retiring engine functions: **33**
 
 | kind | count | meaning |
 |------|------:|---------|
-| stub | 18 | wired call boundary, body incomplete |
+| stub | 17 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
 | simplified | 7 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
@@ -56,7 +56,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004708f7 | 1 |
 | FUN_00473c03 | 1 |
 | FUN_00485f8c | 1 |
-| FUN_0048a383 | 1 |
 | FUN_0048b850 da1bc | 1 |
 | FUN_0048e49c | 1 |
 | FUN_0048f87c | 1 |
@@ -65,7 +64,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_004cdd9f | 1 |
 | scene1-rng-stream-parity.md | 1 |
 
-## stub (18)
+## stub (17)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
@@ -84,7 +83,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00473c15 | src/scene1_preload.c:329 | the floor's render assets (see |
 | FUN_00473c15 | src/scene1_preload.c:375 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
-| FUN_0048a383 | src/record_hit.c:261 | the level-up of s_easydisp |
 | FUN_0048b850 da1bc | src/dungeon_party.c:3241 | the attack lunge (da1bc 1..ccb8) |
 | FUN_0048e49c | src/scene_day_end.c:169 | the |
 

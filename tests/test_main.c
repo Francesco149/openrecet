@@ -530,6 +530,7 @@ struct test_case {
     X(segtrace_rejects_unknown_key) \
     X(segtrace_savefile_op_stores_ref) \
     X(segtrace_no_savefile_clears_flag) \
+    X(segtrace_ini_op_stores_overrides) \
     X(segtrace_capstride_parses_trace_global) \
     X(segtrace_no_capstride_clears_flag) \
     X(segtrace_tutloadpin_parses_per_segment) \

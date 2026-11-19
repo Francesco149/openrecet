@@ -143,6 +143,7 @@ static IDirect3DDevice8 *g_dev;
 static BOOL             g_paused = FALSE;       /* DAT_073dfca0 */
 static BOOL             g_windowed = TRUE;      /* DAT_0438b164 — overwritten from g_ini after load */
 static BOOL             g_skip_quit_prompt = FALSE; /* DAT_0964356c — set by EXIT menu before PostMessage(WM_CLOSE) */
+static const char *g_ini_override_path;        /* --ini PATH */
 static struct recet_ini g_ini;                  /* recet.ini contents, populated in WinMain pre-window */
 
 /* ─── frame-capture globals ─────────────────────────────────────────────
@@ -1417,8 +1418,13 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
      * CWD first, then fall back to next-to-exe for the eventual deployment
      * shape where openrecet.exe sits alongside the data files. */
     {
-        FILE *probe = fopen("recet.ini", "rb");
-        if (probe) {
+        FILE *probe = g_ini_override_path ? NULL : fopen("recet.ini", "rb");
+        if (g_ini_override_path) {
+            if (recet_ini_load(g_ini_override_path, &g_ini) != 0) {
+                fprintf(stderr, "recet.ini: --ini %s: load failed\n", g_ini_override_path);
+                recet_ini_set_defaults(&g_ini);
+            }
+        } else if (probe) {
             fclose(probe);
             recet_ini_load("recet.ini", &g_ini);
         } else {
@@ -4020,6 +4026,16 @@ static void parse_cmdline(LPSTR lpCmdLine)
                 static char save_ovr_buf[MAX_PATH];
                 lstrcpynA(save_ovr_buf, val, (int)sizeof(save_ovr_buf));
                 g_save_override_path = save_ovr_buf;
+            }
+        } else if (lstrcmpA(tok, "--ini") == 0) {
+            /* --ini PATH: read recet.ini from PATH instead of cwd / next to the
+             * exe (rhost: a trace's {"ini"} op patches retail's run-dir copy;
+             * the port gets the same file here) */
+            char *val = strtok(NULL, " ");
+            if (val) {
+                static char ini_ovr_buf[MAX_PATH];
+                lstrcpynA(ini_ovr_buf, val, (int)sizeof(ini_ovr_buf));
+                g_ini_override_path = ini_ovr_buf;
             }
         } else if (lstrcmpA(tok, "--save-fresh") == 0) {
             g_save_fresh = 1;

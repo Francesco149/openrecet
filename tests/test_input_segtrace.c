@@ -542,6 +542,23 @@ int test_segtrace_savefile_op_stores_ref(void)
     return 0;
 }
 
+int test_segtrace_ini_op_stores_overrides(void)
+{
+    /* {ini} is trace-global like {savefile}: stored, not a segment break */
+    const char buf[] =
+        "{\"savefile\":\"@fresh\"}\n"
+        "{\"ini\":\"setup.s_easydisp=1\"}\n"
+        "{\"frame\":0,\"buttons\":\"0x0000\"}\n";
+    struct input_segtrace st = {0};
+    T_ASSERT(input_segtrace_parse_buf(buf, sizeof(buf) - 1, &st) == 1);
+    T_ASSERT_EQ_U(st.has_ini, 1);
+    T_ASSERT(strcmp(st.ini, "setup.s_easydisp=1") == 0);
+    T_ASSERT_EQ_U(st.n_segs, 1);
+    T_ASSERT_EQ_U(st.segs[0].n_entries, 1);
+    input_segtrace_free(&st);
+    return 0;
+}
+
 int test_segtrace_no_savefile_clears_flag(void)
 {
     const char buf[] = "{\"frame\":0,\"buttons\":\"0x0000\"}\n";

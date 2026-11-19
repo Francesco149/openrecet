@@ -316,6 +316,8 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
         int      bgnpcseed_dead_n = 0;
         char     waitname[24] = {0};
         char     savepath[256] = {0};
+        char     inipath[256] = {0};
+        int      got_ini = 0;
 
         for (;;) {
             while (p < end && (*p == ' ' || *p == '\t')) p++;
@@ -514,6 +516,13 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
                  * the Python harness decompresses + drives --save-override. */
                 if (!parse_string(&p, end, savepath, sizeof savepath)) return 0;
                 got_savefile = 1;
+            } else if (klen == 3 && memcmp(ks, "ini", 3) == 0) {
+                /* {ini:"setup.s_easydisp=1,..."} — trace-global recet.ini
+                 * overrides. The harness applies them (retail's run-dir
+                 * recet.ini; the port's --ini); parsed only so the op is not
+                 * rejected. Last declaration wins. */
+                if (!parse_string(&p, end, inipath, sizeof inipath)) return 0;
+                got_ini = 1;
             } else if (klen == 9 && memcmp(ks, "capstride", 9) == 0) {
                 /* {capstride:N} — trace-global two-tier capture cadence (D3).
                  * Scalar (like {phasepin}); modifies {caprange} membership to
@@ -631,6 +640,9 @@ int input_segtrace_parse_buf(const char *buf, size_t len, struct input_segtrace 
             /* Trace-global: last declaration wins. Not segment-scoped. */
             memcpy(out->savefile, savepath, sizeof out->savefile);
             out->has_savefile = 1;
+        } else if (got_ini) {
+            memcpy(out->ini, inipath, sizeof out->ini);
+            out->has_ini = 1;
         } else if (got_capstride) {
             /* Trace-global: last declaration wins. Not segment-scoped. */
             out->capstride = capstride_val;

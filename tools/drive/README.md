@@ -254,6 +254,7 @@ What the numbers say:
 
 ```sh
 ./rd new fus --from end:dungeon3-run2-save          # boot with the save that scenario ends with
+./rd new ez --from end:dungeon3-run2-save --ini setup.s_easydisp=1   # recet.ini override, kept in the movie ({"ini"} op)
 ./rd play fus ".*100 A .*40 A .*200"                # title → Continue → slot → in the house
 ./rd status fus ; ./rd text fus                     # frame, scene, gold, day … / strings on screen
 ./rd ck fus save home

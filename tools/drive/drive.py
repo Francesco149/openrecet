@@ -479,8 +479,9 @@ class Vars:
 class Movie:
     """every input since boot: ops (frame, kind, value), kind m(ask) / e(sc) / r(ngseed); + the start save"""
 
-    def __init__(self, save=None, ops=None, frame=0):
+    def __init__(self, save=None, ops=None, frame=0, ini=None):
         self.save, self.ops, self.frame = save, ops or [], frame
+        self.ini = ini      # recet.ini overrides "section.key=value,..." (the trace's {"ini"} op)
 
     @staticmethod
     def from_server(text, save):
@@ -505,6 +506,8 @@ class Movie:
             d = json.loads(line)
             if "savefile" in d:
                 mv.save = None if d["savefile"] == "@fresh" else os.path.normpath(os.path.join(os.path.dirname(path), d["savefile"]))
+            elif "ini" in d:
+                mv.ini = d["ini"]
             elif "rngseed" in d:
                 mv.ops.append((int(d["rngseed"][0]), "r", int(d["rngseed"][1])))
             elif "esc" in d:
@@ -526,6 +529,8 @@ class Movie:
                 f.write(json.dumps({"savefile": ref}) + "\n")
             else:
                 f.write('{"savefile": "@fresh"}\n')
+            if self.ini:
+                f.write(json.dumps({"ini": self.ini}) + "\n")
             last = 0
             for fr, k, v in self.ops:
                 if fr > self.frame:
@@ -540,7 +545,7 @@ class Movie:
         os.replace(path + ".tmp", path)
 
     def truncated(self, frame):
-        return Movie(self.save, [o for o in self.ops if o[0] <= frame], min(frame, self.frame))
+        return Movie(self.save, [o for o in self.ops if o[0] <= frame], min(frame, self.frame), self.ini)
 
     def mask_at(self, frame):
         m = 0
@@ -874,7 +879,7 @@ def spawn_live(tag, movie, upto=None, idle=1800, wait=300, host=None, src_trace=
         ld = os.path.join(SESS, name)
         os.makedirs(ld)
         win = "C:\\orc-rhost\\runs\\drive\\" + name
-    shutil.copy(os.path.join(RH.HERE, "recet.ini"), ld)
+    RH.put_ini(ld, movie.ini or RH.trace_ini(src_trace))
     if os.path.exists(RH.VOLATILE):
         shutil.copy(RH.VOLATILE, ld)
     if movie.save:
@@ -1056,7 +1061,9 @@ class Run:
     def sync_movie(self):
         """the server's movie is the truth after any step / restore"""
         r = self.live.cmd("movie")
+        ini = self.movie.ini
         self.movie = Movie.from_server(r, self.movie.save)
+        self.movie.ini = ini
         self.movie.write(self.movie_p, comment=self.name, rel_to=self.dir)
         if "poked=1" in r:
             self.meta["poked"] = True
@@ -1455,7 +1462,7 @@ def resolve_start(src):
         return (mv.truncated(fr) if fr is not None else mv), None, None
     if os.path.exists(os.path.join(RH.scen_dir(name), "trace.jsonl")):
         tr, save = RH.scenario_inputs(name)
-        return Movie(save, [], 0), tr, fr
+        return Movie(save, [], 0, RH.trace_ini(tr)), tr, fr
     raise SystemExit(f"--from {src!r}: no such run or scenario")
 
 
@@ -1467,6 +1474,9 @@ def cmd_new(a):
         r = Run(a.run); r.stop(); r.close()
         shutil.rmtree(rd)
     mv, trace, limit = resolve_start(a.src)
+    if a.ini:     # on top of the start's own (a scenario start replays its inputs under the combined ini)
+        mv.ini = ",".join(filter(None, [mv.ini, a.ini]))
+        RH.ini_text(mv.ini)       # validate
     r = Run(a.run, create=True)
     src_vars = os.path.join(RUNS, re.split(r"[:@]", a.src)[0], "vars.json")
     if not trace and os.path.exists(src_vars) and not a.src.startswith(("end:", "save:", "fresh")):
@@ -2476,7 +2486,9 @@ def cmd_ls(a):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = ap.add_subparsers(dest="cmd", required=True)
-    p = sp.add_parser("new"); p.add_argument("run"); p.add_argument("--from", dest="src", required=True); p.add_argument("--force", action="store_true"); p.set_defaults(fn=cmd_new)
+    p = sp.add_parser("new"); p.add_argument("run"); p.add_argument("--from", dest="src", required=True); p.add_argument("--force", action="store_true")
+    p.add_argument("--ini", help="recet.ini overrides section.key=value[,..] (e.g. setup.s_easydisp=1); kept in the movie as its {\"ini\"} op")
+    p.set_defaults(fn=cmd_new)
     p = sp.add_parser("play"); p.add_argument("run"); p.add_argument("spec"); p.add_argument("--until"); p.add_argument("--avoid")
     p.add_argument("--watch", help="EXPR,EXPR..: print these per sampled tick"); p.add_argument("--every", type=int, default=0)
     p.add_argument("--rows", type=int, default=40, help="watch rows shown (the last N)")
