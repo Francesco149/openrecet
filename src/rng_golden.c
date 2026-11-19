@@ -15,7 +15,7 @@ static uint32_t  g_th_n, g_th_va[TH_MAX], g_th_len[TH_MAX];
 static uint32_t *g_th;               /* [f * g_th_n + i], forward-filled; valid for ticks 1..g_th_to */
 static uint32_t  g_th_to;
 static uint32_t (*g_th_fn)(uint32_t va, uint32_t len);
-#define VAS_MAX 64
+#define VAS_MAX 256
 static uint32_t  g_vas[VAS_MAX], g_n_vas;   /* the scalars block's dwords (a `vas` line) */
 static int32_t (*g_val_fn)(uint32_t va);
 static int32_t   g_split_vals[VAS_MAX];   /* the scalars' port values at a scalars-block split */
@@ -44,7 +44,7 @@ void rng_golden_reset(void)
 int rng_golden_load_fp(FILE *fp)
 {
     rng_golden_reset();
-    char line[512];
+    char line[4096];   /* a `vas` line holds up to 256 VAs */
     uint32_t frames = 0;
     int have_frames = 0;
     while (fgets(line, sizeof line, fp)) {

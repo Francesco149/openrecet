@@ -7,6 +7,7 @@
 #include <stdarg.h>
 
 #define RH_MAX_WATCH 64   /* --watch VAs (portstate --va) */
+#define RH_MAX_TH_SCAL 256   /* --tick-hash-vas dwords (the scalars block) */
 #define RH_MAX_TH 16      /* --tick-hash blocks */
 
 #define G32(va) (*(volatile uint32_t *)(uintptr_t)(va))
@@ -58,7 +59,7 @@ typedef struct {
     const char *log_sbh;        /* diagnostic: CRT small-block-heap call log */
     uint32_t watch[RH_MAX_WATCH]; int n_watch;   /* dwords appended to each status line */
     uint32_t th_va[RH_MAX_TH], th_len[RH_MAX_TH]; int n_th;   /* --tick-hash blocks (the port's --rng-golden state check) */
-    uint32_t th_scal[RH_MAX_WATCH]; int n_th_scal;            /* --tick-hash-vas: one more block, these dwords in order */
+    uint32_t th_scal[RH_MAX_TH_SCAL]; int n_th_scal;            /* --tick-hash-vas: one more block, these dwords in order */
     int cut;                    /* free-play capture: end at a day-boundary save / a later game start (rh_play.c) */
     const char *preamble;       /* CODE[:BANK[:TOGGLE]]: drive the title to that game start (rh_play.c) */
     int turbo;                  /* --record without realtime pacing (headless tests of the record path) */

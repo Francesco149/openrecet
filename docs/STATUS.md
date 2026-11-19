@@ -295,6 +295,11 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     (hand cursor visible, 1 frame in one scenario) → fixed (title settings, 38770b82). `headless-check --target win` on v3:
     **190/190** (2026-11-19). Then `title-options-save-clear` filed: the title Options' save write, Clear Save Data and the
     menu rebuild ported (9c04d9a6); gate rows. ☐ DAT_09643524 stays 2 after a fold in retail (the port zeroes it; mirror only).
+    Then audit wave 2 (63 more VAs): the title hand cursor, cs b55c same-tick, the encyclopedia's popup, the day-15 camera class
+    (1508a39c); the scalars block grows to **122 VAs** (waves 1 + 2): corpus 190 identical / 1 no-flat, headless-check 191/191.
+    Left: ☐ the item info panel's FUN_00465db4 sets b55c (PORT-DEBT render-coupled FUN_00469b3a); ☐ dialogue bgset DAT_073a3df0
+    rises 1-2 frames late (script parse at dispatch, render-only); ☐ INGAME order: retail ticks FUN_00406584 (hand slide) BEFORE
+    the dialogue / choice poll (LABEL_112), the port after (choice-box slide countdown 1 ahead, 3 scenarios).
     Debug a new split with `portblock S --at F-1,F` + `--watch-write` (pin the exe with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left:
     dead part_idx 1/2 arms of 0x23 / 0x29, signed modulo, 0x29 ground query z.
     Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).

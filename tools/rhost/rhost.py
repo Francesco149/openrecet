@@ -1140,13 +1140,19 @@ TICK_HASH_BLOCKS = [("dobj", 0x695ef78, 512 * 0x2a0), ("mapcol_objs", 0x438bfb0,
 # the scalars block (rhost --tick-hash-vas; the port's state_va_value): flow / menu / UI dwords outside the blocks
 # above — scene and dialogue gates, fades, loads, pause, item window, Tear / counter / vender / guild menus, day end,
 # game over, the message / choice boxes. One more block (index len(TICK_HASH_BLOCKS), `0:LEN` + a `vas` line).
-# Chosen by the 2026-11-19 corpus portstate audit (all identical there); ≤ 64 (RH_MAX_WATCH).
+# Chosen by the 2026-11-19 corpus portstate audits (waves 1 + 2, all identical there); ≤ 256 (RH_MAX_TH_SCAL).
 TICK_HASH_SCALARS = [int(v, 16) for v in (
     "438b1c0,438b4cc,438b4c8,438cc08,438cc04,438b1cc,438b1c8,438b928,438b924,438b4e0,74b2eec,438b918,438b148,438af34,"
     "438bf7c,438bf78,6a49998,6a49990,6a4999c,6a4997c,6a4995c,734b968,7337850,734b9a8,734b994,734b998,74b2ed4,74b2ed8,"
     "438bf64,438bea4,438cc0c,438cc10,438b74c,438b750,438b754,438b8c0,438b8c4,438b8c8,9643584,964357c,438b798,438b79c,"
     "74b2f08,74b2f58,6a5d400,6a5d404,6a49b44,6a49b48,6a49b4c,6a49b50,6a49b54,6a49b5c,6a49b60,6a49b6c,6a49b70,73a3e18,"
-    "730b534,730b5a8,730b544,9642c00,9642c04,734b98c").split(",")]
+    "730b534,730b5a8,730b544,9642c00,9642c04,734b98c,"
+    # wave 2 (2026-11-19 audit, identical corpus-wide): cs, display menu, Tear menu B, day-end panel, Tear wander, ...
+    "6a49958,730b524,730b584,730b574,730b56c,730b520,731f404,438b154,7337210,731f598,731f5a0,730b5d8,730b548,6a5ea7"
+    "0,730b5d0,730b5c8,730b5cc,730b5dc,730b280,730b284,730b288,730b28c,730b298,730b5d4,730b318,730b528,74b28b0,74b2"
+    "8b4,74b28b8,74b28bc,74b28c0,74b28c4,74b28c8,438b4b0,438be6c,438be70,438b764,438b76c,74b2f1c,74b2f20,74b2f24,74"
+    "b2f2c,74b2f34,438be7c,438cbfc,438cc00,438cbe8,730b51c,730b604,730b600,730b608,438b1e0,6a49b74,734b96c,734b97c,"
+    "734b988,438bf68,74b2edc,74b2ee0,438b4e8").split(",")]
 TH_RE = re.compile(r"^th (\d+)((?: \d+:[0-9a-f]+)*)\s*$", re.M)
 GOLDEN_FILES = ("rhost.log", "trace.flat.jsonl", "save.dat")
 RAND_RE = re.compile(r"^rand f(\d+) seed ([0-9a-f]+) -> ([0-9a-f]+) \[(.*?)\]( worker)?\s*$", re.M)
@@ -1609,8 +1615,9 @@ def triage_one(a, name):
         bname = "scalars" if va == 0 else next((b[0] for b in TICK_HASH_BLOCKS if b[1] == va), f"{va:x}")
         row.update(verdict="split", split=f, sig=f"state: {bname} ({va:#x}) differs, RNG identical",
                    context=scene_context(os.path.join(rd, "rhost.log"), f),
-                   repro=(f"rhost.py portstate {name} --window {max(1, f - 3)}:{f + 3} --va "
-                          + ",".join(f"{v:x}" for v in TICK_HASH_SCALARS)) if va == 0
+                   repro=" ; ".join(f"rhost.py portstate {name} --window {max(1, f - 3)}:{f + 3} --va "
+                                    + ",".join(f"{v:x}" for v in TICK_HASH_SCALARS[k:k + 63])
+                                    for k in range(0, len(TICK_HASH_SCALARS), 63)) if va == 0
                    else f"rhost.py portblock {name} --at {max(1, f - 1)},{f}")
         return row
     m = re.match(r"split (\d+) retail (\d+) (\S+) port (\d+) (\S+)", lines[0] if lines else "")

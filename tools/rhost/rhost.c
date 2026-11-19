@@ -925,9 +925,9 @@ static void parse(int argc, char **argv)
             }
         }
         else if (!strcmp(a, "--tick-hash-vas")) {   /* VA[,VA..] hex: one more tick-hash block over these dwords */
-            char b[RH_MAX_WATCH * 12]; snprintf(b, sizeof b, "%s", ARG());
+            static char b[RH_MAX_TH_SCAL * 12]; snprintf(b, sizeof b, "%s", ARG());
             for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
-                if (O.n_th_scal == RH_MAX_WATCH || sscanf(t, "%x", &O.th_scal[O.n_th_scal]) != 1) usage();
+                if (O.n_th_scal == RH_MAX_TH_SCAL || sscanf(t, "%x", &O.th_scal[O.n_th_scal]) != 1) usage();
                 O.n_th_scal++;
             }
         }
