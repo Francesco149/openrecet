@@ -1921,6 +1921,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
         if (rng_golden_load(g_rng_golden_path) == 0) {
             g_rng_trace = rng_log_trace;
             rng_golden_set_block_hash(state_va_block_hash);
+            rng_golden_set_scalar_value(state_va_value);
         }
         else fprintf(stderr, "openrecet: --rng-golden: cannot load %s\n", g_rng_golden_path);
     }

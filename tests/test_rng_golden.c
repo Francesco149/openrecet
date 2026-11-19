@@ -196,3 +196,32 @@ int test_rng_golden_th_rejects_malformed(void)
     T_ASSERT(!rng_golden_active());
     return 0;
 }
+
+/* the scalars block: `blocks ..,0:LEN` + `vas`, hashed over the value reader in list order */
+static int32_t s_val[2];
+static int32_t fake_val(uint32_t va) { return va == 0x10 ? s_val[0] : va == 0x20 ? s_val[1] : 0; }
+
+int test_rng_golden_scalars_block(void)
+{
+    /* FNV-1a over {1, 2} = ed74208a; {1, 3} = ee74221d */
+    T_ASSERT(load_str("frames 3\nblocks 0:8\nvas 10,20\nth 1 0:ed74208a\nth 3 0:ee74221d\n") == 0);
+    rng_golden_set_scalar_value(fake_val);
+    s_val[0] = 1; s_val[1] = 2;
+    T_ASSERT(!rng_golden_end_tick(1));
+    T_ASSERT(!rng_golden_end_tick(2));            /* unchanged tick: forward-filled */
+    s_val[1] = 5;
+    T_ASSERT(rng_golden_end_tick(3));             /* retail went to 3 */
+    FILE *fp = tmpfile();
+    T_ASSERT(fp != NULL);
+    T_ASSERT(rng_golden_write_report(fp) == 0);
+    rewind(fp);
+    char buf[256] = {0};
+    size_t n = fread(buf, 1, sizeof buf - 1, fp);
+    fclose(fp);
+    buf[n] = 0;
+    T_ASSERT(strncmp(buf, "state 3 block 0:8 retail ee74221d port ", 39) == 0);
+    T_ASSERT(strstr(buf, "\nvals 10=1 20=5\n") != NULL);
+    rng_golden_set_scalar_value(NULL);
+    rng_golden_reset();
+    return 0;
+}

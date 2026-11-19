@@ -57,5 +57,8 @@ void rng_golden_reset(void);
 
 /* the port's hash of the retail-layout block at VA, LEN bytes (state_va_block_hash) */
 void rng_golden_set_block_hash(uint32_t (*fn)(uint32_t va, uint32_t len));
+/* the scalars block (a `blocks` entry 0:LEN + a `vas` line, rhost --tick-hash-vas): FNV-1a over
+ * these dwords' port values in list order */
+void rng_golden_set_scalar_value(int32_t (*fn)(uint32_t va));
 
 #endif

@@ -11925,6 +11925,7 @@
    "quality_flags": [],
    "src": [
     "src/customer_service.c",
+    "src/scene1_postload.c",
     "src/scene1_shop_display.c",
     "src/scene1_shop_display.h",
     "src/scene_adv_guild.c",
@@ -11980,6 +11981,7 @@
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
     "src/scene1_player_ctrl.c",
+    "src/scene1_postload.c",
     "src/scene1_shop_display.c",
     "src/scene1_shop_display.h",
     "src/scene_adv_guild.c",
@@ -12395,6 +12397,7 @@
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",
     "src/scene1_player_ctrl.c",
+    "src/scene1_postload.c",
     "src/scene_guild.c",
     "src/sim.c",
     "src/stage_load_pulse.c",

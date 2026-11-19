@@ -167,7 +167,8 @@ void scene1_postload_pose_house_standing(void)
      * tooltip and cc08. */
     scene1_conversation_pose_reset();        /* the held iv1_2 pose latch */
     scene1_tutorial_dispatch_house_entry();  /* b924 + the day-2 re-place latch */
-    stage_load_pulse_reset();                /* the display-menu slide */
+    /* (no slide reset: retail writes DAT_0734b98c only in FUN_00468338 /
+     * FUN_004682e3 — after a pause resume it decays 5 → 0, FUN_004693e3) */
 }
 
 /* FUN_00436f97 L706-724, the house seat: work dword +0x2cdf4 == 0 → the

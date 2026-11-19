@@ -15,6 +15,10 @@ static uint32_t  g_th_n, g_th_va[TH_MAX], g_th_len[TH_MAX];
 static uint32_t *g_th;               /* [f * g_th_n + i], forward-filled; valid for ticks 1..g_th_to */
 static uint32_t  g_th_to;
 static uint32_t (*g_th_fn)(uint32_t va, uint32_t len);
+#define VAS_MAX 64
+static uint32_t  g_vas[VAS_MAX], g_n_vas;   /* the scalars block's dwords (a `vas` line) */
+static int32_t (*g_val_fn)(uint32_t va);
+static int32_t   g_split_vals[VAS_MAX];   /* the scalars' port values at a scalars-block split */
 static int       g_split_block = -1; /* the split is a state split of this block */
 static uint32_t  g_split_port_hash;
 static uint32_t g_frames;            /* retail ticks 1..g_frames */
@@ -32,7 +36,7 @@ void rng_golden_reset(void)
 {
     free(g_gold); free(g_port); free(g_cur); free(g_th);
     g_gold = g_port = NULL; g_cur = NULL; g_th = NULL;
-    g_th_n = 0; g_th_to = 0; g_split_block = -1; g_split_port_hash = 0;
+    g_th_n = 0; g_th_to = 0; g_split_block = -1; g_split_port_hash = 0; g_n_vas = 0;
     g_frames = 0; g_loaded = 0; g_checked = 0; g_split = 0; g_split_found = 0;
     g_cur_n = g_cur_cap = g_cur_frame = 0; g_cur_frozen = 0;
 }
@@ -53,6 +57,17 @@ int rng_golden_load_fp(FILE *fp)
             g_gold = calloc((size_t)frames + 1, sizeof *g_gold);
             g_port = calloc((size_t)frames + 1, sizeof *g_port);
             if (!g_gold || !g_port) { rng_golden_reset(); return -1; }
+            continue;
+        }
+        if (!strncmp(line, "vas ", 4)) {
+            g_n_vas = 0;
+            for (char *p = line + 4; *p && *p != '\n' && *p != '\r'; ) {
+                unsigned va; int n = 0;
+                if (g_n_vas == VAS_MAX || sscanf(p, "%x%n", &va, &n) != 1) { rng_golden_reset(); return -1; }
+                g_vas[g_n_vas++] = va;
+                p += n;
+                if (*p == ',') p++;
+            }
             continue;
         }
         if (!strncmp(line, "blocks ", 7)) {
@@ -108,6 +123,19 @@ int rng_golden_load(const char *path)
 
 int rng_golden_active(void) { return g_loaded; }
 void rng_golden_set_block_hash(uint32_t (*fn)(uint32_t va, uint32_t len)) { g_th_fn = fn; }
+void rng_golden_set_scalar_value(int32_t (*fn)(uint32_t va)) { g_val_fn = fn; }
+
+/* a block's port hash: VA 0 = the scalars block */
+static uint32_t block_hash(uint32_t i)
+{
+    if (g_th_va[i] != 0) return g_th_fn ? g_th_fn(g_th_va[i], g_th_len[i]) : 0u;
+    uint32_t h = 2166136261u;
+    for (uint32_t k = 0; k < g_n_vas; k++) {
+        h ^= g_val_fn ? (uint32_t)g_val_fn(g_vas[k]) : 0u;
+        h *= 16777619u;
+    }
+    return h;
+}
 
 uint32_t rng_golden_frames(void) { return g_frames; }
 int rng_golden_split(uint32_t *frame)
@@ -156,11 +184,13 @@ int rng_golden_end_tick(uint32_t frame)
         }
     }
     /* the state after tick `frame` (only the current tick's can be read) */
-    if (g_th && g_th_fn && frame >= 1 && frame <= g_th_to) {
+    if (g_th && (g_th_fn || g_val_fn) && frame >= 1 && frame <= g_th_to) {
         for (uint32_t i = 0; i < g_th_n; i++) {
-            const uint32_t h = g_th_fn(g_th_va[i], g_th_len[i]);
+            const uint32_t h = block_hash(i);
             if (h != g_th[frame * g_th_n + i]) {
                 g_split = frame; g_split_found = 1; g_split_block = (int)i; g_split_port_hash = h;
+                if (g_th_va[i] == 0)
+                    for (uint32_t k = 0; k < g_n_vas; k++) g_split_vals[k] = g_val_fn ? g_val_fn(g_vas[k]) : 0;
                 g_cur_frozen = 1;
                 if (g_cur_frame != frame) g_cur_n = 0;
                 return 1;
@@ -183,6 +213,11 @@ int rng_golden_write_report(FILE *fp)
         const uint32_t i = (uint32_t)g_split_block;
         fprintf(fp, "state %u block %x:%x retail %08x port %08x\n", f, g_th_va[i], g_th_len[i],
                 g_th[f * g_th_n + i], g_split_port_hash);
+        if (g_th_va[i] == 0) {   /* the scalars block: the port's values (retail's: portstate) */
+            fprintf(fp, "vals");
+            for (uint32_t k = 0; k < g_n_vas; k++) fprintf(fp, " %x=%d", g_vas[k], g_split_vals[k]);
+            fprintf(fp, "\n");
+        }
         return 0;
     }
     fprintf(fp, "split %u retail %u %08x port %u %08x\n", f, g_gold[f].count, g_gold[f].end,

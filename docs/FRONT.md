@@ -249,6 +249,11 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     whole and the skip prompt's freeze confirmed (stale debts retired); `guild-item-limit` filed (crafted 15,032 items): the guild's
     FUN_00434ceb box ported. **Blind spot:** the v2 tick hash covers no menu / box state — the old port triaged identical there;
     `gates` now has a `portstate` kind (retail VAs vs state_va mirrors every frame) for such rows.
+    Then a corpus portstate audit (63 UI / flow VAs × 186 scenarios, every frame) → 7 fixes (script fade modes, the dialogue
+    counter, the shared day-end / results flag, boot money, the encyclopedia's item (double category offset), the pause-resume
+    slide, mirrors) and **goldens v3: the scalars block** (62 VAs hashed every tick, `TICK_HASH_SCALARS`) — the blind spot closed:
+    **corpus 189 identical / 1 no-flat on v3 (2026-11-19)**; the item-limit box removed → split f481 (scalars). Left out: DAT_0438b150
+    (hand cursor visible, 1 frame in one scenario).
     Debug a new split with `portblock S --at F-1,F` + `--watch-write` (pin the exe with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left:
     dead part_idx 1/2 arms of 0x23 / 0x29, signed modulo, 0x29 ground query z.
     Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).

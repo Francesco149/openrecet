@@ -93,11 +93,16 @@ python3 tools/rhost/rhost.py golden [SCEN..|--only RE] [--refresh]   # retail's 
 python3 tools/rhost/rhost.py triage [SCEN..|--only RE] [--refresh]   # every scenario: first port split, clustered
 ```
 - A **golden** = one retail replay with `--log-rand 0:end --log-anchors --flatten` (+ the DirectMusic
-  `--watch`), stored gzipped in `/mnt/ephemeral/openrecet/goldens/<kind>/v<GOLDEN_VERSION>/<scen>-<trace
+  `--watch`), stored gzipped in `/mnt/ephemeral/openrecet/goldens/<kind>/v<GOLDEN_VERSION>-<cfg>/<scen>-<trace
   sha>-<save sha>/` (kind: `win`, `wine` = real devices under Xvfb, `headless` = `--headless` under wine or on
   bunker — one behaviour, so `golden --target bunker --headless` makes what `triage --target wine --headless` reads) with `rng.golden` (per tick: draw count + LCG state after the last draw; since v2 also
   the per-tick hashes of the retail-layout blocks `TICK_HASH_BLOCKS`, from `--tick-hash VA:LEN[,..]`: after
-  tick F, before the boundary's deferred workers, a `th F i:FNV ..` line with the blocks that changed) and
+  tick F, before the boundary's deferred workers, a `th F i:FNV ..` line with the blocks that changed; since v3
+  one more block, the **scalars** `TICK_HASH_SCALARS` (62 flow / menu / UI dwords: scene + dialogue gates, fades,
+  loads, pause, item window, Tear / counter / vender / guild menus, day end, game over, message / choice boxes) from
+  `--tick-hash-vas VA,..`, sampled right after the tick, before retail's message pump (a WndProc key belongs to the
+  next tick); the port hashes them through `state_va_value`, and a scalars split prints the port's values (`vals`)
+  with a `portstate` repro over the list; `<cfg>` = a hash of the hash config, so a list change makes new goldens) and
   `meta.json` (RESULT). `portrng` / `portsave` / `portanchors` use it whenever the run is a plain replay
   (no `--extra` / `--hook` / `--frames` / …; `--no-golden` forces a fresh retail run). Bump
   `GOLDEN_VERSION` when rhost's deterministic core changes what retail does.

@@ -340,6 +340,7 @@ struct test_case {
     X(rng_golden_state_split_names_the_block) \
     X(rng_golden_rng_split_wins_over_state) \
     X(rng_golden_th_rejects_malformed) \
+    X(rng_golden_scalars_block) \
     \
     X(math_vec3_normalize_3_4_0) \
     X(math_vec3_normalize_in_place) \

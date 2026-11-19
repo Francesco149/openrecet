@@ -71,7 +71,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x45bc7f | FUN_0045bc7f | 107 | ✓ |  | floor_layout.c, floor_layout.h, scene_adv_guild.c |
 | 0x4681f6 | FUN_004681f6 | 42 | ✓ |  | chara_equip.h, customer_roster.c, customer_service.c (+16) |
 | 0x4682d0 | FUN_004682d0 | 8 | ✓ |  | customer_service.c, dungeon_results.c, scene.c (+10) |
-| 0x4693e3 | FUN_004693e3 | 41 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c (+4) |
+| 0x4693e3 | FUN_004693e3 | 41 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene1_player_ctrl.c (+5) |
 | 0x46f1e9 | FUN_0046f1e9 | 186 | ✓ |  | scene1_bg_npc.c, scene1_bg_npc.h, scene1_postload.c (+1) |
 | 0x46f2a3 | FUN_0046f2a3 | 894 | ✓ |  | scene1_bg_npc.c, scene1_bg_npc.h, scene1_day_close.h (+2) |
 | 0x46f621 | FUN_0046f621 | 39 | ✓ |  | input_segtrace.h, main.c, scene1_bg_npc.c (+3) |
@@ -495,9 +495,9 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x4682bf | FUN_004682bf | 6 | ✓ |  | scene_adv_guild.c, scene_guild.c, scene_pause.c (+1) |
 | 0x4682c5 | FUN_004682c5 | 11 | ✓ |  | scene_adv_guild.c, scene_guild.c, scene_pause.c (+1) |
 | 0x4682d8 | FUN_004682d8 | 11 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene_guild.c |
-| 0x4682e3 | FUN_004682e3 | 11 | ✓ |  | customer_service.c, scene1_shop_display.c, scene1_shop_display.h (+3) |
+| 0x4682e3 | FUN_004682e3 | 11 | ✓ |  | customer_service.c, scene1_postload.c, scene1_shop_display.c (+4) |
 | 0x4682ee | FUN_004682ee | 74 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene_adv_guild.c |
-| 0x468338 | FUN_00468338 | 2490 | ✓ |  | customer_service.c, dungeon_results.c, main.c (+12) |
+| 0x468338 | FUN_00468338 | 2490 | ✓ |  | customer_service.c, dungeon_results.c, main.c (+13) |
 | 0x468cf2 | FUN_00468cf2 | 19 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h |
 | 0x468d05 | FUN_00468d05 | 7 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene_pause.c |
 | 0x468d0c | FUN_00468d0c | 7 | ✓ |  | scene1_display_menu.c, scene1_display_menu.h, scene_pause.c |

@@ -37,6 +37,7 @@ import argparse
 import glob
 import datetime
 import gzip
+import hashlib
 import json
 import os
 import re
@@ -1127,14 +1128,25 @@ def run_port_win(batch, pdir_l, pw, fetch):
 # on state hashes: those carry rhost-image pointers (0x964d330 differs across rhost builds, 2026-11-04).
 # GOLDEN_VERSION: bump when rhost's deterministic core changes what retail does for a trace (virtual time,
 # DEFER, the seed, the input path) — then every golden re-runs. v2 (2026-11-16): + the per-tick block hashes.
+# v3 (2026-11-19): + the scalars block (TICK_HASH_SCALARS).
 GOLDENS = os.environ.get("RHOST_GOLDENS", "/mnt/ephemeral/openrecet/goldens")
-GOLDEN_VERSION = 2
+GOLDEN_VERSION = 3
 # the per-tick state check (rhost --tick-hash → rng.golden → the port's --rng-golden, src/rng_golden.h): retail-layout
 # blocks the port mirrors dword for dword (src/state_va.c k_blocks; `portblock` names the dwords of a split).
 # Name, VA, length. A block here must be exact on every tick of every identical scenario.
 TICK_HASH_BLOCKS = [("dobj", 0x695ef78, 512 * 0x2a0), ("mapcol_objs", 0x438bfb0, 0x198), ("drop", 0x438bedc, 0x60),
                     ("party", 0x56da1b8, 0x3624), ("actors", 0x76b970, 128 * 0xba4), ("popup", 0x44e28f0, 32 * 7 * 4),
                     ("recb", 0x69324b0, 512 * 0x49 * 4), ("recc", 0x6956cb0, 200 * 0x25 * 4)]
+# the scalars block (rhost --tick-hash-vas; the port's state_va_value): flow / menu / UI dwords outside the blocks
+# above — scene and dialogue gates, fades, loads, pause, item window, Tear / counter / vender / guild menus, day end,
+# game over, the message / choice boxes. One more block (index len(TICK_HASH_BLOCKS), `0:LEN` + a `vas` line).
+# Chosen by the 2026-11-19 corpus portstate audit (all identical there); ≤ 64 (RH_MAX_WATCH).
+TICK_HASH_SCALARS = [int(v, 16) for v in (
+    "438b1c0,438b4cc,438b4c8,438cc08,438cc04,438b1cc,438b1c8,438b928,438b924,438b4e0,74b2eec,438b918,438b148,438af34,"
+    "438bf7c,438bf78,6a49998,6a49990,6a4999c,6a4997c,6a4995c,734b968,7337850,734b9a8,734b994,734b998,74b2ed4,74b2ed8,"
+    "438bf64,438bea4,438cc0c,438cc10,438b74c,438b750,438b754,438b8c0,438b8c4,438b8c8,9643584,964357c,438b798,438b79c,"
+    "74b2f08,74b2f58,6a5d400,6a5d404,6a49b44,6a49b48,6a49b4c,6a49b50,6a49b54,6a49b5c,6a49b60,6a49b6c,6a49b70,73a3e18,"
+    "730b534,730b5a8,730b544,9642c00,9642c04,734b98c").split(",")]
 TH_RE = re.compile(r"^th (\d+)((?: \d+:[0-9a-f]+)*)\s*$", re.M)
 GOLDEN_FILES = ("rhost.log", "trace.flat.jsonl", "save.dat")
 RAND_RE = re.compile(r"^rand f(\d+) seed ([0-9a-f]+) -> ([0-9a-f]+) \[(.*?)\]( worker)?\s*$", re.M)
@@ -1153,7 +1165,9 @@ def golden_target(a):
 
 def golden_dir(a, name, tr, save):
     key = trace_save.sha256_file(tr)[:16] + "-" + (trace_save.sha256_file(save)[:8] if save else "fresh")
-    return os.path.join(GOLDENS, golden_target(a), f"v{GOLDEN_VERSION}", f"{name}-{key}")
+    # the hash config is part of the key: a change to the blocks / scalars makes new goldens by itself
+    cfg = hashlib.sha256((GOLDEN_EXTRA + " scalars@post").encode()).hexdigest()[:6]   # + rhost's sampling point
+    return os.path.join(GOLDENS, golden_target(a), f"v{GOLDEN_VERSION}-{cfg}", f"{name}-{key}")
 
 
 def golden_usable(a):
@@ -1179,7 +1193,9 @@ def rng_golden_text(rows, frames, th=None):
     out = ["# retail per-tick LCG draws (rhost --log-rand); src/rng_golden.h", f"frames {frames}"]
     out += [f"{f} {cnt[f]} {end[f]}" for f in sorted(cnt) if f <= frames]
     if th:
-        out.append("blocks " + ",".join(f"{va:x}:{n:x}" for _, va, n in TICK_HASH_BLOCKS))
+        out.append("blocks " + ",".join(f"{va:x}:{n:x}" for _, va, n in TICK_HASH_BLOCKS)
+                   + f",0:{4 * len(TICK_HASH_SCALARS):x}")
+        out.append("vas " + ",".join(f"{v:x}" for v in TICK_HASH_SCALARS))
         out += [f"th {f}{rest}" for f, rest in th if f <= frames]
     return "\n".join(out) + "\n"
 
@@ -1190,7 +1206,8 @@ def th_rows(log):
 
 
 GOLDEN_EXTRA = ("--log-rand 0:100000000 --log-anchors --tick-hash "
-                + ",".join(f"{va:x}:{n:x}" for _, va, n in TICK_HASH_BLOCKS))
+                + ",".join(f"{va:x}:{n:x}" for _, va, n in TICK_HASH_BLOCKS)
+                + " --tick-hash-vas " + ",".join(f"{v:x}" for v in TICK_HASH_SCALARS))
 
 
 def golden_store(a, name, tr, save, g, rd, r):
@@ -1589,10 +1606,12 @@ def triage_one(a, name):
     ms = re.match(r"state (\d+) block ([0-9a-f]+):", lines[0] if lines else "")
     if ms:   # RNG identical through tick F, a retail-layout block not
         f, va = int(ms.group(1)), int(ms.group(2), 16)
-        bname = next((b[0] for b in TICK_HASH_BLOCKS if b[1] == va), f"{va:x}")
+        bname = "scalars" if va == 0 else next((b[0] for b in TICK_HASH_BLOCKS if b[1] == va), f"{va:x}")
         row.update(verdict="split", split=f, sig=f"state: {bname} ({va:#x}) differs, RNG identical",
                    context=scene_context(os.path.join(rd, "rhost.log"), f),
-                   repro=f"rhost.py portblock {name} --at {max(1, f - 1)},{f}")
+                   repro=(f"rhost.py portstate {name} --window {max(1, f - 3)}:{f + 3} --va "
+                          + ",".join(f"{v:x}" for v in TICK_HASH_SCALARS)) if va == 0
+                   else f"rhost.py portblock {name} --at {max(1, f - 1)},{f}")
         return row
     m = re.match(r"split (\d+) retail (\d+) (\S+) port (\d+) (\S+)", lines[0] if lines else "")
     if not m:

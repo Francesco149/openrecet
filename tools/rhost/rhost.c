@@ -637,14 +637,27 @@ static uint32_t rh_block_hash(uint32_t va, uint32_t len)
     for (uint32_t o = 0; o + 4 <= len; o += 4) { h ^= G32(va + o); h *= 16777619u; }
     return h;
 }
+/* the scalars block is sampled right after the tick (rh_step, the `post` point), before retail's message pump:
+ * a WndProc key (ESC → the pause ramp, the skip prompt) belongs to the next tick, as in the port */
+static uint32_t g_th_scal_hash;
+static void tick_hash_scalars(void)
+{
+    uint32_t h = 2166136261u;
+    for (int k = 0; k < O.n_th_scal; k++) { h ^= G32(O.th_scal[k]); h *= 16777619u; }
+    g_th_scal_hash = h;
+}
 static void tick_hash_log(void)
 {
-    static uint32_t last[RH_MAX_TH]; static int have;
-    if (!O.n_th || g_frame == 0) return;
-    char b[RH_MAX_TH * 16 + 32]; size_t o = snprintf(b, sizeof b, "th %u", g_frame);
+    static uint32_t last[RH_MAX_TH + 1]; static int have;
+    if ((!O.n_th && !O.n_th_scal) || g_frame == 0) return;
+    char b[(RH_MAX_TH + 1) * 16 + 32]; size_t o = snprintf(b, sizeof b, "th %u", g_frame);
     for (int i = 0; i < O.n_th; i++) {
         uint32_t h = rh_block_hash(O.th_va[i], O.th_len[i]);
         if (!have || h != last[i]) { o += snprintf(b + o, sizeof b - o, " %d:%08x", i, h); last[i] = h; }
+    }
+    if (O.n_th_scal) {   /* the scalars block (index n_th): scattered dwords, FNV-1a in list order */
+        uint32_t h = g_th_scal_hash;
+        if (!have || h != last[O.n_th]) { o += snprintf(b + o, sizeof b - o, " %d:%08x", O.n_th, h); last[O.n_th] = h; }
     }
     have = 1;
     rh_log("%s\n", b);
@@ -704,6 +717,7 @@ void rh_step(void)
     }
     if (O.live) rh_text_begin();
     TIB_GAME(); rh_call_tick(); TIB_HOST();
+    if (O.n_th_scal) tick_hash_scalars();
     rh_play_after_tick();
     if (O.n_watch && O.log_every && g_frame % O.log_every == 0) {
         /* the state the anchors see: after tick N, BEFORE the next boundary's
@@ -810,7 +824,7 @@ static void usage(void)
                     "  [--hook SPEC] [--coverage F] [--d3d-proxy DLL --cap FROM:COUNT] [--stall-ms N] [--tail N]\n"
                     "  [--no-vtime] [--no-defer] [--no-arena] [--no-overlay] [--log-anchors] [--log-files] [--log-heap]\n"
                     "  [--watch-write VA[,VA..] --watch-exec VA[,VA..] (<= 4 in all) [--ww-frames FROM:TO]]\n"
-                    "  [--cut] [--preamble CODE[:BANK[:TOGGLE]]] [--turbo] [--tick-hash VA:LEN[,..]]\n");
+                    "  [--cut] [--preamble CODE[:BANK[:TOGGLE]]] [--turbo] [--tick-hash VA:LEN[,..]] [--tick-hash-vas VA[,..]]\n");
     ExitProcess(2);
 }
 static void parse(int argc, char **argv)
@@ -908,6 +922,13 @@ static void parse(int argc, char **argv)
             for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
                 if (O.n_th == RH_MAX_TH || sscanf(t, "%x:%x", &O.th_va[O.n_th], &O.th_len[O.n_th]) != 2) usage();
                 O.n_th++;
+            }
+        }
+        else if (!strcmp(a, "--tick-hash-vas")) {   /* VA[,VA..] hex: one more tick-hash block over these dwords */
+            char b[RH_MAX_WATCH * 12]; snprintf(b, sizeof b, "%s", ARG());
+            for (char *t = strtok(b, ","); t; t = strtok(NULL, ",")) {
+                if (O.n_th_scal == RH_MAX_WATCH || sscanf(t, "%x", &O.th_scal[O.n_th_scal]) != 1) usage();
+                O.n_th_scal++;
             }
         }
         else if (!strcmp(a, "--watch")) {   /* hex VAs: in each `frame` log line + a `post N` line after tick N */

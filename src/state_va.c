@@ -647,6 +647,23 @@ void state_va_log(FILE *fp, uint32_t frame)
 #endif
 }
 
+/* any retail dword VA the port mirrors, as state_va_log prints it (0 when none):
+ * the --rng-golden scalars block (rhost --tick-hash-vas) */
+int32_t state_va_value(uint32_t va)
+{
+    int k = 0;
+    while (k < K_N && k_map[k].va != va) k++;
+    if (k < K_N) return k_map[k].get();
+    if (is_bg_npc_va(va)) return bg_npc_dword(va);
+    if (layout_dword(va)) return *layout_dword(va);
+    float camf;
+    if (scene1_camera_state_va(va, &camf)) return fbits(camf);
+    if (va >= WORK_BANK_VA && va < WORK_BANK_VA + WORK_BANKS * WORK_BANK_SIZE &&
+        ((va - WORK_BANK_VA) % WORK_BANK_SIZE) % 4 == 0)
+        return bank_dword(va);
+    return 0;
+}
+
 const char *state_va_known(void)
 {
     static char out[2048];
