@@ -505,6 +505,7 @@ void sim_step_a(void)
              * FUN_0046c320 straight to the box poll FUN_00434ed2(0) (all_ida
              * 73240 / 73425: No → 0, the script resumes; Yes → 1, the script
              * ends) and the rest of FUN_004536cb's frame runs as usual. */
+            scene1_intro_dialogue_count_prompt_tick();
             if (skip_event_tick(g_input_state[0].buttons) == SKIP_EVENT_CONFIRMED)
                 scene1_intro_dialogue_skip_to_end();
         } else {

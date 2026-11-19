@@ -14,6 +14,7 @@
  * (one empty "?" frame).  The index table is sorted (rank then id) and maps a
  * display cell → its packed slot.  Completion% = discovered / total-catalog.
  */
+#include "scene1_display_menu.h"   /* FUN_00468286 (DAT_0734b998) */
 #include "encyclopedia.h"
 
 #include <string.h>
@@ -43,7 +44,6 @@ int32_t g_enc_rows_cur, g_enc_rows_alt, g_enc_rows_prev;
  * The engine shares these with the shop tooltip (modeled as statics in
  * scene1_display_menu.c); the encyclopedia keeps its own copy — behaviorally
  * equivalent for the encyclopedia detail overlay (Phase 2 render). */
-int32_t g_enc_tooltip_item = -1;   /* DAT_0734b998 — hovered item (id<<6) */
 int32_t g_enc_tooltip_mode = 0;    /* DAT_0734b96c — overlay mode (0=closed) */
 int32_t g_enc_tooltip_owned = 0;   /* DAT_005c6ee4 — owned count */
 
@@ -309,7 +309,7 @@ int encyclopedia_update(void)
         int sidx  = g_enc_index[disp + cat * ENC_CAT_CELLS];
         int16_t iid = g_enc_slot[sidx + cat * ENC_CAT_CELLS];
         if (iid >= 0) {
-            g_enc_tooltip_item = iid << 6;      /* FUN_00468286 */
+            display_menu_set_highlight(iid << 6);   /* FUN_00468286: DAT_0734b998 + the owned recount */
             g_enc_tooltip_mode = (g_scene_state == 9) ? 3 : 4;   /* FUN_004681db(2|3)→mode+1 */
             audio_play_se_by_id(0x2c6);
             g_enc_detail = 1;
@@ -581,7 +581,7 @@ void encyclopedia_render(struct IDirect3DDevice8 *d, float px, float py,
 
     /* item-detail overlay (A-press) — Phase 2. */
     if (g_enc_detail == 1)
-        item_detail_card_render(d, g_enc_tooltip_item, g_enc_tooltip_mode);
+        item_detail_card_render(d, display_menu_highlight_item(), g_enc_tooltip_mode);
 }
 
 /* ── item-detail overlay helpers (FUN_0049ef78 / FUN_004848c4 / FUN_00484948 /

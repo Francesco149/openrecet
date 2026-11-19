@@ -152,6 +152,8 @@ static void interscript_load_done(void)
 }
 static void enter_interscript_load(void)
 {
+    g_worker_sec_param = 0;     /* the cascade's iv1_2: FUN_00452d07(0) */
+    g_rt.scene.skip_prompt = 0; /* FUN_00452d07 → FUN_0046c01e → FUN_0046c0ae, on the spot */
     g_state    = D_LOAD;
     g_load_ctr = 0;
     nowloading_set_active(1);   /* FUN_00452d07: DAT_06a49960 = 1 on the spot */
@@ -165,14 +167,20 @@ static void enter_interscript_load(void)
  * f73) — the same bracket as start_single's */
 static void first_load_done(void)
 {
-    if (g_state == D_LOAD_FIRST)   /* not if a skip already moved on */
+    if (g_state == D_LOAD_FIRST) { /* not if a skip already moved on */
         g_state = D_SCRIPT1;
+        g_worker_sec_state_984 = 1;   /* LAB_00452aab: DAT_06a49984 → the mode-1 fade-in */
+    }
 }
 
 void scene1_intro_dialogue_arm(void)
 {
     g_state            = worker_load_deterministic() ? D_LOAD_FIRST : D_SCRIPT1;
     g_load_ctr         = 0;
+    g_worker_sec_param = 1;     /* the cascade's iv1_1: FUN_00452d07(1) (all_ida 49820) */
+    g_rt.scene.skip_prompt = 0; /* FUN_0046c0ae at the dispatch */
+    if (g_state == D_SCRIPT1)
+        g_worker_sec_state_984 = 1;
     if (g_state == D_LOAD_FIRST) {
         nowloading_set_active(1);   /* FUN_00452d07: DAT_06a49960 = 1 */
         worker_load_defer_fn(first_load_done);
@@ -250,6 +258,7 @@ void scene1_intro_dialogue_tick(uint16_t held)
         if (g_rt.complete) {       /* end: → ret 3; ive sets active=0 too */
             g_state       = D_SCRIPT1_END;   /* settle frame, then the load */
             g_rt.complete = 0;     /* clear so the script-2 lazy-load fires */
+            script_end_fade();     /* iv1_1's mode 1: FUN_0045281c(0, 17) */
         }
         break;
 
@@ -404,6 +413,7 @@ static void script_end_fade(void)
 void scene1_intro_dialogue_start(int scene, int sub, int fade)
 {
     g_worker_sec_param = fade;   /* FUN_00452d07: DAT_06a49980 */
+    g_rt.scene.skip_prompt = 0;  /* FUN_0046c01e → FUN_0046c0ae: DAT_073a3e18 = 0 on the spot */
     g_tut_scene   = scene;
     g_tut_sub     = sub;
     g_state       = D_TUT_LOAD;   /* the load bracket first (LOADING_START) */
@@ -421,6 +431,14 @@ void scene1_intro_dialogue_start(int scene, int sub, int fade)
 #endif
     if (worker_load_deterministic() && g_tut_load_frames_pin <= 0)
         worker_load_defer_fn(tut_load_done);
+}
+
+/* FUN_0046c320 bumps DAT_073a3e18 at its top, before the skip-prompt branch
+ * (all_ida 73238): the counter keeps running while the prompt is up */
+void scene1_intro_dialogue_count_prompt_tick(void)
+{
+    if (g_rt.active && !g_rt.complete)
+        g_rt.scene.skip_prompt++;
 }
 
 void scene1_intro_dialogue_skip_to_end(void)
@@ -685,6 +703,10 @@ int scene1_intro_dialogue_text_revealed(void)
 {
     return scene1_intro_dialogue_active() ? (g_rt.revealed ? 1 : 0) : 0;
 }
+
+/* DAT_073a3e18 as retail holds it: kept after a script ends, reset at the
+ * next script's load (FUN_0046c0ae) */
+int scene1_intro_dialogue_skip_counter(void) { return g_rt.scene.skip_prompt; }
 
 const struct ive_runtime *scene1_intro_dialogue_runtime(void)
 {

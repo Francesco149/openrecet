@@ -69,7 +69,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00473c15 | src/scene1_preload.c:329 | the floor's render assets (see |
 | FUN_00473c15 | src/scene1_preload.c:375 | the floor's render assets — the enemy |
 | FUN_00473c15 | src/scene_adv_guild.c:381 | the dungeon loader arm (FUN_00474a9a's |
-| FUN_0048e49c | src/scene_day_end.c:169 | the |
+| FUN_0048e49c | src/scene_day_end.c:172 | the |
 
 ## synthetic-data (0)
 
@@ -81,7 +81,7 @@ _none_
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
 | FUN_00465db4 | src/customer_service.c:1569 | <D1>'s length is DAT_0730b274 = |
-| FUN_00473c03 | src/scene1_intro_dialogue.c:442 | the engine teardown also restores the |
+| FUN_00473c03 | src/scene1_intro_dialogue.c:460 | the engine teardown also restores the |
 | FUN_00490e56 | src/guild_stock.c:43 | the other runtime globals it crosses |
 | FUN_004cdd9f | src/math3d.c:29 | only the SSE2 D3DX table is mirrored; the 3DNow! x3d_ / SSE1-only / DisableD3DXPSGP (c_+x86_) tables are not (pre-2011 AMD or a registry override only). |
 | scene1-rng-stream-parity.md | src/sim.c:394 | sim_loading_pump() |

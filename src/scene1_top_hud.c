@@ -19,7 +19,7 @@
 /* ─── game-state inputs (see header) ───────────────────────────────────── */
 
 static int   g_hud_day         = 0;       /* DAT_0450fb84[slot]; shown as +1 */
-static int   g_hud_money        = 1000;   /* DAT_0438b918 (new-game start) */
+static int   g_hud_money;               /* DAT_0438b918: BSS 0 until FUN_0049a59e loads the gold */
 static float g_hud_clock_phase  = 0.0f;   /* DAT_0438b7d4 */
 
 void  scene1_top_hud_set_day(int day)            { g_hud_day = day; }

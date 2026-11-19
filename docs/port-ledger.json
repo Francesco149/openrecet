@@ -8601,6 +8601,7 @@
     "src/scene_adv_guild.c",
     "src/scene_sc1.h",
     "src/sim.c",
+    "src/state_va.c",
     "src/worker_load.c",
     "src/worker_load.h"
    ],
@@ -12761,6 +12762,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/scene1_intro_dialogue.c",
     "src/scene_sc1.h",
     "src/worker_load.c",
     "src/worker_load.h"
@@ -12832,7 +12834,8 @@
    "quality_flags": [],
    "src": [
     "src/scene1_dialogue_run.c",
-    "src/scene1_dialogue_run.h"
+    "src/scene1_dialogue_run.h",
+    "src/scene1_intro_dialogue.c"
    ],
    "status": "ported"
   },
@@ -19014,6 +19017,7 @@
    "src": [
     "src/dungeon_results.c",
     "src/dungeon_results.h",
+    "src/scene_day_end.c",
     "src/sim.c"
    ],
    "status": "ported"
@@ -21650,6 +21654,7 @@
     "src/save_bank.h",
     "src/scene.c",
     "src/scene.h",
+    "src/scene1_top_hud.c",
     "src/scene1_tutorial_dispatch.c",
     "src/scene1_tutorial_dispatch.h",
     "src/scene_adv_guild.c",

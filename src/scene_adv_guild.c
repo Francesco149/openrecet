@@ -263,14 +263,14 @@ static int adv_guild_intro(uint8_t *bb)
         return 0;
     if (bb[B_INTRO_1] == 0) {
         bb[B_INTRO_1] = 1;
-        scene1_intro_dialogue_start_single(2, 7);
+        scene1_intro_dialogue_start(2, 7, 1);    /* FUN_00452d07(1) */
         return 1;
     }
     if (bb[B_INTRO_2] == 0) {
         bb[B_INTRO_2]    = 1;
         bb[B_INTRO_EXIT] = 1;
         bb[B_LOUIE]      = 1;                /* Louie joins */
-        scene1_intro_dialogue_start_single(2, 8);
+        scene1_intro_dialogue_start(2, 8, 1);    /* FUN_00452d07(1) */
         return 1;
     }
     if (bb[B_INTRO_EXIT] != 1)

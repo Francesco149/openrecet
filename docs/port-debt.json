@@ -225,7 +225,7 @@
    "engine_fn": "FUN_00473c03",
    "desc": "the engine teardown also restores the",
    "file": "src/scene1_intro_dialogue.c",
-   "line": 442,
+   "line": 460,
    "kind_known": true
   },
   {
@@ -329,7 +329,7 @@
    "engine_fn": "FUN_0048e49c",
    "desc": "the",
    "file": "src/scene_day_end.c",
-   "line": 169,
+   "line": 172,
    "kind_known": true
   }
  ]

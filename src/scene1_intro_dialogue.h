@@ -38,6 +38,8 @@ void scene1_intro_dialogue_reset(void);
  * Driven by skip_event (src/skip_event.h) on confirm. See the .c for the
  * engine teardown PORT-DEBT note. */
 void scene1_intro_dialogue_skip_to_end(void);
+void scene1_intro_dialogue_count_prompt_tick(void);
+int  scene1_intro_dialogue_skip_counter(void);   /* DAT_073a3e18 (kept past the script's end) */   /* DAT_073a3e18++ while the skip prompt is up */
 
 /* Advance one frame. Call once per INGAME, non-loading frame with player 1's
  * held button mask (g_input_state[0].buttons). No-op while dormant/done. */

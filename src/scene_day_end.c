@@ -4,6 +4,7 @@
  * (scroll arrows), FUN_00473618 (assets), FUN_0048d954 (day-start reset),
  * FUN_0045e67e.
  */
+#include "dungeon_results.h"     /* DAT_074b2f08 (shared) */
 #include "scene_day_end.h"
 #include "scene1_camera.h"     /* FUN_0048dbfb's camera */
 
@@ -43,7 +44,9 @@
 #define W_PAY_FORCED_B  0x2bc4b   /* byte: a debt-payment day regardless of the calendar */
 
 static int s_scroll[6];     /* DAT_074b2ef0..f04 ([0..2] the panels) */
-static int s_exit;          /* DAT_074b2f08 — the next-day fade (1 = start) */
+/* DAT_074b2f08 — the next-day fade (1 = start); one dword with the dungeon
+ * results' leave flag (FUN_0048f931 sets it 1 and leaves it there) */
+#define s_exit g_results_leaving
 static int s_pay;           /* DAT_074b2f0c — the payment screen */
 static int s_pay_short;     /* DAT_074b2f10 — gold < the quota */
 static int s_day;           /* DAT_074b2f14 — the day shown */

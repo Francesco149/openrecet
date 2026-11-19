@@ -77,7 +77,9 @@
 static int32_t get_rng(void)   { return (int32_t)g_rng_seed; }
 static int32_t get_cent_x(void) { return roster_centroid_x(); }
 static int32_t get_cent_y(void) { return roster_centroid_y(); }
-static int32_t get_nowloading(void) { return nowloading_is_active(); }
+/* the port's one now-loading flag also covers a dialogue's load (FUN_00452d07
+ * sets DAT_06a4995c / 06a49960, not 06a49958): split it back */
+static int32_t get_nowloading(void) { return nowloading_is_active() && !scene1_intro_dialogue_loading(); }
 static int32_t get_nl_rot(void) { float f = nowloading_get_rotation(); int32_t v; memcpy(&v, &f, 4); return v; }
 static int32_t get_scene(void) { return g_scene_state; }
 static int32_t get_floor(void) { return stage_gate_get_next(); }
@@ -202,7 +204,7 @@ static int32_t get_b608(void)  { return customer_service_b608(); }
 static int32_t get_b928(void)  { return scene1_beat_flag(); }
 static int32_t get_b924(void)  { return scene1_beat_counter(); }
 static int32_t get_b1c8(void)  { return scene1_intro_dialogue_gate(); }
-static int32_t get_ive_skip(void) { const struct ive_runtime *rt = scene1_intro_dialogue_runtime(); return rt ? rt->scene.skip_prompt : 0; }
+static int32_t get_ive_skip(void) { return scene1_intro_dialogue_skip_counter(); }
 static int32_t adv(uint32_t va) { int32_t v = 0; adv_guild_dbg(va, &v); return v; }
 static int32_t town(uint32_t va) { int32_t v = 0; scene_town_event_dbg(va, &v); return v; }
 static int32_t get_te_d400(void) { return town(0x6a5d400u); }
@@ -231,7 +233,7 @@ static int32_t get_dm_9a8(void) { return dm(0x734b9a8u); }
 static int32_t get_dm_98c(void) { return dm(0x734b98cu); }
 static int32_t get_cb_af34(void) { return choice_box_anim(); }
 static int32_t get_sd_b148(void) { return title_save_dialog_get_active_counter(); }
-static int32_t get_wl_995c(void) { return worker_load_busy_secondary(); }
+static int32_t get_wl_995c(void) { return worker_load_busy_secondary() || scene1_intro_dialogue_loading(); }
 static int32_t get_c998(void)    { return sim_get_counter_998(); }
 static int32_t get_c990(void)    { return sim_get_counter_990(); }
 static int32_t get_c99c(void)    { return sim_get_counter_99c(); }
@@ -261,7 +263,7 @@ static const state_va_t k_map[] = {
     { 0x438b4ccu, "floor (DAT_0438b4cc)",             get_floor },
     { 0x438b4c8u, "dungeon (DAT_0438b4c8)",           get_dungeon },
     { 0x438cc08u, "house mode cc08 (DAT_0438cc08)",   get_cc08  },
-    { 0x6a49958u, "now-loading gate (DAT_06a49958 | 06a49960, the port's one flag)", get_nowloading },
+    { 0x6a49958u, "now-loading gate (DAT_06a49958; the port's flag minus a dialogue load)", get_nowloading },
     { 0x6a4998cu, "now-loading disc angle, float bits (DAT_06a4998c)", get_nl_rot },
     { 0x438b1ccu, "cs load phase b1cc (DAT_0438b1cc)", get_b1cc },
     { 0x730b524u, "cs idle counter b524 (DAT_0730b524)", get_b524 },
