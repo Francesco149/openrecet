@@ -15,7 +15,7 @@
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 14,
-  "port_debt": 45,
+  "port_debt": 44,
   "verified": 81,
   "stubbed": 10,
   "ported": 761,
@@ -5686,6 +5686,7 @@
     "src/scene_gameover.c",
     "src/scene_guild.c",
     "src/scene_pause.c",
+    "src/sim.c",
     "src/skip_event.c",
     "src/skip_event.h"
    ],

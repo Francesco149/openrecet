@@ -293,7 +293,7 @@ derived from `src/` markers (`FUN_` / `PORT-OF` / `CALL_TRACE_ENTER`) and a
 | 0x434dbf | FUN_00434dbf | 23 | ✓ |  | choice_box.c, choice_box.h, main.c (+1) |
 | 0x434dd6 | FUN_00434dd6 | 25 | ✓ |  | choice_box.c, choice_box.h, scene_pause.c |
 | 0x434def | FUN_00434def | 227 | ✓ |  | choice_box.c, choice_box.h, scene.h (+7) |
-| 0x434ed2 | FUN_00434ed2 | 581 | ✓ |  | choice_box.c, choice_box.h, customer_service.c (+6) |
+| 0x434ed2 | FUN_00434ed2 | 581 | ✓ |  | choice_box.c, choice_box.h, customer_service.c (+7) |
 | 0x435612 | FUN_00435612 | 8 | ✓ |  | customer_service.c, dungeon_results.c, encyclopedia.c (+16) |
 | 0x43561a | FUN_0043561a | 11 | ✓ |  | customer_service.c, encyclopedia.c, main.c (+10) |
 | 0x435625 | FUN_00435625 | 6 | ✓ |  | scene_pause.c, skip_event.c, title_save_dialog.c (+1) |

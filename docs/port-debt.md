@@ -11,14 +11,14 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **36**
-- distinct retiring engine functions: **27**
+- total open debts: **35**
+- distinct retiring engine functions: **26**
 
 | kind | count | meaning |
 |------|------:|---------|
 | stub | 9 | wired call boundary, body incomplete |
 | synthetic-data | 0 | hand-made table standing in for real engine data |
-| simplified | 7 | reduced control flow / state machine vs retail |
+| simplified | 6 | reduced control flow / state machine vs retail |
 | hardcode | 1 | fixed constant where the engine computes/sources it |
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
@@ -44,7 +44,6 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_0041f4a6 | 1 |
 | FUN_00432e50 | 1 |
 | FUN_00435dcd | 1 |
-| FUN_004536cb | 1 |
 | FUN_00457714 | 1 |
 | FUN_00465db4 | 1 |
 | FUN_00468ddc | 1 |
@@ -76,12 +75,11 @@ the answer to *"what's still faked in code that looks done?"*
 
 _none_
 
-## simplified (7)
+## simplified (6)
 
 | retire | location | what's synthetic |
 |--------|----------|------------------|
 | FUN_004161c7 | src/scene1_pass_f.c:8 | ports ONLY Pass F (L423-481), not the |
-| FUN_004536cb | src/sim.c:506 | retail freezes the *entire |
 | FUN_00465db4 | src/customer_service.c:1569 | <D1>'s length is DAT_0730b274 = |
 | FUN_00473c03 | src/scene1_intro_dialogue.c:442 | the engine teardown also restores the |
 | FUN_00490e56 | src/guild_stock.c:43 | the other runtime globals it crosses |

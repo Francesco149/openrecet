@@ -497,16 +497,14 @@ void sim_step_a(void)
                 skip_event_arm(1);
         }
         if (skip_event_open()) {
-            /* The skip-event prompt is modal (retail FUN_004536cb routes the
-             * frame to LAB_00453cfb, skipping the scene tick, while the prompt
-             * is up): freeze the dialogue and run the prompt. On "Yes" tear the
+            /* The skip-event prompt: freeze the dialogue and run the prompt. On "Yes" tear the
              * current script down (skip_to_end: D_SCRIPT/D_TUT → end → next or
              * free-roam); "No"/cancel resumes the dialogue next frame (the
              * runtime is left untouched). See src/skip_event.h.
-             * PORT-DEBT(simplified, FUN_004536cb): retail freezes the *entire*
-             * in-game sim here (LAB_00453cfb); the port freezes the dialogue —
-             * the only consumer in both the prologue and the guild cutscene —
-             * and lets the (stubbed) siblings run. */
+             * Retail likewise freezes only the dialogue: DAT_073a3dec == 1 sends
+             * FUN_0046c320 straight to the box poll FUN_00434ed2(0) (all_ida
+             * 73240 / 73425: No → 0, the script resumes; Yes → 1, the script
+             * ends) and the rest of FUN_004536cb's frame runs as usual. */
             if (skip_event_tick(g_input_state[0].buttons) == SKIP_EVENT_CONFIRMED)
                 scene1_intro_dialogue_skip_to_end();
         } else {
