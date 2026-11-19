@@ -44,7 +44,6 @@ int32_t g_enc_rows_cur, g_enc_rows_alt, g_enc_rows_prev;
  * The engine shares these with the shop tooltip (modeled as statics in
  * scene1_display_menu.c); the encyclopedia keeps its own copy — behaviorally
  * equivalent for the encyclopedia detail overlay (Phase 2 render). */
-int32_t g_enc_tooltip_mode = 0;    /* DAT_0734b96c — overlay mode (0=closed) */
 int32_t g_enc_tooltip_owned = 0;   /* DAT_005c6ee4 — owned count */
 
 /* The discovery store: per working bank, 100 records × 0x12 dwords at bank
@@ -295,7 +294,7 @@ int encyclopedia_update(void)
     /* detail overlay open: A closes it. */
     if (g_enc_detail == 1) {
         if (pressed & 0x40u) {
-            g_enc_tooltip_mode = 0;             /* FUN_004681d3 */
+            display_menu_detail_close();        /* FUN_004681d3: DAT_0734b96c = 0 */
             audio_play_se_by_id(0x2c6);
             g_enc_detail = 0;
             title_save_dialog_cursor_set_visible(1);   /* FUN_0043561a */
@@ -310,7 +309,7 @@ int encyclopedia_update(void)
         int16_t iid = g_enc_slot[sidx + cat * ENC_CAT_CELLS];
         if (iid >= 0) {
             display_menu_set_highlight(iid << 6);   /* FUN_00468286: DAT_0734b998 + the owned recount */
-            g_enc_tooltip_mode = (g_scene_state == 9) ? 3 : 4;   /* FUN_004681db(2|3)→mode+1 */
+            display_menu_detail_open(g_scene_state == 9 ? 2 : 3);   /* FUN_004681db: DAT_0734b96c = row + 1 */
             audio_play_se_by_id(0x2c6);
             g_enc_detail = 1;
             title_save_dialog_cursor_set_visible(0);   /* FUN_00435612 */
@@ -581,7 +580,7 @@ void encyclopedia_render(struct IDirect3DDevice8 *d, float px, float py,
 
     /* item-detail overlay (A-press) — Phase 2. */
     if (g_enc_detail == 1)
-        item_detail_card_render(d, display_menu_highlight_item(), g_enc_tooltip_mode);
+        item_detail_card_render(d, display_menu_highlight_item(), display_menu_detail());
 }
 
 /* ── item-detail overlay helpers (FUN_0049ef78 / FUN_004848c4 / FUN_00484948 /

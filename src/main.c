@@ -1884,6 +1884,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR lpCmdLine, int nCmdSh
     scene_title_anim_init_fresh(&g_scene_title_anim);
     g_scene_title_anim.cursor_pos =
         (uint32_t)g_scene_title_menu.default_cursor;
+    /* FUN_0049a3a3's tail: FUN_00435693(212, 270) + FUN_00435612 — the shared
+     * hand parked at the title's home, hidden (all_ida 111549) */
+    title_save_dialog_cursor_snap(212.0f, 270.0f);
+    title_save_dialog_cursor_set_visible(0);
     sim_init();
     music_init();
 

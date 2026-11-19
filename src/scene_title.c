@@ -765,6 +765,8 @@ void scene_title_sim(scene_title_anim_t *anim,
                             code, save_header_get_last_slot());
                         anim->submenu_state    = 1;
                         anim->menu_folding_out = 0;   /* slide picker in */
+                        /* LABEL_244: the hand eases to the picker (FUN_00435710(148, 292)) */
+                        title_save_dialog_cursor_slide(148.0f, 292.0f);
                     } else if (code == SCENE_TITLE_MENU_RANKING) {
                         /* Engine FUN_0049a59e L101130: code 7 → the all-banks
                          * ENCYCLOPEDIA (図鑑). FUN_0049f012(1) rebuilds the

@@ -2327,11 +2327,13 @@ void scene1_player_ctrl_tick(void)
             scene1_bg_npc_tick();                 /* FUN_0046f621 */
             party_status_tick();                  /* FUN_004897c6(&DAT_056da1b8) */
             player_ctrl_house_room_clamp(&g_scene1_player_pos[0], &g_scene1_player_pos[2]);   /* FUN_00486435 */
+            g_scene1_camera_stage_class = 1;      /* DAT_0438b4e8 (0x4868b0; the eye / lookat ease is render-coupled) */
             if (scene1_beat_counter() == 301)
                 fade_phase1_start(0, 0x11);       /* FUN_004526f5(0, 17) */
             if (scene1_beat_counter() >= 302 && fade_is_done()) {
                 fade_phase_out_start(0, 0x11);    /* FUN_0045281c(0, 17) */
                 sb[0x2bced] = 0;
+                g_scene1_camera_stage_class = 0;  /* 0x486b71 */
             }
             return;
         }

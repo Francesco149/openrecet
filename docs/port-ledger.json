@@ -15,7 +15,7 @@
   "runtime_proven": 0,
   "pct_runtime_proven": 0.0,
   "orphan_refs_not_in_function_table": 14,
-  "port_debt": 44,
+  "port_debt": 45,
   "verified": 81,
   "stubbed": 10,
   "ported": 761,
@@ -8602,7 +8602,6 @@
     "src/scene_adv_guild.c",
     "src/scene_sc1.h",
     "src/sim.c",
-    "src/state_va.c",
     "src/worker_load.c",
     "src/worker_load.h"
    ],
@@ -12574,6 +12573,7 @@
    },
    "quality_flags": [],
    "src": [
+    "src/customer_service.c",
     "src/customer_service_render.c",
     "src/scene1_display_menu.c",
     "src/scene1_display_menu.h",

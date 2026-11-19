@@ -2455,6 +2455,10 @@ void customer_service_text_box_reveal(const char *text, int budget)
     }
 }
 
+/* PORT-DEBT(render-coupled, FUN_00469b3a): the item info panel's texts also run
+ * FUN_00465db4 (budget 1024 or the throw / use message counters) and so set b55c
+ * whenever b544 > 0 — e.g. the pause item panel (dungeon2-run f26727: retail 1,
+ * port 0); a pause mid-customer-line would let Z advance it early. */
 static void cs_dialogue_reveal_tick(void)
 {
     if (s_cust_active[0] == 0 && s_cust_active[1] == 0)   /* no active speaker */
@@ -4302,7 +4306,20 @@ static void cs_screen_particle(float x, float y, int tpl, float scale, int dur, 
  * machine (FUN_00461c00) every frame; b534 stays 1 (the kind-machine states are
  * never entered — RE doc §3.7).  `pressed`/`held` = the engine masks DAT_073dddd4
  * /DAT_073dddd6.  PORT-DEBT tags mark the off-window branches (leave/closing/fx). */
+static void cs_master_tick_body(uint32_t cur, uint32_t pressed, uint32_t held);
+
+/* FUN_00462403, then the text-reveal side effect of the frame's speech-bubble
+ * render (FUN_00466b7b → FUN_00465db4: b55c = 1 once the line is out within
+ * b548): retail draws after the sim, so b55c rises in the same frame the budget
+ * reaches the line's end (rd/portstate day2-shop f1144; the port's tick-head
+ * replica of it ran a tick late) */
 void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
+{
+    cs_master_tick_body(cur, pressed, held);
+    cs_dialogue_reveal_tick();
+}
+
+static void cs_master_tick_body(uint32_t cur, uint32_t pressed, uint32_t held)
 {
     s_in_cur     = cur;
     s_in_pressed = pressed;
@@ -4335,11 +4352,6 @@ void customer_service_master_tick(uint32_t cur, uint32_t pressed, uint32_t held)
         s_b5e4 = 0;
         return;
     }
-
-    /* text-reveal-complete (b55c): in retail this is a side effect of the prior
-     * frame's speech-bubble render; replicate it at the tick HEAD off the b548 the
-     * prior frame left, so the b534==1 dispatch below reads retail's b55c. */
-    cs_dialogue_reveal_tick();
 
     s_b5b4 += 1;
     if (s_b53c > 0) { s_b53c += 1; if (0x4f < s_b53c) s_b53c = 0; }

@@ -11,8 +11,8 @@ the answer to *"what's still faked in code that looks done?"*
 
 ## Summary
 
-- total open debts: **35**
-- distinct retiring engine functions: **26**
+- total open debts: **36**
+- distinct retiring engine functions: **27**
 
 | kind | count | meaning |
 |------|------:|---------|
@@ -23,7 +23,7 @@ the answer to *"what's still faked in code that looks done?"*
 | scaffold | 0 | sanity-test plumbing, no engine counterpart (NONE) |
 | force-flag | 0 | `--force-*` injection standing in for real sourcing |
 
-> ⚠️  **19 tag(s) use an unknown kind**: actor-table-split (1), continue-arm (1), deferred (1), house-teardown (1), oob (3), render-coupled (10), semantic-collision (1), structure (1).
+> ⚠️  **20 tag(s) use an unknown kind**: actor-table-split (1), continue-arm (1), deferred (1), house-teardown (1), oob (3), render-coupled (11), semantic-collision (1), structure (1).
 > Valid kinds: stub, synthetic-data, simplified, hardcode, scaffold, force-flag.
 
 ## By retiring engine function
@@ -47,6 +47,7 @@ the answer to *"what's still faked in code that looks done?"*
 | FUN_00457714 | 1 |
 | FUN_00465db4 | 1 |
 | FUN_00468ddc | 1 |
+| FUN_00469b3a | 1 |
 | FUN_0046c9a2 | 1 |
 | FUN_00473c03 | 1 |
 | FUN_00485f8c | 1 |
@@ -116,6 +117,7 @@ _none_
 | render-coupled | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74, a draw quad) |
 | render-coupled | FUN_00452809 | src/scene_guild.c:586 | the blackout quad, as at the tutorial sites). |
 | render-coupled | FUN_00457714 | src/scene1_walker_pass_init.c:522 | the movers (DAT_0438c150, |
+| render-coupled | FUN_00469b3a | src/customer_service.c:2458 | the item info panel's texts also run |
 | render-coupled | FUN_00474d92 | src/dungeon_flow.c:2727 | the |
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |
 | render-coupled | FUN_00485f8c | src/scene1_player_ctrl.c:1415 | the carried table's items (drawn |

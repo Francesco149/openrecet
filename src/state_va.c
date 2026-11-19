@@ -77,9 +77,7 @@
 static int32_t get_rng(void)   { return (int32_t)g_rng_seed; }
 static int32_t get_cent_x(void) { return roster_centroid_x(); }
 static int32_t get_cent_y(void) { return roster_centroid_y(); }
-/* the port's one now-loading flag also covers a dialogue's load (FUN_00452d07
- * sets DAT_06a4995c / 06a49960, not 06a49958): split it back */
-static int32_t get_nowloading(void) { return nowloading_is_active() && !scene1_intro_dialogue_loading(); }
+static int32_t get_nowloading(void) { return nowloading_primary_active(); }   /* DAT_06a49958 (the primary / alt worker) */
 static int32_t get_nl_rot(void) { float f = nowloading_get_rotation(); int32_t v; memcpy(&v, &f, 4); return v; }
 static int32_t get_scene(void) { return g_scene_state; }
 static int32_t get_floor(void) { return stage_gate_get_next(); }
@@ -263,7 +261,7 @@ static const state_va_t k_map[] = {
     { 0x438b4ccu, "floor (DAT_0438b4cc)",             get_floor },
     { 0x438b4c8u, "dungeon (DAT_0438b4c8)",           get_dungeon },
     { 0x438cc08u, "house mode cc08 (DAT_0438cc08)",   get_cc08  },
-    { 0x6a49958u, "now-loading gate (DAT_06a49958; the port's flag minus a dialogue load)", get_nowloading },
+    { 0x6a49958u, "now-loading gate (DAT_06a49958, primary)", get_nowloading },
     { 0x6a4998cu, "now-loading disc angle, float bits (DAT_06a4998c)", get_nl_rot },
     { 0x438b1ccu, "cs load phase b1cc (DAT_0438b1cc)", get_b1cc },
     { 0x730b524u, "cs idle counter b524 (DAT_0730b524)", get_b524 },
