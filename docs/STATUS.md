@@ -292,7 +292,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     counter, the shared day-end / results flag, boot money, the encyclopedia's item (double category offset), the pause-resume
     slide, mirrors) and **goldens v3: the scalars block** (62 VAs hashed every tick, `TICK_HASH_SCALARS`) — the blind spot closed:
     **corpus 189 identical / 1 no-flat on v3 (2026-11-19)**; the item-limit box removed → split f481 (scalars). Left out: DAT_0438b150
-    (hand cursor visible, 1 frame in one scenario). `headless-check --target win` on v3: **190/190** (2026-11-19).
+    (hand cursor visible, 1 frame in one scenario) → fixed (title settings, 38770b82). `headless-check --target win` on v3:
+    **190/190** (2026-11-19). Then `title-options-save-clear` filed: the title Options' save write, Clear Save Data and the
+    menu rebuild ported (9c04d9a6); gate rows. ☐ DAT_09643524 stays 2 after a fold in retail (the port zeroes it; mirror only).
     Debug a new split with `portblock S --at F-1,F` + `--watch-write` (pin the exe with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left:
     dead part_idx 1/2 arms of 0x23 / 0x29, signed modulo, 0x29 ground query z.
     Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).
