@@ -261,6 +261,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     Left: ☐ the item info panel's FUN_00465db4 sets b55c (PORT-DEBT render-coupled FUN_00469b3a); ☐ dialogue bgset DAT_073a3df0
     rises 1-2 frames late (script parse at dispatch, render-only); ☐ INGAME order: retail ticks FUN_00406584 (hand slide) BEFORE
     the dialogue / choice poll (LABEL_112), the port after (choice-box slide countdown 1 ahead, 3 scenarios).
+    **Retail coverage** (`findings/retail-coverage.md`, 2026-11-19): the corpus executes ≈ 606 of 636 KB of game code; every
+    unreached sim function is a debug path; 39 PORTED functions no recording verifies → probe targets (Charme's skills 5 / 6,
+    the missed-order customer b5a8 5, the adv-guild unpause, display-menu confirm cancel, …).
     Debug a new split with `portblock S --at F-1,F` + `--watch-write` (pin the exe with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left:
     dead part_idx 1/2 arms of 0x23 / 0x29, signed modulo, 0x29 ground query z.
     Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).
