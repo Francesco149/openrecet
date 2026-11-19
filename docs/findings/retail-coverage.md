@@ -25,9 +25,9 @@ debug paths is unreached.**
 **Never hit, ported — coverage targets** (each is a probe task; ported, unverified):
 - ✅ FUN_0049511d / FUN_0049508c — Charme's skill states 5 / 6 → `charme-skills` (identical, 2026-11-19)
 - ✅ FUN_00464a26 — the customer machine's `b5a8 == 5` arm → `order-late-pickup` (identical, 2026-11-19)
-- FUN_0045bd36 — the adventurers' guild's unpause hook (the pause opened in the guild with the item window up)
+- ✅ FUN_0045bd36 — the adventurers' guild's unpause hook → `guild-unpause-equip-buzz` (identical, 2026-11-19)
 - FUN_0045e2dd / FUN_0045e353 — town mode 16 (no writer of DAT_0438b1c0 = 16 found yet; maybe dead)
-- FUN_0046940c (display-menu confirm cancel), FUN_0048486f (an encyclopedia helper), FUN_00433fa6 / 00434198
+- ✅ FUN_0046940c (display-menu confirm cancel → `guild-unpause-equip-buzz`), FUN_0048486f (an encyclopedia helper), FUN_00433fa6 / 00434198
   (party move's box overlap), FUN_0048a348 (the chest roll's miss log), FUN_0040c90e (spawn kind 0x24's -1 path),
   FUN_0045bd31, FUN_0047e711 (pause state 0xa), FUN_0046c039 (state 5, world map)
 - FUN_0044b635 — a dungeon-flow stub (PORT-DEBT) that retail never executes in the corpus either

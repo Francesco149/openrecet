@@ -2026,7 +2026,7 @@ GATES = ([("portsave", s) for s in ("house-pause-save-commit", "house-pause-save
                                       "obsidian-16f-20f-golem", "obsidian-21f-30f-griff",
                                       "obsidian-31f-40f-ohms", "obsidian-41f-50f-finale", "lapis-1f-10f", "lapis-11f-20f",
                                       "lapis-21f-30f", "lapis-30f-story", "lapis-31f-40f", "ending-week5-paid",
-                                      "newgame-plus", "survival-start", "survival-hell-start", "lapis-41f-50f", "lapis-51f-60f", "lapis-61f-70f", "lapis-60f-event-12-4", "lapis-71f-80f", "lapis-81f-90f", "lapis-91f-100f", "crystal-1f-20f", "lapis-100f-long-intro", "crystal-21f-30f", "bossrush-jade-amber", "bossrush-obsidian-ending", "bossrush-lapis-r", "bossrush-crystal-30f-54f", "ahriman-exhaust", "ohm-exhaust", "bossrush-crystal-c", "elan-flurry-kill", "wisp-hurry-up", "obsidian-first-trip", "easydisp-levelup", "title-options-save-clear", "charme-skills", "order-late-pickup")])
+                                      "newgame-plus", "survival-start", "survival-hell-start", "lapis-41f-50f", "lapis-51f-60f", "lapis-61f-70f", "lapis-60f-event-12-4", "lapis-71f-80f", "lapis-81f-90f", "lapis-91f-100f", "crystal-1f-20f", "lapis-100f-long-intro", "crystal-21f-30f", "bossrush-jade-amber", "bossrush-obsidian-ending", "bossrush-lapis-r", "bossrush-crystal-30f-54f", "ahriman-exhaust", "ohm-exhaust", "bossrush-crystal-c", "elan-flurry-kill", "wisp-hurry-up", "obsidian-first-trip", "easydisp-levelup", "title-options-save-clear", "charme-skills", "order-late-pickup", "guild-unpause-equip-buzz")])
 
 
 GATE_KEYS = ("save:", "anchors:", "first ", "window", "IDENTICAL", "frames with", "error", "scp failed")
@@ -2035,6 +2035,7 @@ GATE_KEYS = ("save:", "anchors:", "first ", "window", "IDENTICAL", "frames with"
 # state the v2 tick hash does not cover (menus / boxes): retail VAs vs the port's state_va mirrors, every frame
 GATES += [("portstate", "guild-item-limit", "9642c00,438b148")]   # guild mode, the message-box counter (FUN_00434ceb)
 GATES += [("portstate", "title-options-save-clear", "9643510,9643540,9643358,964335c,9643360,9643364,9643368,9643548,9643560")]   # the title menu rebuilt after Clear Save Data (FUN_0049a43d), the confirm, the dirty flag
+GATES += [("portstate", "guild-unpause-equip-buzz", "438abf4,438abf8,438b150,438ac18")]   # the hand cursor the adv-guild unpause snaps back (FUN_0045bd36)
 
 def gate_rows(a):
     only = re.compile(a.only) if a.only else None
