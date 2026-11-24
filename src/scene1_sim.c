@@ -482,7 +482,8 @@ void scene1_ingame_default_arm_tick(void)
     }
     if (g_dat_0438bebc > 0) {
         --g_dat_0438bebc;
-        /* PORT-DEBT(stub, FUN_0044b635) */
+        /* FUN_0044b635: dead in retail — DAT_0438bebc is only ever zeroed or decremented, never > 0
+         * (findings/retail-coverage.md "Dead in retail: records / particles") */
         goto tail;
     }
     if (g_news_ticker_timer != 0 && mapcol_maptype() != 0) {

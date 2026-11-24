@@ -72,3 +72,22 @@ blocks, `FUN_0045edaa` 114 → 61, `FUN_00463cfb` 64 → under the top 25, `FUN_
 and 30 (the slides, spinners, the collapsing floor, fades, levers — leftovers, never placed) and the default case's
 state-1 arm (kinds 0..3 never reach state 1: their hit counter is −1) are unreachable. The live kinds' blocks are all hit.
 
+**Dead in retail: records / particles** (type-flow over the disasm + every spawn call's pushed type, 2026-11-24;
+`FUN_0044376a` party allocator, `FUN_00445a8c` enemy allocator `(owner, type, flag)`, `FUN_004458c4` traps (0x2c / 0x8c
+only), `FUN_00447f4f` particles — none is reached through a pointer):
+- records B with no spawner (tick body and enemy branch): 0x23, 0x24, 0x27, 0x28, 0x29, 0x2e, 0x2f, 0x30, 0x31, 0x32,
+  0x33, 0x34, 0x36, 0x38, 0x3a, 0x3b, 0x3c, 0x65; 0x25 (the mushroom king's spawn at 0x42bba1 needs `+0xa70 == 1`, but
+  the spray state writes 4 every tick first); 0x2a's enemy branch; the enemy branches of 0x50 / 0x51 / 0xa5 / 0xa6 and the
+  weapon arms inside 0xa0..0xa4;
+- dead branches in live types: 0xe / 0x12 at 0x43e228 (AGE < 0), 0x84 phase 1 (PART_IDX never nonzero); float-equality /
+  table-full corners 0x440930, 0x4409fa, 0x4478ee, 0x447cd4, 0x44acef;
+- particles with no call site: 0x6..0x9, 0x12, 0x1a, 0x1b, 0x1d, 0x20, 0x22, 0x24, 0x34, 0x3b..0x3e, 0x40, 0x42, 0x4a..0x4c,
+  0x50, 0x57, 0x59, 0x5a, 0x5d, 0x65..0x69, 0x6c, 0x6e, 0x71, 0x74, 0x76, 0x78, 0x79 and the default group; called only
+  from dead code: 0x21, 0x35, 0x36, 0x52, 0x53, 0x54, 0x6d; 0x10 / 0x91 with count < 10 (every caller passes 12);
+- **`FUN_0044b635` is dead** (its gate `DAT_0438bebc` is only ever zeroed or decremented).
+
+Reachable, unrecorded (probe tasks 2026-11-24): Arma's finisher 0x9c → 0x9e (`arma-finisher`), Arma's weapon edges
+(`arma-weapon-edges`), Nagi's dash hit / Elan's wall + hurt kills (`nagi-elan-edges`); also Caillou's finishing blows
+(hit value < 10), Charme's skill 6 on a boss floor (0x53 lifetime 120), the Tielle-boss arrow guarded by Charme's counter,
+attack records on stage objects of kind 0 / 2 / 3 (particles 0x15 / 0x16), the water drops (0x11, stage palette +0x1b38 == 0).
+
