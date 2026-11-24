@@ -286,6 +286,10 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     **Survival shop** (2026-11-24): `survival-shop-days` (3 days, the roster's Survival gates) split f5950 → the rank
     escalation's bare return (19/1 / 19/2 / LABEL_428) skips the LABEL_675 tail → fixed; `survival-week1` (the first
     payment, 10 order pickups) identical. Gates **213/213** (Windows -j8, 2129 s).
+    **Combat edges** (2026-11-24; dead record / particle types now listed in `findings/retail-coverage.md`): `arma-finisher`
+    (boss Arma's state 5 + records 156 / 158), `arma-weapon-edges`, `nagi-elan-edges` identical; `finishers-boss-web`
+    split → `body_0x53` read FUN_004319d6 through a hook production never installed (the party web lived 600 on boss
+    floors) → fixed. `item-boom` (the player-driven boom news) identical. Gates **219/219** (Windows -j8, 1617 s).
     Debug a new split with `portblock S --at F-1,F` + `--watch-write` (pin the exe with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left:
     dead part_idx 1/2 arms of 0x23 / 0x29, signed modulo, 0x29 ground query z.
     Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).

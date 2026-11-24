@@ -102,6 +102,8 @@ observed in the running game; anything read from code only is a lead. Named stat
 | [probes/arma-weapons.md](probes/arma-weapons.md) | All 15 of Arma's weapons (FUN_004986ee's kinds, loops, gauge); found + fixed 2 port bugs (record 0x75's x87 angle step, record 0x74's smoke shape mode). |
 | [probes/arma-finisher.md](probes/arma-finisher.md) | Boss Arma's finisher: the lob blast at the wall arms state 5, records 156 (orb) / 158 (beam, 980 damage, party wipe). Port identical. |
 | [probes/arma-weapon-edges.md](probes/arma-weapon-edges.md) | Arma's weapon record edges: the Hammer boost / bounces, Omega homing / landing, wall tails, hurt kills; `p_oct` is only ever even. Port identical. |
+| [probes/nagi-elan-edges.md](probes/nagi-elan-edges.md) | Nagi's dash hit, swing records killed by a hurt; Elan's wall / hurt kills, skills into a wall. Port identical. |
+| [probes/finishers-boss-web.md](probes/finishers-boss-web.md) | Caillou's finishing-blow clamp; Charme's web lives 120 on a boss floor — fixed the never-installed FUN_004319d6 hook. |
 | [probes/charge-attacks.md](probes/charge-attacks.md) | Tielle's draw bands (records 77..166, crit) and Caillou's short / charged swing (record 82 projectile). Port identical. |
 | [probes/shop-story-caillou.md](probes/shop-story-caillou.md) | Caillou's reagent quest 5/4 (reagents from Jade Way bosses) and 5/5 (he joins); ported the quest sale arm b534 30 + FUN_004607f3 whole. |
 | [probes/caillou-quest-variants.md](probes/caillou-quest-variants.md) | Caillou's quest arms 5/7 (×3) and 5/3 grades 2 / 3 (×2 / ×1.5), crafted. Port identical. |

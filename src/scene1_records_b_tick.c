@@ -81,7 +81,7 @@ static scene1_b_notify_queue_fn  g_notify_queue_hook;    /* default NULL */
 static scene1_b_tick_ground_query_fn  g_ground_query_hook;    /* default NULL = "no hit" */
 static scene1_b_aux_4532bc_fn    g_aux_4532bc_hook;      /* default NULL */
 static scene1_b_overlay_spawn_fn g_overlay_spawn_hook;   /* default NULL = call real spawn */
-static scene1_b_aux_4319d6_fn    g_aux_4319d6_hook;      /* default NULL = returns 0 */
+static scene1_b_aux_4319d6_fn    g_aux_4319d6_hook;      /* default NULL = returns 0; production: stage_gate_query (record_hit.c) */
 static scene1_b_sw_record_at_fn  g_sw_record_at_hook;    /* default NULL = no records */
 static scene1_b_aux_43ab6e_fn    g_aux_43ab6e_hook;      /* default NULL = returns -1 */
 static scene1_b_wall_raycast_fn  g_wall_raycast_hook;    /* default NULL = no hit */

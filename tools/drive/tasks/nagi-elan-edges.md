@@ -2,9 +2,9 @@
 name: nagi-elan-edges
 start: save:824053720e01
 steps:
-  - on a dungeon floor with control, Nagi leading: scene == 1 and s32(0x438b4dc) >= 4 and dlg == 0 and lock == -1 and s32(0x438b7d8) == 5
+  - on a dungeon floor with control, Nagi leading: scene == 1 and s32(0x438b4dc) >= 4 and dlg == 0 and loading == 0 and lock == -1 and s32(0x438b7d8) == 5
   - Nagi's dash record (0x8b = 139) alive: s32(0x69324b0) == 139 or s32(0x69325d4) == 139 or s32(0x69326f8) == 139 or s32(0x693281c) == 139 or s32(0x6932940) == 139 or s32(0x6932a64) == 139 or s32(0x6932b88) == 139 or s32(0x6932cac) == 139
-  - on a dungeon floor with control, Elan leading: scene == 1 and s32(0x438b4dc) >= 4 and dlg == 0 and lock == -1 and s32(0x438b7d8) == 4
+  - on a dungeon floor with control, Elan leading: scene == 1 and s32(0x438b4dc) >= 4 and dlg == 0 and loading == 0 and lock == -1 and s32(0x438b7d8) == 4
 forbid:
   - back at the title: scene == 0 and frame > 400
   - game over: scene == 2
