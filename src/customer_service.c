@@ -454,7 +454,7 @@ static void cs_roster_scan(uint8_t *bank)
         /* band>=0 AND active: default flag 2, then the story-flag classification. */
         cand_kyaku[cn] = k; cand_flag[cn] = 2;
         if (mode == 2) {
-            /* ── STORY-MODE unlock gates (57620-57671) ── */
+            /* ── SURVIVAL-mode unlock gates (mode 2 = Survival, IDA 7953 / 111821; all.c 57620-57671) ── */
             if (k == 2) {
                 if (rs_flag(bank, 0x0450f4c0) == 0) cand_flag[cn] = 0;
                 else cand_flag[cn] = 2;
@@ -471,7 +471,7 @@ static void cs_roster_scan(uint8_t *bank)
                 cand_flag[cn] = rs_flag(bank, 0x0450f4c9) ? 2 : 0;
             }
         } else {
-            /* ── NON-STORY unlock gates (57672-57786) ── */
+            /* ── normal / NG+ / Endless unlock gates (all.c 57672-57786) — where the story probe runs ── */
             if (k == 2) {
                 if (rs_flag(bank, 0x0450f41b) == 0) cand_flag[cn] = 0;
                 if (rs_flag(bank, 0x0450f478) == 1 && rs_flag(bank, 0x0450f479) == 0)
@@ -1858,7 +1858,7 @@ static void cs_story_probe(void)
 
 /* ── idle (FUN_00462403 b534==0, all.c:60670-61027) ─────────────────────────
  * The pre-greeting idle: a frame counter (b524) gates the walk-setup (0x14),
- * story-event probe (0x32, inert — eligible list all -1), queue advance (0x3c),
+ * story-event probe (0x32, cs_story_probe), queue advance (0x3c),
  * and finally the greeting trigger (b524>0x77 AND b52c>=0x20 → b534=1 + base/ask). */
 static void cs_idle_tick(void)
 {
