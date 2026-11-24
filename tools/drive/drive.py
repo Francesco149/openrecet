@@ -666,6 +666,8 @@ class Live:
 
 
 def num(v):
+    if v != v or v in (float("inf"), float("-inf")):        # NaN / inf (an f32 column reading garbage)
+        return v
     return int(v) if v == int(v) and abs(v) < 1e15 else v
 
 
@@ -1319,6 +1321,8 @@ class Run:
 
 
 def fmt(v):
+    if isinstance(v, float) and (v != v or v in (float("inf"), float("-inf"))):
+        return str(v)
     if isinstance(v, float) and v != int(v):
         return f"{v:.4f}".rstrip("0").rstrip(".")
     return str(int(v))
