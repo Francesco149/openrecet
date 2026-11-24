@@ -56,3 +56,13 @@ FUN_00461792 (the seller, 61), FUN_004986ee (61), FUN_0043865e (the record state
 Query: `where.py FUN_x` (each block: how many scenarios hit it, the first scenario @ frame), `where.py FUN_x --unhit`
 (only the unhit blocks with their first instruction), `where.py --top N`. Index: `/mnt/ephemeral/openrecet/coverage/
 bb-latest.json.gz` (rebuild: `where.py blocks F`, `rhost.py corpus --headless -j 8 --coverage F`, `where.py index BATCH F`).
+
+## Basic blocks, 2026-11-24 (216 scenarios)
+
+After the day's probes (the shop story scenes, the order delivery, Euria, Survival, Arma's weapons, the charge attacks,
+the item boom): **25,543 / 30,183 blocks hit (84.6 %)**, batch `rhost-runs/20261124-111453-corpus` (210 / 216 complete;
+the 6 others are the legacy stalled / no-flat traces). The customer master tick `FUN_00462403` fell from 133 to 41 unhit
+blocks, `FUN_0045edaa` 114 → 61, `FUN_00463cfb` 64 → under the top 25, `FUN_00461792` off the list. Top now (`where.py
+--top`): render `FUN_004176ff` 298, stage loader `FUN_00475270` 200, records B `FUN_0043ae20` 174, particles `FUN_0040fb3a`
+143, dungeon objects `FUN_0043a5d9` 68 / 114.
+
