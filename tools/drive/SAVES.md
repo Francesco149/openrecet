@@ -30,6 +30,9 @@ probe report says which it used. Played saves from the owner's free-play capture
 | `bbdbe357822b` | `824053720e01` | `--set 0xaf38=0x00000101` (bank bytes `+0x2bce2` = `+0x2bce3` = 0: the Obsidian first-trip cutscene not yet seen) | obsidian-first-trip |
 | `15b20dc3c34e` | `6809401b79a9` | `--set 0xaf3f=0` (bank byte `+0x2bcff` = 0: Lapis 100F's long intro not yet seen) | lapis-100f-long-intro |
 | `2f2f2203a65d` | `2e4388a2cfe2` | `--gold 1000000` (the day-35 final payment can be paid → the ending → Endless) | bossrush-obsidian |
+| `ce8b62461cbf` | `1a5a45e631b4` | `--add-item 3101 --add-item 3110 --add-item 3106` (Caillou's reagents) | caillou-quest-5-7 |
+| `1a25f4ed4e95` | `1a5a45e631b4` | `--set 0xaf32=0x000d0101` + the three reagents (5/1 seen on day 13) | caillou-quest-5-3-g2 |
+| `69957b3f8229` | `1a5a45e631b4` | `--set 0xaf32=0x000c0101` + the three reagents (5/1 seen on day 12) | caillou-quest-5-3-g3 |
 | `352fc5a20843` | `824053720e01` | `--add-item 701` … `--add-item 715` (Arma's weapons, bag slots 32..46) | arma-weapons |
 | `e26d0d428437` | `f795f8712b3b` | `--set 0xaf39=0x01000000` (bank byte `0x2bce7` = 1: Obsidian 50F cleared, the trip not played) | shop-story-griff-joins |
 | `67e22cc643bf` | `89190665bb8f` | `--gold 900000` | ending-week5-paid |
