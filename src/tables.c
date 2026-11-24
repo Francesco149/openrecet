@@ -135,16 +135,14 @@ static void load_stage_idx(void)
             with_sunpos, with_sunset, with_moonpos);
     free(buf);
 }
-/* config.idx — ported. Real parser in src/tables_config.c. The engine
- * has two interned copies of the path; the get_size site uses bare
- * "config.idx" (storage miss → malloc(10) silently undersized!) and
- * the read site uses "data/config.idx". We use the read-side spelling
- * for both, sidestepping the 940-byte overrun. See
- * docs/findings/tables-loader.md. */
+/* config.idx — retail's block reads "config.idx" at BOTH sites (0x5cac78 / 0x5cac84; the archive only has
+ * data/config.idx), so the size is 0 and the parser sees an empty buffer: retail keeps its built-in values
+ * (kanjioff 1, edgewi 2, edgedel 6 at 0x5cbc70..78). The coverage index confirms the parser never runs.
+ * Mirror the path (a miss here too → g_config keeps its defaults). docs/findings/tables-loader.md. */
 static void load_config_idx(void)
 {
     unsigned char *buf;
-    size_t sz = load_via_storage("data/config.idx", &buf);
+    size_t sz = load_via_storage("config.idx", &buf);   /* retail: absent → empty */
     if (sz == 0) return;
     tables_parse_config(buf, sz, &g_config);
     fprintf(stderr,

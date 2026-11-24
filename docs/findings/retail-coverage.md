@@ -91,3 +91,15 @@ Reachable, unrecorded (probe tasks 2026-11-24): Arma's finisher 0x9c → 0x9e (`
 (hit value < 10), Charme's skill 6 on a boss floor (0x53 lifetime 120), the Tielle-boss arrow guarded by Charme's counter,
 attack records on stage objects of kind 0 / 2 / 3 (particles 0x15 / 0x16), the water drops (0x11, stage palette +0x1b38 == 0).
 
+**Dead in retail: the particle tick and the boot table loader** (2026-11-24, same method):
+- `FUN_0040fb3a` (table A tick; `FUN_00447f4f` is its only spawner): every type with unhit blocks is dead except 0x11 (water
+  drops: stage field +0x1b38 = `smallwater:` is set only on town stages 0-1..0-4, so any dungeon stage with walkable water
+  qualifies), 0x15 / 0x16 (record hits on stage objects kind 2 / 3 / 0), 0x98 (Caillou's hit spark killed at age 64 when
+  he outruns it), 0x75 / 0x93 (a returning spark whose target died mid-flight). Dead: 0x60's age-2400 kill (age capped at
+  400), 0x21, 0x35, 0x36 / 0x74, 0x51..0x54, 0x6d, 0x58 (stage `houshi:` never set), 0x3b and **enemy poison** (actor
+  +0xb10 only ever zeroed / decremented), and every type with no call site.
+- `FUN_00475270` = the boot table loader (`tables_load_all`), all 200 unhit blocks dead for the shipped data: stage.idx
+  keys / labels no stage has, error message boxes, lines without a final newline, gousei material slots 4 / 5, a loose
+  `data/tutoN.txt`, and the whole config.idx parser (both path copies read `"config.idx"`, absent from the archive —
+  `tables-loader.md`, corrected; the port now mirrors the path).
+

@@ -150,38 +150,14 @@ delimiter-separated. atoi/atof skip leading whitespace before the
 first digit, so the engine doesn't need to nail the exact starting
 column, just the field start.
 
-## Engine quirk: mismatched interned paths for `config.idx`
+## Engine quirk: `config.idx` is never read (corrected 2026-11-24)
 
-Every block calls `storage_get_size(path)` and then
-`storage_read(path, buf)` — but the decompiled C shows the two calls
-referencing **different addresses in `.data`** for the path argument
-(e.g. `0x005cac78` vs `0x005cac84` for the config block). For most
-files those addresses just hold two interned copies of the same
-string (e.g. both spell `"idx/stage.idx"`), and the dual storage is
-benign compiler bookkeeping.
-
-For `config.idx` the developer accidentally typed two **different**
-spellings:
-- get_size path = `"config.idx"`  (no folder prefix)
-- read path     = `"data/config.idx"`
-
-The lnkdatas index only has `data/config.idx`, so the get_size call
-returns 0 in the engine. Allocation is then `malloc(0 + 10) = 10
-bytes`, into which `storage_read` happily decodes the full 950-byte
-file — a quiet 940-byte heap overrun on every boot of the original.
-The game survives because the next bytes on the heap evidently aren't
-load-bearing for the rest of init.
-
-Our `tables.c` uses the **read-side** spelling (`"data/config.idx"`)
-for both the size and the read, sidestepping the overrun. A
-faithful reproduction would require mirroring the get_size call with
-the buggy path; see `docs/findings/engine-quirks.md` if/when we
-formalise that catalog.
-
-The tutorial loop also has a path-string subtlety: the format
-literal at `0x005cb38c` is `"data/tuto%d.txt"` (no underscore).
-Vendor ships `tuto1.txt`, `tuto2.txt`, `tuto3.txt`; the loop stops
-at the first storage miss.
+Every block calls `storage_get_size(path)` then `storage_read(path, buf)` with two interned copies of the path. For
+config.idx **both** copies (0x5cac78, 0x5cac84) spell `"config.idx"` — no `data/` prefix — and the archive only has
+`data/config.idx`: the size is 0, the parser runs on an empty buffer, and retail keeps its built-in values (kanjioff 1,
+edgewi 2, edgedel 6 at 0x5cbc70..78). (An earlier version of this section said the read site spelled
+`"data/config.idx"` and overran the heap; the exe's bytes and the basic-block coverage — the parser's 31 blocks never
+run — say otherwise.) The port's `tables.c` mirrors the path, so `g_config` keeps its defaults too.
 
 ## Globals populated
 
