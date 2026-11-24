@@ -267,7 +267,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     **Basic-block coverage** (`tools/rhost/where.py`, 2026-11-19): 82.3 % of 30,183 game blocks hit; 772 ported functions
     with unhit blocks (4,201) — `where.py --top 30`, `where.py FUN_x --unhit` pick the next probes (FPC-5's `where` done).
     `charme-skills` filed: identical on the first triage (gate row). ☐ rd: `undo` after a 6-press `tap` reported the old
-    frame but the live state stayed at the later one (driver report 2026-11-19; `rewind --to` worked).
+    frame but the live state stayed at the later one (driver report 2026-11-19; `rewind --to` worked). Not reproduced
+    2026-11-24 (house, `tap "R*4" --n 6 --gap 8` with and without `--text` → undo: frame, rng, px / pz back exactly).
     Debug a new split with `portblock S --at F-1,F` + `--watch-write` (pin the exe with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left:
     dead part_idx 1/2 arms of 0x23 / 0x29, signed modulo, 0x29 ground query z.
     Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).
