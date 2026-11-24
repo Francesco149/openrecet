@@ -45,7 +45,7 @@ shop and join. Live verification: the probes below.
 | 7/9 (65688) | Griff 8 | `0x2bce7`=179431 == 1, `0x2bcea`=179434 == 0 | Obsidian 50F all actors gone (`sub_4427F1` 44273) | forced |
 | 7/10 (65695) | Griff 8 → 6 | 179434 == 1, (`0x2bc52` == 0 or `0x2bd15`=179477 == 1), slot 6 > 2 | 179477: the NG+ carry when Griff had joined (113779) → 7/10 replays in NG+ | status 2 |
 | 9/2 (65711) | Arma 9 | `0x2bcee`=179438 == 1, `0x2bcef`=179439 == 0 | day dword 15, tod 0 → `0x2bced` (`sub_4852FB` 94815); the wake-up tick 300 plays 9/1, sets 179438 (49458) | forced; 179439 → status 2; with `0x2bcf3`: status 2 only if `0x2bd00`, else 0 |
-| 4/6 (65742) | Tielle 5 → 3 | `0x2bcbe`=179390 == 1, `0x2bcbf`=179391 == 0, slot 3 > 2 | Tielle beaten, Amber 30F → `0x2bcbb` (`sub_44DB3C` 50974); town → `0x2bcbc` (102797); wake-up 4/4 → `0x2bcbd`; next tod-0 wake-up 4/5 → 179390 (49661). 4/6 sets 179391 + `0x2bc4f` (joins) | status 2 (morning / noon / evening) |
+| 4/6 (65742) | Tielle 5 → 3 | `0x2bcbe`=179390 == 1, `0x2bcbf`=179391 == 0, slot 3 > 2 | Tielle beaten, Amber 30F → `0x2bcbb` (`sub_44DB3C` 50974); town → `0x2bcbc` (102797); arriving home 4/4 → `0x2bcbd` (live: `amber-26f-30f-tielle` f34706); the next morning (tod 0) 4/5 → 179390 (49661). 4/6 sets 179391 + `0x2bc4f` (joins) | status 2 (morning / noon / evening) |
 | 17/42 (65734) | Tielle 5 | not (179390 == 1 && 179391 == 0); 179391, `0x2bd88`=179592, `0x2bd8a`=179594 ≠ 0; `0x2bd8b`=179595 == 0 | flags 0x140 (market 17-14), 0x142 (17-41 via 17-27's 0x141); market, morning / noon, Tielle joined + card 0x77 | same |
 | 6/5 (65755) | Elan 6 | `0x2bcd6`=179414 == 0, `0x2bcd5`=179413 == 1 | 179413 set by the roster scan itself (62476) when `0x2bcd4`=179412 ≠ 0, 179414 == 0 and `FUN_0045ED12` passes; 179412 = Elan's 4th guild visit (`sub_4922C0` 104915: 6/2, 6/3, 6/4), needs flag 0x88 = 179408 (tavern 6-1: Charme joined + card) | forced in the scan that sets 179413 |
 | 6/6 (65762) | Elan 6 → 4 | `0x2bcd7`=179415 == 0, 179414 == 1, slot 4 > 2 | probe only; sets `0x2bc50` (joins) | status 2 |
@@ -66,8 +66,8 @@ Played lineage first (`tools/drive/SAVES.md`):
   9/2 `64d43650865f` (17264a73 + gold, day 15 morning).
 - Crafted lines (from the analysis, untested): 3/7 `a23d --set 0xaf2e=0x00000001`; 7/5 `a23d --set 0xaf38=0x00000001`;
   8/6 `a23d --set 0xaf31=0x00000001 --set 0xb489=3`; 7/4 `a23d --set 0xaf37=0x01010100`; 7/10 `a23d --set
-  0xaf3a=0x01010101 --set 0xb48a=3`; 4/6 `fc2e --set 0xaf2f=0x00010000 --set 0xb487=3` (natural: `fc2e` → 4/5 next
-  morning + 3 closeness); 17/42 `fc2e --set 0xaf2f=0x01010000 --set 0xaf62=0x00010001`; 6/6 `a23d --set
+  0xaf3a=0x01010101 --set 0xb48a=3`; 4/6 played: `shop-story-tielle` (one
+  perfect-price sale = +5); 17/42 `fc2e --set 0xaf2f=0x01010000 --set 0xaf62=0x00010001`; 6/6 `a23d --set
   0xaf35=0x00010101 --set 0xb488=3`; 5/4 `a23d --add-item 3101`; 5/5 `a23d --set 0xaf32=0x01110101 --set 0xb486=3`;
   17/3 `a23d --set 0xb49a=3` (15 lines up all four).
 - The crafted hire lineage (`824053720e01` → …) has the join bytes crafted (e.g. `0x2bc52` = 1), so 7/10 can never

@@ -1,6 +1,6 @@
 ---
 name: shop-story-tielle
-start: save:fc2e4d81f26d
+start: amber-26f-30f-tielle@34699
 steps:
   - loaded with control: scene == 1 and dlg == 0
   - Tielle's wake-up scene 4/4: sid == 4004
@@ -12,8 +12,8 @@ forbid:
   - back at the title: scene == 0 and frame > 400
 ---
 Probe: **Tielle's arc after Amber Garden 30F → she joins** (`docs/findings/shop-story-scenes.md` — read it first: the
-story probe, eligibility, closeness slots). Played lineage: `fc2e4d81f26d` = `amber-26f-30f-tielle`'s end (Tielle beaten
-on 30F, back in town, day 23). Per the code read: back in town set `0x2bcbc`; the next wake-up plays **4/4** (sets
+story probe, eligibility, closeness slots). Played lineage: `amber-26f-30f-tielle@34699` (7 ticks before 4/4 plays on arriving home; its end save
+`fc2e4d81f26d` already has 4/4 played — start from fc2e only for 4/5 on). Back in town set `0x2bcbc`; arriving home plays **4/4** (sets
 `0x2bcbd`), the following tod-0 (morning) wake-up plays **4/5** (sets `bank + 179390` = `0x2bcbe`). Then Tielle
 (customer 5, closeness slot 3 = int16 `bank + 0x2d21c`) is status 2 in the eligible list (morning / noon / evening);
 4/6 needs her closeness > 2 (≥ 3 points: +1 / +2 / +5 per deal — a sale at exactly her target price gives most) and
