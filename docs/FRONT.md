@@ -290,6 +290,13 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     (boss Arma's state 5 + records 156 / 158), `arma-weapon-edges`, `nagi-elan-edges` identical; `finishers-boss-web`
     split → `body_0x53` read FUN_004319d6 through a hook production never installed (the party web lived 600 on boss
     floors) → fixed. `item-boom` (the player-driven boom news) identical. Gates **219/219** (Windows -j8, 1617 s).
+    **Saves / particles** (2026-11-24): `save-in-guilds` (saves inside the Market / both guilds + Continue) → the pause
+    Save's card types 6 / 11 ported, the Continue's `DAT_0734b9a0` clear fixed → identical; `stage-object-hits`,
+    `particle-edges` identical (the water / spark-age particle edges are not reachable by play). Dead code mapped
+    (`findings/retail-coverage.md`): dungeon objects, record / particle types, the boot loader; coverage 84.6 %.
+    Gates **222/222** (Windows -j8, 1964 s). ★ next: the remaining reachable items in `retail-coverage.md` (Tielle-boss
+    arrow guarded by Charme's counter; Griff skill 5 on a 1-HP enemy), then the next `where.py --top` targets
+    (`FUN_0049a59e` resume, `FUN_004922c0` guild tick, `FUN_0047b2e7` ESC dispatch).
     Debug a new split with `portblock S --at F-1,F` + `--watch-write` (pin the exe with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left:
     dead part_idx 1/2 arms of 0x23 / 0x29, signed modulo, 0x29 ground query z.
     Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).

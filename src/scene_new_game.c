@@ -4,6 +4,7 @@
 
 #include "scene1_hud.h"   /* DAT_0438b1dc */
 #include "scene_new_game.h"
+#include "stage_load_pulse.h"   /* DAT_0734b9a0 */
 
 #include "call_trace.h"
 
@@ -101,22 +102,20 @@ int32_t scene_new_game_ui_scratch_dat_00648258_get(void)
 
 /* ─── DAT_0734b9a0 (FUN_004682d0) ─────────────────────────────────────────
  *
- * Engine: tiny word at 0x0734b9a0 — likely a "stage-load pulse B" sister
- * to DAT_0734b9a4 (already ported as stage_load_pulse_b in
- * stage_load_pulse.c).  Cleared here as part of the New Game reset; no
- * port consumer today.
+ * The display-menu slide's "active" flag (stage_load_pulse.c owns it; FUN_004693e3 ramps DAT_0734b98c toward 5 while it
+ * is set, toward 0 when clear). FUN_0049a59e clears it on every game start / Continue: a save taken with the item window
+ * open (the Adventurers' Guild bag) resumes with the slide decaying 5 → 0 (rhost save-in-guilds f2393; the port's old
+ * private copy of the flag left the real one set).
  */
-static int32_t g_stage_load_pulse_b = 0;
-
 void scene_new_game_clear_stage_load_pulse_b(void)
 {
     /* E.2 probe — FUN_004682d0 @ 0x4682d0. */
     CALL_TRACE_ENTER(0x4682d0u);
 
-    g_stage_load_pulse_b = 0;
+    stage_load_pulse_set_active(0);
 }
 
 int32_t scene_new_game_stage_load_pulse_b_get(void)
 {
-    return g_stage_load_pulse_b;
+    return stage_load_pulse_get_active();
 }

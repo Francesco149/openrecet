@@ -122,7 +122,7 @@ _none_
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |
 | render-coupled | FUN_00485f8c | src/scene1_player_ctrl.c:1427 | the carried table's items (drawn |
 | render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:2334 | the eye / lookat writes); the |
-| render-coupled | FUN_0048f87c | src/scene_pause.c:1613 | the results screen's assets |
+| render-coupled | FUN_0048f87c | src/scene_pause.c:1621 | the results screen's assets |
 | semantic-collision | FUN_00432e50 | src/collision_query.c:15 | the customer-service arm's ground |
 | structure | FUN_0048670f | src/scene1_sim.c:191 | one retail-shaped master tick. |
 

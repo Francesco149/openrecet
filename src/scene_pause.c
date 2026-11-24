@@ -672,16 +672,24 @@ static void pause_status_submenu_update(void)
  * the working bank at commit, copied to the slot. PIXEL-INVISIBLE here — the
  * picker render (save_picker_render) reads GAME_MODE/SCORE/…, never this
  * 0xb381 field — but kept faithful so the SAVED bytes match retail. */
+/* FUN_0047f5bc's switch on the paused mode (IDA): 1 → 0 if not in a stage else 1; 2 → 2; 7 → 0; 6 → 3 / 4 by the
+ * guild variant; 11 → the bag preview copied in, 1; else 1. Called after the two preview blocks are cleared. */
 static int pause_save_card_type(void)
 {
     switch (g_pause_saved_mode) {            /* DAT_06a499a8 (iVar6) */
     case 1: return (g_pause_in_stage_type > 0) ? 1 : 0;  /* *DAT_068dd2f0>0 ? */
     case 2: return 2;
     case 7: return 0;
-    /* mode 6 (the DAT_0963c5f0 guild-rank split → 3/4) + mode 0xb (which copies
-     * the live DAT_0438b5ec/664 dungeon snapshot in) need un-modeled data and
-     * are unreachable from the ported pause Save submenu;
-     * PORT-DEBT(save-card-type-modes). The shared default is 1. */
+    case 6: return scene_guild_variant() ? 4 : 3;           /* DAT_0963c5f0: the market 4, the guild 3 */
+    case 11: {                                              /* the adventurers' guild: the packed bag's preview */
+        uint32_t *wb = save_work_dwords_at(save_work_active_slot());
+        const int *bag = adv_guild_bag();                   /* DAT_0438b5ec (38 dwords) */
+        if (wb && bag) {
+            for (int i = 0; i < 0x1e; i++) wb[0xb75a + i] = (uint32_t)bag[i];       /* qmemcpy(+46938, 0x438b5ec, 120) */
+            for (int i = 0; i < 8; i++)    wb[0xb78e + i] = (uint32_t)bag[0x1e + i]; /* qmemcpy(+46990, 0x438b664, 32) */
+        }
+        return 1;
+    }
     default: return 1;
     }
 }
