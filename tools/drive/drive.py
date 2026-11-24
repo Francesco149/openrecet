@@ -1747,6 +1747,36 @@ def cmd_ram(a):
                 x, z = f32_(23), f32_(25)
                 print(f"{c0 + k:3d} {s32_(0):4d} {ow:>4s} {x:7.2f} {f32_(24):7.2f} {z:7.2f} {f32_(26):6.2f} {f32_(27):6.2f} {f32_(28):6.2f} "
                       f"{s32_(38):5d} {f32_(42):5.1f} {s32_(71):5d} {math.hypot(x - px, z - pz):5.1f}")
+    elif a.op in ("objects", "particles"):     # stage objects (0x695ef78, 512 x 0x2a0) / table A particles (0x69b2f80, 4096 x 0x94)
+        import struct
+        from collections import Counter
+        lv = r.attach()
+        if a.op == "objects":
+            RB, RS, RN, CH = 0x695ef78, 0x2a0, 512, 16
+            px, pz = r.ev("px", "pz")
+            print("  i kind state      x       y       z  d9  dist   (kind = dword 35, state = dword 154, d9 = the hit shake; findings/retail-coverage.md)")
+        else:
+            RB, RS, RN, CH = 0x69b2f80, 0x94, 4096, 128
+            hist = Counter()
+        for c0 in range(0, RN, CH):
+            h = bytes.fromhex(lv.cmd(f"r {RB + c0 * RS:x} {CH * RS}").split()[1])
+            for k in range(CH):
+                o = k * RS
+                s32_ = lambda d: int.from_bytes(h[o + 4 * d:o + 4 * d + 4], "little", signed=True)
+                f32_ = lambda d: struct.unpack("<f", h[o + 4 * d:o + 4 * d + 4])[0]
+                if a.op == "objects":
+                    if s32_(35) == -1:
+                        continue
+                    x, z = f32_(0), f32_(2)
+                    print(f"{c0 + k:3d} {s32_(35):4d} {s32_(154):5d} {x:7.2f} {f32_(1):7.2f} {z:7.2f} {s32_(9):3d} {math.hypot(x - px, z - pz):5.1f}")
+                else:
+                    t = s32_(0x30 // 4)
+                    if t != -1:
+                        hist[t] += 1
+        if a.op == "particles":
+            print("particle type (hex): count   [table A, type at +0x30]")
+            for t, n in sorted(hist.items()):
+                print(f"  0x{t & 0xffffffff:x}: {n}")
     elif a.op == "dwords":                     # N dwords from VA: hex, signed, float
         import struct
         va, n = int(a.args[0], 16), int(a.args[1], 0) if len(a.args) > 1 else 16
