@@ -102,4 +102,6 @@ attack records on stage objects of kind 0 / 2 / 3 (particles 0x15 / 0x16), the w
   keys / labels no stage has, error message boxes, lines without a final newline, gousei material slots 4 / 5, a loose
   `data/tutoN.txt`, and the whole config.idx parser (both path copies read `"config.idx"`, absent from the archive —
   `tables-loader.md`, corrected; the port now mirrors the path).
+- Probed 2026-11-24 (`particle-edges`): 0x98 / 0x75 at age 64 need a target moving ≥ ~0.75 / tick (the steering spring lands
+  ~12 ticks after it starts) — not by play; 0x11 needs a fall into water, and no walkable entry was found on stages 4..13.
 

@@ -105,6 +105,7 @@ observed in the running game; anything read from code only is a lead. Named stat
 | [probes/nagi-elan-edges.md](probes/nagi-elan-edges.md) | Nagi's dash hit, swing records killed by a hurt; Elan's wall / hurt kills, skills into a wall. Port identical. |
 | [probes/finishers-boss-web.md](probes/finishers-boss-web.md) | Caillou's finishing-blow clamp; Charme's web lives 120 on a boss floor — fixed the never-installed FUN_004319d6 hook. |
 | [probes/stage-object-hits.md](probes/stage-object-hits.md) | Records hitting the ledge trees / grass (stage objects kind 0 / 2): particles 0x16 / 0x15; only Louie's skill reaches them. Port identical. |
+| [probes/particle-edges.md](probes/particle-edges.md) | Water / hit-spark / return-spark particle edges: not reachable by play (water surfaces per stage, the spark spring). Port identical on the sparks' normal life. |
 | [probes/charge-attacks.md](probes/charge-attacks.md) | Tielle's draw bands (records 77..166, crit) and Caillou's short / charged swing (record 82 projectile). Port identical. |
 | [probes/shop-story-caillou.md](probes/shop-story-caillou.md) | Caillou's reagent quest 5/4 (reagents from Jade Way bosses) and 5/5 (he joins); ported the quest sale arm b534 30 + FUN_004607f3 whole. |
 | [probes/caillou-quest-variants.md](probes/caillou-quest-variants.md) | Caillou's quest arms 5/7 (×3) and 5/3 grades 2 / 3 (×2 / ×1.5), crafted. Port identical. |
