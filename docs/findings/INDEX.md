@@ -94,6 +94,7 @@ observed in the running game; anything read from code only is a lead. Named stat
 | [probes/shop-story-tielle.md](probes/shop-story-tielle.md) | Tielle's arc after Amber 30F: 4/4 arriving home, 4/5 next morning, 4/6 in the shop (she joins). Port identical. |
 | [probes/shop-story-elan.md](probes/shop-story-elan.md) | Elan's 6/5 (the roster scan's sweet gate FUN_0045ED12, live) and 6/6 (he joins). Port identical. |
 | [probes/shop-story-alouette.md](probes/shop-story-alouette.md) | Alouette's shop scenes 17/3 and 17/40 (the story probe's customer-19 table). Port identical. |
+| [probes/shop-story-alouette-2.md](probes/shop-story-alouette-2.md) | Alouette's 17/49 and 18/9 (closeness > 10 / > 14). Port identical. |
 | [probes/shop-story-griff.md](probes/shop-story-griff.md) | Griff's arc: wake-up 7/1, plaza nights 7-2 / 7-3, shop 7/4, Louie's 7/5 (Obsidian opens); one plaza / market event per day. Port identical. |
 | [probes/shop-story-tielle-market.md](probes/shop-story-tielle-market.md) | Tielle's market events 17-27, 17-41 and the shop scene 17/42 (her sister's letter). Port identical. |
 | [probes/euria-seller.md](probes/euria-seller.md) | Euria (customer 18) selling: a weapon pick, a relic (scan path), a band-3 pick; the pick fixed by the rng at the queue advance. Port identical. |

@@ -320,7 +320,7 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     joins in a recorded movie now** (Charme / Nagi / Tielle / Elan / Griff / Caillou; Arma via 12/20). ☐ `rd verify` of
     `arw-1` (render skip on) MISMATCHED on the state hash: run `skip-check 414ee2` on `arma-weapons` (some weapon's
     overlay path writes outside the mask).
-    Left: 5/3 grades 2 / 3, 5/7, Alouette 17/49 / 18/9 (closeness > 10 / > 14). Euria's fixed relics (5404 / 5013 / 5111 by decor) unrecorded.
+    `shop-story-alouette-2` (17/49, 18/9) identical. Left: 5/3 grades 2 / 3, 5/7. Euria's fixed relics (5404 / 5013 / 5111 by decor) unrecorded.
     Debug a new split with `portblock S --at F-1,F` + `--watch-write` (pin the exe with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left:
     dead part_idx 1/2 arms of 0x23 / 0x29, signed modulo, 0x29 ground query z.
     Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).
