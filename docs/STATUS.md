@@ -311,9 +311,11 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     **2026-11-24: the shop story scenes** (`findings/shop-story-scenes.md`: FUN_00462403's story probe — every arm's bytes,
     writers, eligibility, closeness slot map, start saves; port logic identical to IDA): `shop-story-nagi` (8/5, 8/6 = Nagi
     joins, Caillou's 5/2; played lineage), `shop-story-arma` (9/2), and FUN_00463cfb's order delivery `order-return-sale` /
-    `-incomplete` / `-wrong-item` — all identical on the first triage, gate rows. ★ next: the other arms (3/7, 7/4 → 7/5,
-    7/9 / 7/10, 4/6, 17/42, 6/5 / 6/6, 5/3 / 5/4 / 5/5 / 5/7, Alouette's 17/3..18/9) — saves / craft lines in the doc;
-    kyaku 18 (Euria) relic seller (FUN_00461792's unhit half).
+    `-incomplete` / `-wrong-item`; then on the played lineage `shop-story-tielle` (4/4, 4/5, 4/6 joins), `-elan` (6/5 via the
+    sweet gate, 6/6 joins), `-alouette` (17/3, 17/40), `-griff` (7/1, plaza 7-2 / 7-3, 7/4, 7/5 Obsidian opens) — all identical
+    on the first triage, gate rows. In flight: `shop-story-caillou` (5/4 quest, 5/5), `-tielle-market` (17-27, 17-41, 17/42).
+    Left: 7/9 / 7/10 (after Obsidian 50F), 5/3 grades 2 / 3, 5/7, Alouette 17/49 / 18/9 (closeness > 10 / > 14); kyaku 18
+    (Euria) relic seller (FUN_00461792's unhit half).
     Debug a new split with `portblock S --at F-1,F` + `--watch-write` (pin the exe with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left:
     dead part_idx 1/2 arms of 0x23 / 0x29, signed modulo, 0x29 ground query z.
     Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).
