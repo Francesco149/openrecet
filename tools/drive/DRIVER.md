@@ -189,6 +189,10 @@ rd eval R "actors(T == 10)" a0hp --at-frame 40650                               
   D → 0; Merchants' Guild L → 2 (Town Square). One plaza / market event per day (`bank + 0x2bca8` / `0x2bca9`, cleared
   at the day change); stime rises by 1 per return home after ≥ 1 visit; home at stime 3 ends the day; an empty Chapel
   visit is the cheapest period. From the home-arrival spot (2, −3.24) the shop door is `DL*8`.
+- Shop customers: `cust` (keeps the LAST customer: `cust == K and b534 == 1` = a visit start), `b534` / `b5a8` / `b528`,
+  `elig(K)` (customer K in the session's eligible list), `inq(K)` (in the visit queue), `close(K)` (K's closeness),
+  `ask` / `tgt` / `cmax` / `pcur` (price box, target, max, digit cursor), `score`. Re-time Open Store with
+  `rd search R --goal "inq(K)" --avoid "cc08 == 4 and not inq(K)"`. Ids: `docs/findings/shop-story-scenes.md`.
 - Talking to Tear needs `reach == 20` (within 2 of her and facing her), then `A` → `cc08 == 15`. In any list menu
   `A` on an entry dispatches 15 ticks later (`cc08 == 16` / `10` meanwhile); pages lock input for ~10 ticks.
 - `--from end:SCENARIO` boots with the save that scenario ends with; `--from fresh` is a new game

@@ -322,6 +322,22 @@ class Vars:
                 return c(n.args[0]) + [f]
             if f in ("atan2", "hypot", "pow") and len(n.args) == 2:
                 return c(n.args[0]) + c(n.args[1]) + [f]
+            if f in ("elig", "inq") and len(n.args) == 1:
+                # the shop session's eligible list (DAT_06a5d450, 20 dwords, reset to -1 before each roster scan) /
+                # visit queue (count 0x730ac98, records 0x730aca0 + 24·i, customer id first): 1 when customer K is in it
+                k = f"({ast.unparse(n.args[0])})"
+                if f == "elig":
+                    e = " or ".join(f"s32({0x6a5d450 + 4 * i:#x}) == {k}" for i in range(20))
+                else:
+                    e = " or ".join(f"(s32(0x730ac98) > {i} and s32({0x730aca0 + 24 * i:#x}) == {k})" for i in range(20))
+                return self.compile(f"(1 if ({e}) else 0)", depth + 1)
+            if f == "close" and len(n.args) == 1 and isinstance(n.args[0], ast.Constant):
+                # customer K's closeness: the int16 of its candidate slot (findings/shop-story-scenes.md slot map)
+                slot = {2: 0, 3: 1, 4: 2, 5: 3, 6: 4, 7: 5, 8: 6, 9: 7, 11: 8, 13: 9, 14: 12, 15: 15, 17: 18, 18: 21, 19: 22,
+                        20: 23}.get(int(n.args[0].value))
+                if slot is None:
+                    raise SystemExit(f"close(K): no closeness slot for customer {n.args[0].value} in {src!r}")
+                return self.compile(f"s16(bank + {0x2d210 + 4 * slot:#x})", depth + 1)
             if f in ("pad", "dpad") and len(n.args) == 2:
                 # the d-pad mask (8 directions) that walks along the world vector (dx, dz): pad = the shop's axes
                 # (R = +x, D = +z), dpad = the dungeons' (flipped). 0 when the vector is 0.
@@ -329,7 +345,7 @@ class Vars:
                 return self.compile(f"((1 if {x} > 0 else 2) if abs({x}) > 0.41421356 * abs({z}) else 0) + "
                                     f"((8 if {z} > 0 else 4) if abs({z}) > 0.41421356 * abs({x}) else 0)", depth + 1)
             raise SystemExit(f"unknown function {f}() in {src!r} (u8 s8 u16 s16 u32 s32 f32 f64 min max abs int sqrt sin cos atan2 hypot pow "
-                             "pad dpad sum actors)")
+                             "pad dpad sum actors elig inq close)")
         if isinstance(n, ast.BinOp) and isinstance(n.op, ast.Pow):
             return c(n.left) + c(n.right) + ["pow"]
         if isinstance(n, ast.BinOp) and type(n.op) in BINOP:
