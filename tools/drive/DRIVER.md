@@ -183,7 +183,7 @@ rd eval R "actors(T == 10)" a0hp --at-frame 40650                               
   moment?", ~1,100 ticks of A taps): `~`, wait ~40 ticks for the Yes / No box, `A` on "Yes" skips it — check
   `dlg == 0`. Recette then stands at
   (−0.3, 9.35) in front of the counter, Tear at (0.6, 9.35) (`tx`, `tz`). `.*30 DL*16 U*8 UR*16 L*6 A .*7` walks to
-  the counter and opens its menu; the shop door is at (3.0, −3.4): within 1.8 of it AND facing +x leaves to the
+  the counter and opens its menu (its slide-in eats an `A` for ~15 ticks: wait `.*15` before "Open Store"); the shop door is at (3.0, −3.4): within 1.8 of it AND facing +x leaves to the
   town map (`scene == 8`, cursor `wm_cur`).
 - Talking to Tear needs `reach == 20` (within 2 of her and facing her), then `A` → `cc08 == 15`. In any list menu
   `A` on an entry dispatches 15 ticks later (`cc08 == 16` / `10` meanwhile); pages lock input for ~10 ticks.
