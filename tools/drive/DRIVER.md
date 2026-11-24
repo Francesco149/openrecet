@@ -185,6 +185,10 @@ rd eval R "actors(T == 10)" a0hp --at-frame 40650                               
   (−0.3, 9.35) in front of the counter, Tear at (0.6, 9.35) (`tx`, `tz`). `.*30 DL*16 U*8 UR*16 L*6 A .*7` walks to
   the counter and opens its menu (its slide-in eats an `A` for ~15 ticks: wait `.*15` before "Open Store"); the shop door is at (3.0, −3.4): within 1.8 of it AND facing +x leaves to the
   town map (`scene == 8`, cursor `wm_cur`).
+- Town map cursor `wm_cur` moves to the spatial neighbour: from Home L → 1, U → 2, R → 3, D → 5; Chapel U → 0; Market
+  D → 0; Merchants' Guild L → 2 (Town Square). One plaza / market event per day (`bank + 0x2bca8` / `0x2bca9`, cleared
+  at the day change); stime rises by 1 per return home after ≥ 1 visit; home at stime 3 ends the day; an empty Chapel
+  visit is the cheapest period. From the home-arrival spot (2, −3.24) the shop door is `DL*8`.
 - Talking to Tear needs `reach == 20` (within 2 of her and facing her), then `A` → `cc08 == 15`. In any list menu
   `A` on an entry dispatches 15 ticks later (`cc08 == 16` / `10` meanwhile); pages lock input for ~10 ticks.
 - `--from end:SCENARIO` boots with the save that scenario ends with; `--from fresh` is a new game
