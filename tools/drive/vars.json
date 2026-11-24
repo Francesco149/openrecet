@@ -1476,5 +1476,25 @@
   "addr": "0x730ac98",
   "type": "s32",
   "note": "the session's visit queue count; records at 0x730aca0, 6 dwords (customer, orderee, kind, item, days, qty). The eligible list (not the visits) = 20 dwords at 0x6a5d450, -2 terminated: rd ram R dwords 0x6a5d450 20"
+ },
+ "ask": {
+  "addr": "0x5c6bb8",
+  "type": "s32",
+  "note": "DAT_005c6bb8: the price in the price box / the quest's ask"
+ },
+ "tgt": {
+  "addr": "0x730b588",
+  "type": "s32",
+  "note": "DAT_0730b588: the customer's target price (an offer within 0.5% = grade 1: +5 closeness)"
+ },
+ "cmax": {
+  "addr": "0x730b574",
+  "type": "s32",
+  "note": "DAT_0730b574: the customer's max (buyer) / ask (seller); above it at state 15 \u2192 pushback 8"
+ },
+ "pcur": {
+  "addr": "0x730b560",
+  "type": "s32",
+  "note": "the price box's digit cursor (0 = ones)"
  }
 }

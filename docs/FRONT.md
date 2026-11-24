@@ -274,8 +274,8 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     joins, Caillou's 5/2; played lineage), `shop-story-arma` (9/2), and FUN_00463cfb's order delivery `order-return-sale` /
     `-incomplete` / `-wrong-item`; then on the played lineage `shop-story-tielle` (4/4, 4/5, 4/6 joins), `-elan` (6/5 via the
     sweet gate, 6/6 joins), `-alouette` (17/3, 17/40), `-griff` (7/1, plaza 7-2 / 7-3, 7/4, 7/5 Obsidian opens) — all identical
-    on the first triage, gate rows. `-tielle-market` (17-27, 17-41, 17/42) identical. `euria-seller` (FUN_00461792's relic half) identical. In flight: `shop-story-caillou` (5/4, 5/5), `-griff-joins` (7/9, 7/10, crafted 0x2bce7).
-    Left: 7/9 / 7/10 (after Obsidian 50F), 5/3 grades 2 / 3, 5/7, Alouette 17/49 / 18/9 (closeness > 10 / > 14). Euria's fixed relics (5404 / 5013 / 5111 by decor) unrecorded.
+    on the first triage, gate rows. `-tielle-market` (17-27, 17-41, 17/42) identical. `euria-seller` (FUN_00461792's relic half) identical. `-griff-joins` (7/9, 7/10; crafted 0x2bce7) identical. In flight: `shop-story-caillou` (5/4, 5/5), `arma-weapons` (FUN_004986ee).
+    Left: 5/3 grades 2 / 3, 5/7, Alouette 17/49 / 18/9 (closeness > 10 / > 14). Euria's fixed relics (5404 / 5013 / 5111 by decor) unrecorded.
     Debug a new split with `portblock S --at F-1,F` + `--watch-write` (pin the exe with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left:
     dead part_idx 1/2 arms of 0x23 / 0x29, signed modulo, 0x29 ground query z.
     Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).
