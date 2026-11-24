@@ -2391,7 +2391,7 @@ def cmd_file(a):
     if r.meta.get("poked"):
         raise SystemExit("this run was POKED: its movie does not reproduce its state — not filed")
     p = file_scenario(r, a.name, " ".join(a.note))
-    print(f"filed {os.path.relpath(p, ROOT)} ({r.movie.frame} frames). Next: rhost.py golden {a.name}; rhost.py triage {a.name}")
+    print(f"filed {os.path.relpath(p, ROOT)} ({r.movie.frame} frames). Next: rd port {a.run} (retail golden + port triage; the orchestrator usually runs it)")
     r.close()
 
 

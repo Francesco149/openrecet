@@ -308,6 +308,12 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     `charme-skills` filed: identical on the first triage (gate row). ☐ rd: `undo` after a 6-press `tap` reported the old
     frame but the live state stayed at the later one (driver report 2026-11-19; `rewind --to` worked). Not reproduced
     2026-11-24 (house, `tap "R*4" --n 6 --gap 8` with and without `--text` → undo: frame, rng, px / pz back exactly).
+    **2026-11-24: the shop story scenes** (`findings/shop-story-scenes.md`: FUN_00462403's story probe — every arm's bytes,
+    writers, eligibility, closeness slot map, start saves; port logic identical to IDA): `shop-story-nagi` (8/5, 8/6 = Nagi
+    joins, Caillou's 5/2; played lineage), `shop-story-arma` (9/2), and FUN_00463cfb's order delivery `order-return-sale` /
+    `-incomplete` / `-wrong-item` — all identical on the first triage, gate rows. ★ next: the other arms (3/7, 7/4 → 7/5,
+    7/9 / 7/10, 4/6, 17/42, 6/5 / 6/6, 5/3 / 5/4 / 5/5 / 5/7, Alouette's 17/3..18/9) — saves / craft lines in the doc;
+    kyaku 18 (Euria) relic seller (FUN_00461792's unhit half).
     Debug a new split with `portblock S --at F-1,F` + `--watch-write` (pin the exe with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left:
     dead part_idx 1/2 arms of 0x23 / 0x29, signed modulo, 0x29 ground query z.
     Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).
