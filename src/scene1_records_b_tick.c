@@ -51,6 +51,7 @@
 #include "sim.h"                       /* g_sim_frame_count (engine DAT_0438b8cc) */
 #include "tables_enemy.h"              /* DAT_005c23f0 */
 #include "x87.h"
+#include "dungeon_party.h"   /* angle_ease (FUN_00482ae7) */
 
 int32_t g_scene1_records_b_tick_flag;        /* engine DAT_06a46f98 */
 
@@ -1192,8 +1193,10 @@ static rec_next_t body_0x74_or_0x79(int i, int32_t type)
                         + slot_get_f(i, SCENE1_RECORDS_B_OFF_POS_Z)
                         - ca * 5.0f;
 
+        /* asm 0x43be72: FUN_004147d5's last arg = 3 — shape mode 3 reads the
+         * owner's +0x904 / 0x908 / 0x90c just written (no RNG draws) */
         overlay_spawn(owner_a, spawn_x, spawn_y, spawn_z, 0x2c,
-                             1.8f, -1, 0, 0, 0);
+                             1.8f, -1, 0, 3, 0);
 
         owner_write_f(owner_a, 0x904, 0.0f);
         owner_write_f(owner_a, 0x908, 0.0f);
@@ -3466,11 +3469,12 @@ static rec_next_t body_0x9b(int i)
     float l18 = c_rot * life_mult * 3.5f;
 
     /* asm 0x43e498-0x43e552: overlay spawn cascade for AGE in [123, 365). */
+    /* FUN_004147d5(…, rot 0, shape 1): the `push 1` is the shape (owner-attached), mode 0 */
     if (age >= 0x7b && age < 0x16d) {
-        overlay_spawn(owner, l28, l2c, l18, 0x6a, life_mult, -1, 0, 0, 1);
-        overlay_spawn(owner, l28, l2c, l18, 0x6e, life_mult, -1, 0, 0, 1);
+        overlay_spawn(owner, l28, l2c, l18, 0x6a, life_mult, -1, 0, 1, 0);
+        overlay_spawn(owner, l28, l2c, l18, 0x6e, life_mult, -1, 0, 1, 0);
         if ((age % 3) == 0) {
-            overlay_spawn(owner, l28, l2c, l18, 0x6f, life_mult, -1, 0, 0, 1);
+            overlay_spawn(owner, l28, l2c, l18, 0x6f, life_mult, -1, 0, 1, 0);
         }
     }
 
@@ -5709,7 +5713,7 @@ static rec_next_t body_0x83(int i)
  *
  *   else:
  *     target = (preceding_cnt * 2π / live_count) + g_sim_frame_count * 0.04
- *     ROT_X = angle_step_toward(ROT_X, target, 0.08)
+ *     ROT_X = FUN_00482ae7(ROT_X, target, 0.08)   (angle_ease)
  *     ROT_SCR = 0; ROT_Z = 0
  *
  *     mat = T(0,0,0)
@@ -5750,46 +5754,6 @@ static rec_next_t body_0x83(int i)
  *   - bounce_count is stored in slot[PART_IDX] (the engine reuses this slot
  *     field as a bounce counter when the slot has no real "part index" use). */
 
-/* Engine FUN_00482ae7 @ 0x482ae7 (348 B, pure math, no globals or hooks). */
-static float angle_step_toward(float current, float target, float max_step)
-{
-    const float TAU = 6.2831855f;
-    const float PI  = 3.1415927f;
-
-    while (current < -PI) current += TAU;
-    while (PI < current) current -= TAU;
-    while (target  < -PI) target  += TAU;
-    while (PI < target)  target  -= TAU;
-
-    float delta = current - target;
-    float abs_delta = delta < 0.0f ? -delta : delta;
-
-    float result_pre_norm;
-    if (abs_delta < max_step) {
-        result_pre_norm = target;
-    } else if (TAU - max_step < abs_delta) {
-        result_pre_norm = target;
-    } else if (target <= current) {
-        /* delta = current - target ∈ [0, TAU); engine `if (fVar1 < PI)` → step back. */
-        if (delta < PI) {
-            result_pre_norm = current - max_step;
-        } else {
-            result_pre_norm = current + max_step;
-        }
-    } else if (PI <= (target - current)) {
-        result_pre_norm = current - max_step;
-    } else {
-        result_pre_norm = current + max_step;
-    }
-
-    /* Renormalize result_pre_norm to [-PI, PI]. */
-    float result = result_pre_norm;
-    if (PI < result) result -= TAU;
-    while (result < -PI) result += TAU;
-    while (PI < result)  result -= TAU;
-    return result;
-}
-
 static rec_next_t body_0x75(int i)
 {
     int32_t age = slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE);
@@ -5828,10 +5792,13 @@ static rec_next_t body_0x75(int i)
             if (owner_a) {
                 yaw = owner_read_f(owner_a, 0xea4);
             }
+            /* 0x43e7e1..0x43e83d: the CRT sin / cos of the float yaw, spilled, × 0.24f unrounded */
             slot_set_i(i, SCENE1_RECORDS_B_OFF_AGE, 200);
-            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X, sinf(yaw) * 0.24f);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_X,
+                       spill32((long double)spill32(x87_crt_sin(yaw)) * 0.23999999463558197f));
             slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Y, 0.1f);
-            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z, cosf(yaw) * 0.24f);
+            slot_set_f(i, SCENE1_RECORDS_B_OFF_VEL_Z,
+                       spill32((long double)spill32(x87_crt_cos(yaw)) * 0.23999999463558197f));
             /* Engine `jmp LAB_0043ed87` — skip phase 2 DRAG/ground entirely
              * this tick, fall straight to AGE==400 kill check (won't fire). */
             if (slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) == 400) {
@@ -5841,10 +5808,15 @@ static rec_next_t body_0x75(int i)
         }
 
         /* Phase 1 angle-step + matrix-driven pose around owner_a. */
+        /* 0x43e845..0x43e894: each int → float spilled, then (pc·2π / n + frame·0.04f) on the
+         * x87 stack, rounded once into the target; FUN_00482ae7 rounds every step (angle_ease) */
         float rot_x  = slot_get_f(i, SCENE1_RECORDS_B_OFF_ROT_X);
-        float target = ((float)preceding_cnt * 6.2831855f) / (float)total_count
-                     + (float)(int32_t)g_sim_frame_count * 0.04f;
-        rot_x = angle_step_toward(rot_x, target, 0.08f);
+        const float f_pc = spill32((long double)preceding_cnt);
+        const float f_n  = spill32((long double)total_count);
+        const float f_fr = spill32((long double)(int32_t)g_sim_frame_count);
+        const float target = spill32((long double)f_pc * 6.2831854820251465f / f_n
+                                     + (long double)f_fr * 0.03999999910593033f);
+        rot_x = angle_ease(rot_x, target, 0.07999999821186066f);   /* FUN_00482ae7 */
         slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_X, rot_x);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_SCR, 0.0f);
         slot_set_f(i, SCENE1_RECORDS_B_OFF_ROT_Z,   0.0f);
@@ -5858,7 +5830,8 @@ static rec_next_t body_0x75(int i)
         mat4_rotation_y(scratch, rot_x);
         mat4_mul(mat, scratch, mat);
 
-        float scale = (float)slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE) * 0.1f;
+        float scale = spill32((long double)spill32((long double)slot_get_i(i, SCENE1_RECORDS_B_OFF_AGE))
+                              * 0.10000000149011612f);
         if (scale > 3.0f) scale = 3.0f;
         mat4_translation(scratch, 0.0f, 0.0f, scale);
         mat4_mul(mat, scratch, mat);
@@ -5870,9 +5843,9 @@ static rec_next_t body_0x75(int i)
             oy = owner_read_f(owner_a, 0x24);
             oz = owner_read_f(owner_a, 0x28);
         }
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, mat[12] + ox);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, mat[13] + oy + 2.1f);
-        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, mat[14] + oz);
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_X, spill32((long double)mat[12] + ox));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Y, spill32((long double)mat[13] + oy + 2.0999999046325684f));
+        slot_set_f(i, SCENE1_RECORDS_B_OFF_POS_Z, spill32((long double)mat[14] + oz));
 
         /* Engine `jmp 0x43ea5e` — skip phase 2 DRAG/ground, fall to SM. */
     } else {

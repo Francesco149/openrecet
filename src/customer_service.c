@@ -2513,22 +2513,28 @@ static void cs_pick_line(int rec_index, int type, int slot)
 }
 
 /* ── FUN_004607f3 — set the <I> dialogue macro to the transacted item's name ──
- * `handle` = the offered item handle (b5a4): id = handle>>6, count = handle&0xf.
- * count 0 → just the singular name ("Steel Sword"); else "name N".  Read by
- * font_draw_text_box (dlg_macro_expand) when a line contains "<I>".
- * PORT-DEBT(cs-item-macro-kinds): the engine's b534==0x1e debug-string branch +
- * the b5a8==4 (synth/order) name source are not modeled — the f404 sell path
- * (b5a8==2) takes the item-name branch ported here. */
+ * b534 30 (Caillou's quest) → the fixed "Charred Lizard, Bat Wings<BR>Slime Liver"
+ * (0x5c6d44); b5a8 4 (an order back) → the oder's plural (0x6a5dbb8 + 76·b5d8); else
+ * `handle` = id << 6 | plus: the name, "name+P" with a plus (0x5c6d74 "%s+%d").
+ * Read by font_draw_text_box (dlg_macro_expand) when a line contains "<I>". */
 static void cs_set_item_macro(int handle)
 {
     char tmp[DLG_MACRO_BUFSZ];
+    if (s_b534 == 30) {
+        dlg_macro_set(DLG_MAC_I, "Charred Lizard, Bat Wings<BR>Slime Liver");
+        return;
+    }
+    if (s_b5a8 == 4) {
+        dlg_macro_set(DLG_MAC_I, (s_b5d8 >= 0 && s_b5d8 < g_oder.count) ? g_oder.entries[s_b5d8].name_plural : "");
+        return;
+    }
     int slot = tables_item_find_slot_by_id(&g_item, handle >> 6);   /* FUN_004681f6 */
     const char *name = (slot >= 0) ? g_item.records[slot].singular : "";
     int count = handle & 0xf;
     if (count == 0)
         snprintf(tmp, sizeof tmp, "%s", name);              /* DAT_005c6d7c "%s" */
     else
-        snprintf(tmp, sizeof tmp, "%s %d", name, count);    /* DAT_005c6d74 "%s %d" */
+        snprintf(tmp, sizeof tmp, "%s+%d", name, count);    /* DAT_005c6d74 "%s+%d" */
     dlg_macro_set(DLG_MAC_I, tmp);
 }
 
@@ -4638,8 +4644,30 @@ static void cs_master_tick_body(uint32_t cur, uint32_t pressed, uint32_t held)
             return;
         }
         if (s_b534 == 0x1e) {
-            /* PORT-DEBT(cs-sold-pause): the buy/sold-pause arm (all.c:60427-60459)
-             * — not in the SELL trajectory (1→2→6→0xf→7→0xa→0xc→0x14→0x15→0). */
+            /* 30 — Caillou's reagent quest sold (IDA 66103..66129; cs_story_item_quest set
+             * the ask): b530 counts up to 32, then on the first tick the <I> / <Y> macros,
+             * line 8, the ask paid in, SE 333; A on a shown line ends the visit (b534 0, b524 0). */
+            int at32 = s_b530 == 32;
+            if (s_b530 < 32) at32 = ++s_b530 == 32;
+            if (!at32) return;
+            s_b544 += 1;
+            s_cust_active[0] = 1;
+            if (s_b544 == 1) {
+                cs_set_item_macro(s_b5a4);                 /* FUN_004607f3 (the b534 30 string) */
+                char pix[DLG_MACRO_BUFSZ];
+                snprintf(pix, sizeof pix, "%dpix", s_price_ask);
+                dlg_macro_set(DLG_MAC_Y, pix);
+                cs_pick_line(0, 8, 0);                     /* FUN_00460a1a(ea90, 8, 0) */
+                uint32_t *bw = save_work_dwords_at(save_work_active_slot());
+                if (bw) bw[SAVE_BANK_FIELD_GOLD] += (uint32_t)s_price_ask;
+                audio_play_se_by_id(333);
+            }
+            if (s_b55c != 0 && (s_in_pressed & 0x10) != 0) {
+                s_b55c = 0;
+                s_cust_active[0] = 0;
+                s_b534 = 0;
+                s_b524 = 0;
+            }
             return;
         }
         if (s_b534 == 10) {                   /* 0xa — "thank you" line (60461-60478) */

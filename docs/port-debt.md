@@ -109,7 +109,7 @@ _none_
 | continue-arm | FUN_0049a59e | src/scene.c:157 | the rest of the arm (the |
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:132 | box_pos_mode/off (DAT_005c7984/80) are |
 | house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:829 | the engine frees the shop |
-| oob | 0x43e... | src/scene1_records_b_tick.c:3258 | types >= 64 read past DAT_005c23f0 into |
+| oob | 0x43e... | src/scene1_records_b_tick.c:3261 | types >= 64 read past DAT_005c23f0 into |
 | oob | FUN_0042df55 | src/actor_ai.c:147 | rows past the enemylist |
 | oob | FUN_0042df55 | src/actor_ai.c:185 | a type outside enemy.txt reads past DAT_005c241c |
 | render-coupled | FUN_00409925 | src/scene1_player_ctrl.c:1739 | the menu, note, lecture and |
