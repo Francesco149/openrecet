@@ -278,9 +278,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     (FUN_004986ee, all 15 weapons) → 2 splits → record 0x75's x87 angle step (FUN_00482ae7 = angle_ease) and record 0x74's
     smoke shape mode 3 → identical; an audit of all 116 overlay-spawn call sites found one more (record 0x9b: shape in the
     mode slot, render-only) → fixed. `charge-attacks` (Tielle's draw bands, Caillou's charge) identical. **Every adventurer
-    joins in a recorded movie now** (Charme / Nagi / Tielle / Elan / Griff / Caillou; Arma via 12/20). ☐ `rd verify` of
-    `arw-1` (render skip on) MISMATCHED on the state hash: run `skip-check 414ee2` on `arma-weapons` (some weapon's
-    overlay path writes outside the mask).
+    joins in a recorded movie now** (Charme / Nagi / Tielle / Elan / Griff / Caillou; Arma via 12/20). The render skip
+    diffed on `arma-weapons` (FUN_0040d132's ring vertex table 0x649588..0x649d08, render scratch) → mask widened,
+    `skip-check` 210/210 equal (`findings/headless-savestates.md`).
     `shop-story-alouette-2` (17/49, 18/9) and `caillou-quest-5-7` / `-5-3-g2` / `-5-3-g3` (crafted) identical: **every
     story-probe arm recorded** (3/7 earlier; 7/10's NG+ replay and 17/42's alternate gate not). Euria's fixed relics (5404 / 5013 / 5111 by decor) unrecorded.
     Debug a new split with `portblock S --at F-1,F` + `--watch-write` (pin the exe with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left:

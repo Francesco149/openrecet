@@ -46,7 +46,7 @@ NIX = {"wine-wow64-unstable": "wineWow64Packages.unstable", "bwrap": "bubblewrap
        "fontconfig": "fontconfig.out"}
 WINE = "wine-wow64-unstable"
 SKIP_FN = "414ee2"
-SKIP_MASK = "76b750:76b7b0,64c514:64da38"      # = tools/drive/drive.py SKIP_MASK (2026-11-11)
+SKIP_MASK = "76b750:76b7b0,64c514:64da38,649588:649d08"   # = tools/drive/drive.py SKIP_MASK (2026-11-24)
 SCRIPTS = ("pool.py", "batch.py")
 
 # ---- the one ssh connection

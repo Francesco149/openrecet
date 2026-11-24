@@ -58,7 +58,7 @@ VARS = os.path.join(HERE, "vars.json")
 # accepted rests on it: `rd verify` replays the movie WITHOUT the skip and must reach the session's state.
 # RD_SKIP_FN="" turns it off.
 SKIP_FN = os.environ.get("RD_SKIP_FN", "414ee2")
-SKIP_MASK = os.environ.get("RD_SKIP_MASK", "76b750:76b7b0,64c514:64da38")
+SKIP_MASK = os.environ.get("RD_SKIP_MASK", "76b750:76b7b0,64c514:64da38,649588:649d08")
 SKIP_MASK_V1 = "76b750:76b7b0,64c514:64d408"     # sessions started before 2026-11-11 (no "mask" in their session.json)
 
 

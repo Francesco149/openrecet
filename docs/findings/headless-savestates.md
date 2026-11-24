@@ -188,3 +188,8 @@ scenario a plain and a skipped headless replay must agree on end frame, RNG, `st
 - Savestates across processes (needs the remaining per-process values — HWND, GDI handles —
   relocated): worker sessions could then load a state instead of replaying the movie.
 - `--live` on the Windows box (session 0 works for headless; needs a port forward): +24 threads.
+
+- **2026-11-24: mask `76b750:76b7b0,64c514:64da38,649588:649d08`.** `arma-weapons` (Arma's weapons) diffed under the skip:
+  `0x649588..0x649d08` is a ring vertex table FUN_0040d132 builds at 0x40d74e (render scratch; its only reference is the
+  writer loop). With the range masked: `skip-check 414ee2` **210/210 equal** over the whole corpus (Windows, -j 8, ×1.37).
+
