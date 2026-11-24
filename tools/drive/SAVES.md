@@ -30,6 +30,7 @@ probe report says which it used. Played saves from the owner's free-play capture
 | `bbdbe357822b` | `824053720e01` | `--set 0xaf38=0x00000101` (bank bytes `+0x2bce2` = `+0x2bce3` = 0: the Obsidian first-trip cutscene not yet seen) | obsidian-first-trip |
 | `15b20dc3c34e` | `6809401b79a9` | `--set 0xaf3f=0` (bank byte `+0x2bcff` = 0: Lapis 100F's long intro not yet seen) | lapis-100f-long-intro |
 | `2f2f2203a65d` | `2e4388a2cfe2` | `--gold 1000000` (the day-35 final payment can be paid → the ending → Endless) | bossrush-obsidian |
+| `11cb7b194beb` | `9f429be80a97` | `--gold 100000` (pays the week-2 payment at the first day change) | item-boom |
 | `9f429be80a97` | `1a5a45e631b4` | `--add-item 4001x12` (12 Apples) | item-boom |
 | `ce8b62461cbf` | `1a5a45e631b4` | `--add-item 3101 --add-item 3110 --add-item 3106` (Caillou's reagents) | caillou-quest-5-7 |
 | `1a25f4ed4e95` | `1a5a45e631b4` | `--set 0xaf32=0x000d0101` + the three reagents (5/1 seen on day 13) | caillou-quest-5-3-g2 |

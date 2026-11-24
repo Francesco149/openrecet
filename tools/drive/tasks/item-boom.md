@@ -1,10 +1,10 @@
 ---
 name: item-boom
-start: save:9f429be80a97
+start: save:11cb7b194beb
 steps:
   - loaded with control: scene == 1 and dlg == 0
-  - four or more sale-log pairs carry the same item (the boom candidate): s16(bank + 0x2dde4) != 0
-  - a player-driven boom news filed: s32(bank + 0x9d74*4 - 4) == 36 or s32(bank + 0x9d74*4 - 4) == 37 or s32(bank + 0x9d74*4 + 8) == 36 or s32(bank + 0x9d74*4 + 8) == 37
+  - eight or more sale-log pairs carry the Apple (4001; mult >= 8 = p 100): sum((1 if s16(bank + 187876) == 4001 else 0), (1 if s16(bank + 187880) == 4001 else 0), (1 if s16(bank + 187884) == 4001 else 0), (1 if s16(bank + 187888) == 4001 else 0), (1 if s16(bank + 187892) == 4001 else 0), (1 if s16(bank + 187896) == 4001 else 0), (1 if s16(bank + 187900) == 4001 else 0), (1 if s16(bank + 187904) == 4001 else 0), (1 if s16(bank + 187908) == 4001 else 0), (1 if s16(bank + 187912) == 4001 else 0), (1 if s16(bank + 187916) == 4001 else 0), (1 if s16(bank + 187920) == 4001 else 0), (1 if s16(bank + 187924) == 4001 else 0), (1 if s16(bank + 187928) == 4001 else 0), (1 if s16(bank + 187932) == 4001 else 0), (1 if s16(bank + 187936) == 4001 else 0), (1 if s16(bank + 187940) == 4001 else 0), (1 if s16(bank + 187944) == 4001 else 0), (1 if s16(bank + 187948) == 4001 else 0), (1 if s16(bank + 187952) == 4001 else 0)) >= 8
+  - a player-driven boom news filed: s32(bank + 161228) in (36, 37) or s32(bank + 161240) in (36, 37) or s32(bank + 161252) in (36, 37) or s32(bank + 161264) in (36, 37) or s32(bank + 161276) in (36, 37) or s32(bank + 161288) in (36, 37) or s32(bank + 161300) in (36, 37) or s32(bank + 161312) in (36, 37)
 forbid:
   - game over: scene == 2
   - back at the title: scene == 0 and frame > 400
@@ -18,7 +18,7 @@ finds the item carried by the most pairs (mult), rolls `rand % 100 < p` with p =
 6 / 7 / ≥ 8, decrements the TTLs; on a hit with merchant level dword > 8 it files news id 36 (`NEWS_BOOM_ID`; or 37 the ALT id,
 p2 10..90) for that item, clears its pairs and adds a headline; days later its expiry line ("The … boom has ended.").
 
-**Crafted start** `9f429be80a97` = `1a5a45e631b4` (played day-14 save + merchant level dword 9 → HUD 10) `--add-item
+**Crafted start** `11cb7b194beb` = `9f429be80a97 --gold 100000` (the week-2 payment at the first day change; 9,086 pix → game over) = `1a5a45e631b4` (played day-14 save + merchant level dword 9 → HUD 10) `--add-item
 4001x12` (12 Apples). The crafted level plays a level-up event at load (`~`, wait ~40 ticks, `A` on Yes — DRIVER.md).
 
 Do: display Apples (as many as the stands take), open the store and sell Apples — the same item — as often as possible
