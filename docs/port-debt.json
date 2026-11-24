@@ -90,7 +90,7 @@
    "engine_fn": "FUN_00474d92",
    "desc": "the engine frees the shop",
    "file": "src/scene1_player_ctrl.c",
-   "line": 829,
+   "line": 841,
    "kind_known": false
   },
   {
@@ -122,7 +122,7 @@
    "engine_fn": "FUN_00409925",
    "desc": "the menu, note, lecture and",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1739,
+   "line": 1751,
    "kind_known": false
   },
   {
@@ -186,7 +186,7 @@
    "engine_fn": "FUN_00485f8c",
    "desc": "the carried table's items (drawn",
    "file": "src/scene1_player_ctrl.c",
-   "line": 1415,
+   "line": 1427,
    "kind_known": false
   },
   {
@@ -194,7 +194,7 @@
    "engine_fn": "FUN_0048670f",
    "desc": "the eye / lookat writes); the",
    "file": "src/scene1_player_ctrl.c",
-   "line": 2321,
+   "line": 2334,
    "kind_known": false
   },
   {

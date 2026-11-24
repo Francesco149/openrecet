@@ -108,11 +108,11 @@ _none_
 | actor-table-split | FUN_0041f4a6 | src/actor_table.h:17 | fold its users onto g_actor. |
 | continue-arm | FUN_0049a59e | src/scene.c:157 | the rest of the arm (the |
 | deferred | FUN_0046c9a2 | src/scene1_dialogue_run.c:132 | box_pos_mode/off (DAT_005c7984/80) are |
-| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:829 | the engine frees the shop |
+| house-teardown | FUN_00474d92 | src/scene1_player_ctrl.c:841 | the engine frees the shop |
 | oob | 0x43e... | src/scene1_records_b_tick.c:3261 | types >= 64 read past DAT_005c23f0 into |
 | oob | FUN_0042df55 | src/actor_ai.c:147 | rows past the enemylist |
 | oob | FUN_0042df55 | src/actor_ai.c:185 | a type outside enemy.txt reads past DAT_005c241c |
-| render-coupled | FUN_00409925 | src/scene1_player_ctrl.c:1739 | the menu, note, lecture and |
+| render-coupled | FUN_00409925 | src/scene1_player_ctrl.c:1751 | the menu, note, lecture and |
 | render-coupled | FUN_00452809 | src/scene1_tutorial_dispatch.h:13 | the arms that call FUN_00452809 arm |
 | render-coupled | FUN_00452809 | src/scene_adv_guild.c:258 | the blackout (DAT_0438bf74, a draw quad) |
 | render-coupled | FUN_00452809 | src/scene_guild.c:586 | the blackout quad, as at the tutorial sites). |
@@ -120,8 +120,8 @@ _none_
 | render-coupled | FUN_00469b3a | src/customer_service.c:2458 | the item info panel's texts also run |
 | render-coupled | FUN_00474d92 | src/dungeon_flow.c:2727 | the |
 | render-coupled | FUN_00474d92 | src/dungeon_results.c:152 | the dungeon's D3D teardown |
-| render-coupled | FUN_00485f8c | src/scene1_player_ctrl.c:1415 | the carried table's items (drawn |
-| render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:2321 | the eye / lookat writes); the |
+| render-coupled | FUN_00485f8c | src/scene1_player_ctrl.c:1427 | the carried table's items (drawn |
+| render-coupled | FUN_0048670f | src/scene1_player_ctrl.c:2334 | the eye / lookat writes); the |
 | render-coupled | FUN_0048f87c | src/scene_pause.c:1613 | the results screen's assets |
 | semantic-collision | FUN_00432e50 | src/collision_query.c:15 | the customer-service arm's ground |
 | structure | FUN_0048670f | src/scene1_sim.c:191 | one retail-shaped master tick. |

@@ -1496,5 +1496,9 @@
   "addr": "0x730b560",
   "type": "s32",
   "note": "the price box's digit cursor (0 = ones)"
+ },
+ "score": {
+  "expr": "s32(bank + 0xb0f7*4)",
+  "note": "Survival / Endless score (bank dword 0xb0f7); counts up on the Daily Profits screen"
  }
 }

@@ -283,6 +283,9 @@ Phase 0: dungeon hybrid (§3 Phase 1).
     `skip-check` 210/210 equal (`findings/headless-savestates.md`).
     `shop-story-alouette-2` (17/49, 18/9) and `caillou-quest-5-7` / `-5-3-g2` / `-5-3-g3` (crafted) identical: **every
     story-probe arm recorded** (3/7 earlier; 7/10's NG+ replay and 17/42's alternate gate not). Euria's fixed relics (5404 / 5013 / 5111 by decor) unrecorded.
+    **Survival shop** (2026-11-24): `survival-shop-days` (3 days, the roster's Survival gates) split f5950 → the rank
+    escalation's bare return (19/1 / 19/2 / LABEL_428) skips the LABEL_675 tail → fixed; `survival-week1` (the first
+    payment, 10 order pickups) identical. Gates **213/213** (Windows -j8, 2129 s).
     Debug a new split with `portblock S --at F-1,F` + `--watch-write` (pin the exe with `RHOST_PORT_EXE`). Spawn PARITY NOTEs left:
     dead part_idx 1/2 arms of 0x23 / 0x29, signed modulo, 0x29 ground query z.
     Records A (0x69b2f80) keep last-ulp residue and are not hashed (FRONT §shop: table A's last ulps).

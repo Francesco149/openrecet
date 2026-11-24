@@ -542,7 +542,19 @@ static void player_ctrl_tail_rumble(void)
 #define PC_F405_ARRIVED_OFF     0x2bc6d   /* DAT_0450f405 */
 #define PC_RANK6_STORY_BYTE_OFF  0x2bd05  /* DAT_0450f49d — story 19/1 shown */
 #define PC_RANK14_STORY_BYTE_OFF 0x2bd06  /* DAT_0450f49e — story 19/2 shown */
+/* set when the escalation below ends FUN_0048670f's frame with a bare `return` (the rank arrivals' LABEL_428, the
+ * 19/1 / 19/2 scenes, IDA 97219..97245): the LABEL_675 tail (FUN_00486435 + FUN_00485861) does not run that frame */
+static int s_escalate_returned;
+
+static int player_ctrl_cc08_customer_escalate_body(void);
 static int player_ctrl_cc08_customer_escalate(void)
+{
+    const int r = player_ctrl_cc08_customer_escalate_body();
+    if (r) s_escalate_returned = 1;
+    return r;
+}
+
+static int player_ctrl_cc08_customer_escalate_body(void)
 {
     uint8_t *bb = (uint8_t *)save_work_dwords_at(save_work_active_slot());
     if (bb == NULL)
@@ -2032,6 +2044,7 @@ static void player_ctrl_display_sparkle_emit(void)
  * clamp → integrate → damp), byte-identical per-frame to the retail watch. */
 void scene1_player_ctrl_tick(void)
 {
+    s_escalate_returned = 0;
     /* Clear the inline-companion latch: set again only if the free-roam walk
      * path reaches player_ctrl_b850_move() this frame (engine FUN_0048a833 nested
      * in FUN_0048b850).  scene1_sim.c reads it to decide the non-walk fallback. */
@@ -2569,6 +2582,10 @@ void scene1_player_ctrl_tick(void)
      * record, so the engine's split (damp inside b850, clamp in the tail) is
      * order-independent — moving it here from the old in-arm position is
      * bit-exact.  Then FUN_00485861 (screen-rumble; no-op in free-roam). */
+    if (s_escalate_returned) {             /* IDA 97227 / 97244: `return` before LABEL_675 */
+        s_escalate_returned = 0;
+        return;
+    }
     player_ctrl_house_room_clamp(&g_scene1_player_pos[0],
                                  &g_scene1_player_pos[2]);
     player_ctrl_tail_rumble();
