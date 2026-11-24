@@ -1451,5 +1451,30 @@
   "addr": "0x438bea8",
   "type": "s32",
   "note": "dungeon: 1 = the portal object within 3 units of the party is a return portal / door (kind 6), 0 = a next-floor circle (IDA 44683: dword_438BEA8 = *i == 6). \"Return to town\" goal: portal > 0 and pret == 1. Verified crystal-1f-20f f47670 (object 1) and crystal-21f-30f 30F (object 0)"
+ },
+ "cust": {
+  "addr": "0x730b56c",
+  "type": "s32",
+  "note": "DAT_0730b56c: the customer id in service (2 Louie, 3 Charme, 4 Caillou, 5 Tielle, 6 Elan, 7 Nagi, 8 Griff, 9 Arma, 18 Euria, 19 Alouette; findings/shop-story-scenes.md)"
+ },
+ "b534": {
+  "addr": "0x730b534",
+  "type": "s32",
+  "note": "DAT_0730b534: the customer machine's state (2 greeting, 3 pick rows, 6 price, 15 decision, 8 pushback, 7 accept, 9 walk-out, 0 idle)"
+ },
+ "b5a8": {
+  "addr": "0x730b5a8",
+  "type": "s32",
+  "note": "DAT_0730b5a8: the customer kind (0 seller-buy, 1 request, 2 buy, 3 order, 4 order back, 5 order late)"
+ },
+ "b528": {
+  "addr": "0x730b528",
+  "type": "s32",
+  "note": "DAT_0730b528: customers served this session (0 = the first: the story probe's moment)"
+ },
+ "qn": {
+  "addr": "0x730ac98",
+  "type": "s32",
+  "note": "the session's visit queue count; records at 0x730aca0, 6 dwords (customer, orderee, kind, item, days, qty). The eligible list (not the visits) = 20 dwords at 0x6a5d450, -2 terminated: rd ram R dwords 0x6a5d450 20"
  }
 }
