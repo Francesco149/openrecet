@@ -24,8 +24,8 @@ dobj_t g_dobj[DOBJ_COUNT];
 
 /* .data 0x5c4c98: the object kinds, 9 dwords each; FUN_0044ad81 copies [0].
  * (Kinds 0..3 overlap the tail of the enemy table's last entry.) */
-static const int32_t k_dobj_attr[22] = {
-    -1, -1, -1, -1, 1, 1, 1, 3, 5, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+static const int32_t k_dobj_attr[23] = {   /* 0x5c4c90: kinds 0..22 (22 = 1; never spawned in retail) */
+    -1, -1, -1, -1, 1, 1, 1, 3, 5, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1,
 };
 
 int32_t g_dobj_special[4];   /* DAT_06a47054: FUN_0044b257's objects by role */
@@ -60,7 +60,7 @@ int dobj_spawn(const float pos[3], const float scale[3], float yaw, int32_t kind
             return 0;   /* retail: MessageBoxA(…, "error") */
     }
     r->i[DOBJ_KIND] = kind;
-    r->i[DOBJ_ATTR] = (kind >= 0 && kind < 22) ? k_dobj_attr[kind] : -1;
+    r->i[DOBJ_ATTR] = (kind >= 0 && kind < 23) ? k_dobj_attr[kind] : -1;
     r->f[DOBJ_POS + 0] = pos[0];
     r->f[DOBJ_POS + 1] = pos[1];
     r->f[DOBJ_POS + 2] = pos[2];

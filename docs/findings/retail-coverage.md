@@ -66,3 +66,9 @@ blocks, `FUN_0045edaa` 114 → 61, `FUN_00463cfb` 64 → under the top 25, `FUN_
 --top`): render `FUN_004176ff` 298, stage loader `FUN_00475270` 200, records B `FUN_0043ae20` 174, particles `FUN_0040fb3a`
 143, dungeon objects `FUN_0043a5d9` 68 / 114.
 
+**Dead in retail: `FUN_0043a5d9`'s 68 unhit blocks** (code read 2026-11-24). Only `sub_44AD81` (direct or via
+`sub_44B257`) writes an object's kind, every call passes a fixed kind, and the only kinds ever created are {0..6, 8}
+(`sub_432473`: collision triangle types 8..11 → kinds 0..3, 16 → 8; floor flow / post-load: 4, 5, 6, 8). Kinds 7, 9..22
+and 30 (the slides, spinners, the collapsing floor, fades, levers — leftovers, never placed) and the default case's
+state-1 arm (kinds 0..3 never reach state 1: their hit counter is −1) are unreachable. The live kinds' blocks are all hit.
+
