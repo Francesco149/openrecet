@@ -10,6 +10,15 @@
 Phase 0: dungeon hybrid (§3 Phase 1).
 
 ### Phase 0 — foundation (in progress)
+- ☐ **Windows box RAM unstable** (memslammer 2026-11-25: byte-wide error, bits 0x00ff000000000000, after 178 s;
+  owner loosened settings, retest running). `win` results 2026-11-07..25 that were state-only / not reproduced are
+  suspect. Once memslammer is clean, retest on `--target win`: (1) `intro-iv2-v3` f71 draws 873 golden / 874
+  headless / 1,016 both, closed as "stale golden" without a cause (f5e326d5, f9160ed9) → `det intro-iv2-v3 -n 4`
+  + `headless-check intro-iv2-v3`; (2) `arma-weapons` live `arw-1`: `rd verify` MISMATCH on the state hash only,
+  blamed on the render skip, unchecked (0e0ba879) → `skip-check 414ee2 arma-weapons --mask …` on wine AND win;
+  (3) `charme-skills` live session (win): `undo` did not revert + "write-tracking residue" (2026-11-19; not
+  reproduced 2026-11-24) → `snap-check charme-skills --target win`; (4) one full `gates -j8` + `headless-check
+  --target win` (goldens made on win in the window; all later matched by replay or port ⇒ low risk).
 - ◐ **★ Free-play capture** (`docs/plans/free-play-capture.md`, owner-approved 2026-11-04): the owner plays
   the whole game freely; rhost cuts a piece at each day-boundary save and each reload; cached retail
   goldens + `triage` find and cluster the port's first splits; the Windows box processes it all natively.
