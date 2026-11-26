@@ -83,3 +83,11 @@ No `SetViewport` / clip-plane use; the device default viewport (= the current re
   "Chain!" label src (320,960)–(416,1000) at (96,160) 96×40. [IDA + probe]
 - **Pause art** `bmp/pause_bg_rete.tga` (1024×512, 640×480 used): Recette + Tear drawn as one full-screen picture over
   the stretched scene RT. [asset]
+- **World map** (`FUN_0049e3a3`): picture `worldmap_{nomal,yugata,night}.bmp` (640×480; dusk/night drawn as two
+  layers); one `bmp/mappoint.tga` quad per place button (labels baked in); the pointing hand is a
+  `bmp/nowloading.tga` quad; the help bubble ("If you return now no time will pass", "Going to a dungeon will take
+  2 periods of time") is one `item_win.tga` quad (28,80)–(148,160) under the day dial. [probe]
+- **Item pickup notice** (dungeon): `item_win.tga` plate 168×21.6 at (420,93), the item's `bmp/item/itemNN.bmp`
+  icon at (424,93) and generated glyph text from x 452. [probe]
+- **Screen shake** moves the scene-RT composite and other full-screen quads by a few virtual px (seen −2..638,
+  ±1 / ±2 in y). [probe]
