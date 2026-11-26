@@ -564,6 +564,10 @@ The engine computes `remaining = (threshold - delta) - 10` (in 1/3 ms):
 | `delta < threshold - 10` and `remaining ≥ 11` | `5` ms |
 | `delta ≥ threshold - 10`        | no Sleep — busy-spin |
 
+Measured (2026-11-26, recettear-mod-loader S1, retail under wine at 60 fps): the tick `0x47be92` is
+entered ~43k times/s — the busy-spin window dominates. Anything that wants "once per frame" must hook
+render `0x4547ab` (single caller = this tick) or sim_a `0x4536cb`, never the tick entry. [probe]
+
 There's a dead clamp `if (0x1e < remaining) remaining = 0x1e;` inside
 the `remaining < 11` branch — unreachable given the outer guard.
 Probably a leftover from an earlier formula; preserved as a comment
