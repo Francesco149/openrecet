@@ -19,6 +19,7 @@ the hand is on its header row). [doc + probe]
 | open | ramp `0x9643520` == 10, modal `0x9643548` == 0, exit state `0x9643560` == 0 | called only when open; slide `0x74b2880` ≥ 10 |
 | cursor | `0x9643530` (0..5, wraps) | dword `[0x74b2834 + 4·level 0x74b288c]` (0..4, wraps) |
 | directions | pressed word `0x73dddd4` (R 1 L 2 U 4 D 8) | the repeat word `0x73dddd6` (dword `0x73dddd4` bits 16+) |
+| quirk | L/R on row 5 (Clear Save Data) step row 4's Unread Text Skip — the dispatch's `else` arm [probe] | (5 rows; row 4 = skip) |
 | exit | A/B → `0x9643560` = 2 (dirty: save `0x4905a8(−1)`) / 3; sub-page stays 2 while `0x9643528` = 1 slides out | B → dirty `0x74b2890` |
 | panel | `0x49c644` → `0x49c050(slide, 48, row, …)` | `0x48150c`: slide = `0x74b2880`·64 − 640 (≤ 0) |
 | header | `0x49c644` draws `bmp/item_win.tga` plain oval at (200,48)–(440,128) + `title_fuki.tga` "OPTIONS" (240,68)–(400,100) **after** the panel | none over the panel (the "Options" book tab top-left is the pause menu's) |

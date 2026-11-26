@@ -88,8 +88,10 @@ After any successful slider change: `DAT_09643560 = 1` (mark dirty).
 | 4   | `DAT_056e5782` (slider4)| 0..1 | SE `0x146`                 | default 0 (likely a toggle)            |
 | 5   | (button)               | n/a  | SE `0x143` on A             | "Clear all data" — opens confirm modal  |
 
-Row 5 doesn't have a numeric value — A on it opens the modal; LEFT/RIGHT
-are ignored.
+Row 5 doesn't have a numeric value — A on it opens the modal. **LEFT/RIGHT on
+row 5 change row 4** (Unread Text Skip): the slider dispatch's last arm is a
+plain `else` (probe 2026-11-26, vanilla under the mod loader: cursor 5, RIGHT →
+`0x56e5782` 0 → 1). Earlier text here said "ignored" — wrong.
 
 Ranges corrected 2026-11-10 (was 0..8): the title page increments while `< 9`
 (IDA `sub_49A59E`: `if (dword_56E5778 >= 9) skip; ++dword_56E5778`), same as the
