@@ -202,6 +202,22 @@ vs fullscreen via `DAT_0438b164`.
 | `DAT_073dfc90` | `D3DDISPLAYMODE`      | adapter display mode (queried once) |
 | `DAT_073de268` | `D3DPRESENT_PARAMETERS` | the present params (kept around for Reset) |
 
+### Back-buffer size, back-buffer access, device loss — observed (2026-11-26, recettear-mod-loader S3)
+
+Measured with the mod loader's D3D9 shim (retail drawing through d3d8to9; `../recettear-mod-loader/core/d3d9_shim.c`):
+- **Any 4:3 size works.** With `0x5cbc04/08` set to 1440×1080, 1920×1440 or 2880×2160 before `CreateDevice`,
+  title / shop / counter / event / dungeon frames are the retail frame scaled — 2D, 3D, the back-buffer-sized RT
+  texture `0x73de648` all follow; nothing else assumes the ini's four sizes. (The fixed 1280×256 blur RT
+  `0x73de64c` stays as is.) [probe]
+- **Retail reaches its back buffer only through `GetBackBuffer` / `GetRenderTarget`** (and sets it back with
+  `SetRenderTarget`): substituting the surface `GetBackBuffer` returns redirects the whole frame. [probe]
+- **Device loss, end to end:** Present → `D3DERR_DEVICELOST` → `TestCooperativeLevel` → `DEVICENOTRESET` →
+  `0x474e7a` frees the RTs → `Reset(&0x73de268)` (once) → `0x73de648` rebuilt → frames resume, picture intact. [probe]
+- **D3D environment in .bss:** the 24 SkinnedMesh-sample objects (`0x73cba20`×4, `0x73da2f0`×20, stride 0x2f0;
+  `skinned-mesh-render.md`) keep the `IDirect3D8*` at +0x108 and a `D3DCAPS8` copy after it; the caps differ per
+  D3D implementation (d3d8 vs d3d8to9 vs wine vs Windows) — mask them in any state compare (the loader's
+  `tests/lockstep/env-d3d.txt`). Gameplay state is identical d3d8 vs d3d9 (`rml det`, market-buy-display f1640). [probe]
+
 The dynamic `d3d8.dll` / `d3d8d.dll` load lives at
 `all.c:143472-143479` — primary then debug-runtime fallback, the
 standard MSDN pattern.
