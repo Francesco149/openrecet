@@ -1,0 +1,62 @@
+# Screen-space geometry: what assumes 4:3 (widescreen inventory)
+
+Source: recettear-mod-loader S4 (2026-11-26) — the retail exe with the loader's D3D8 wrapper counting / remapping
+every draw, over the scenarios day2-shop, dungeon0-wipe, pause-encyclopedia, pause-equip-dungeon, town-rounds-week3,
+tear-menu-pages, title-options (lockstep replays, wine). **[probe]** = observed there; **[doc]** = IDA only.
+
+## The 4:3 assumption lives in three places
+
+1. **Back-buffer size globals `0x5cbc04/08`** (ini `screen` → 640×480 … 1280×960; recet-ini.md). Readers [doc]:
+   `0x404e98` / `0x404efc` (2D quad scale `w/640`, x **and** y), `0x4054c0` (D3DX font path: x by `w/640`, y by
+   `h/480`), `0x406241`, `0x4063c7`, `0x4072f5` (EXP gauge fans), `0x407cac`, `0x47ca05` / `0x47d14c` / `0x47d2db`
+   (glyph text), `0x47aa8b` (window rect), `0x47ac6a` (present params `0x73de268/6c`), `0x47ae65` (scene RT texture
+   `0x73de648` at this size), `0x47b2e7` (WndProc resize menu). Nothing else reads them.
+2. **Projection aspect**: all 18 direct callers of `D3DXMatrixPerspectiveFovRH 0x4a3ee8` pass the literal 4/3
+   (`0x403c1e`, `0x4161c7` ×2, `0x4176ff`, `0x451790`, `0x452f58`, `0x4552d0`, `0x459dfd` ×8, `0x45bbf9`, `0x46c9a2`,
+   `0x48ef00`). [doc; all 18 call sites redirected by the loader, probe]
+3. **3D → 2D markers**: `0x490d29` (sole caller `0x490c78`, which has 10 callers: `0x405d70`, `0x407cac`, `0x409925`,
+   `0x40a765`, `0x484e97`, `0x485016`, `0x4855e2`, `0x485712`, `0x485861`, `0x4897c6`) projects a world point to the
+   640×480 virtual screen: `x = 320 − sx·v.x / w`, `y = sy·v.y / w + 240`, with `sx, sy` (`0x95d37c8/cc`) = the
+   projection matrix applied to (1,1,1) × 640/2, 480/2 (`0x490cc6`, called every time). With a wider projection
+   aspect the x scale shrinks by 4/3 ÷ aspect, so markers (damage numbers, `!` bubbles) need `x' = 320 + (x − 320)·k`
+   (k = target width ÷ 4:3 width) to stay on their actor. [doc + probe: dungeon damage numbers land on the hit enemy]
+
+## How the 2D reaches the device [probe]
+
+- **Every** 2D draw in the scenarios above is `DrawPrimitiveUP(TRIANGLELIST)` with FVF `0x1c4` (XYZRHW | DIFFUSE |
+  SPECULAR | TEX1, stride 32) — the quad array `0x605208` flushed by `0x405354`. No pre-transformed vertex-buffer
+  draws, no D3DX sprite / font draws (`byte 0x438b784 & 1` = 0: the glyph path).
+- **Glyph text**: one `SetTexture` (`0x73dde44[glyph]`) + one quad + one flush **per glyph** (`0x47ca05`); the glyph
+  textures are generated (`0x47cf22`), not loaded from a file.
+- **HUD widgets are atlas pieces**, not text: the money / day dial and the merchant-level bar are quads of
+  `bmp/item_win.tga` (plates at virtual (0,0)–(230.4,102.4) and (0,424)–(192,464)), digits from the same atlas;
+  the dungeon HP/SP/EXP plate is `bmp/hpmp_base.tga` (0,376)–(256,478.4) with digits + bars from it and
+  `bmp/hpmp_exp.tga`; the floor-name plate is `item_win.tga` (460,436)–(640,476); the minimap marker `bmp/map.bmp`
+  16×16 at x 572; button hints ("Button 4: Change Camera", "ESC Key: Event Skip") are plates of `bmp/data_win.tga`
+  (440,440)–(640,472) bottom-right, (472,16)–(672,80) top-right. Widgets slide in vertically (the dial from y −128,
+  the party plate from y 504).
+- **Full-screen fades** are `bmp/system.bmp` atlas pieces stretched over (0,0)–(640,480) (a few texels across), not a
+  solid-colour draw. Full-screen pictures (title `bmp/title_bg2.bmp` + frame `title_waku.tga`, event backdrops
+  `bmp/ivent/bg_*.bmp`, the town map, guild) are one quad each over (0,0)–(640,480).
+- **Off-screen layout**: the load-game list keeps its neighbour pages at x < 0 and x > 640; slide-ins start outside
+  the 640×480 rect — a wider view shows them unless clipped.
+- **Clear colour** behind full-screen pictures is scene-specific (cyan in town / events) — retail never shows it at 4:3.
+
+## The scene render target
+
+`0x47ae65` creates `0x73de648` (texture) / `0x73de630` (surface) at `0x5cbc04 × 0x5cbc08`, usage RT, plus the fixed
+1280×256 blur RT `0x73de64c` / `0x73de634`. `0x4547ab` renders the 3D scene into `0x73de630` when a transition /
+blur is active (`0x6a49994 > 0`, `0x6a49990 == 2`, …) and `0x454191` composites it with full-screen quads
+(0,0)–(640,480) virtual (UV 0..1), the radial blur via 12 inset quads of the blur RT, and the pause background.
+So that texture must follow the real target size and its composite quads must cover the real width.
+
+## The 640 / 480 / 320 / 240 float literals
+
+~430 of them in `.text` [doc]: all are positions / sizes in the virtual 640×480 space handed to the quad path
+(`0x404efc` family) or to `0x490d29`'s output — they need no per-site treatment once the quad path and the marker
+projection are handled (the S4 remap covered every draw seen; no site found that turns them into device coordinates
+by another route).
+
+## Viewport / scissor
+
+No `SetViewport` / clip-plane use; the device default viewport (= the current render target) is all retail relies on.
