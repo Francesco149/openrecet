@@ -16,7 +16,7 @@ the hand is on its header row). [doc + probe]
 | | title | pause |
 |---|---|---|
 | logic | `0x49a59e` (whole title logic, from sim_a `0x4536cb`), sub-page `0x9643524` == 2 | `0x47fc44`, sole caller the pause update `0x47fa76` (from sim_a) |
-| open | ramp `0x9643520` == 10, modal `0x9643548` == 0, exit state `0x9643560` == 0 | called only when open; slide `0x74b2880` ≥ 10 |
+| open | ramp `0x9643520` == 10, modal `0x9643548` == 0, exit state `0x9643560` < 2 (1 = a value changed, 2 / 3 = leaving) | called only when open; slide `0x74b2880` ≥ 10 |
 | cursor | `0x9643530` (0..5, wraps) | dword `[0x74b2834 + 4·level 0x74b288c]` (0..4, wraps) |
 | directions | pressed word `0x73dddd4` (R 1 L 2 U 4 D 8) | the repeat word `0x73dddd6` (dword `0x73dddd4` bits 16+) |
 | quirk | L/R on row 5 (Clear Save Data) step row 4's Unread Text Skip — the dispatch's `else` arm [probe] | (5 rows; row 4 = skip) |
