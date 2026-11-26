@@ -115,3 +115,17 @@ all-banks list (the `FUN_0049b4f4` survival-eligible-bank FILTER is deferred),
 and the actual survival game LAUNCH (picker-confirm → load survival mode) is
 unported. The selector render + nav + B-cancel + the picker handoff are 1:1; the
 survival-specific picker filtering + launch close with the survival gameplay arc.
+
+## NG+ / Survival picker: what the confirm checks (retail, probe 2026-11-26)
+
+From `recettear-mod-loader` S2 (the unlock-menu mod, wine, unpacked exe):
+
+- The row build `FUN_0049a43d` calls the unlock scan `FUN_0049a324` from ONE site (`0x49a46a`); the
+  picker filter `FUN_0049b4f4` has two call sites (`0x49b0b1`, `0x49b33c`).
+- The title rows are built at boot BEFORE the main loop's first tick (between CreateDevice and tick 1).
+- Picker confirm (`FUN_0049a59e`, IDA 112xxx `v27 = 0x56e6280 + bank*0x2dfc8`): code 4 (NEW GAME +)
+  only requires the bank occupied (`dword +8 != 0`); code 6 (SURVIVAL) re-checks `GAME_MODE (+0x2dd64)
+  == 3` and the clear-item byte `0x96432f4[bank]`, else the buzzer (sound 362).
+- So NG+ from a NON-cleared save is retail-reachable by widening only the filter's list: bank 002
+  (Day 1, never cleared) → the NG+ opening event, work bank game mode 1; a save made from it loads
+  with no mod (game mode 1, Day 2). Survival from the cleared Endless save c062daff → game mode 2.

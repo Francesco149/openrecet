@@ -272,3 +272,25 @@ The diff went 106 → 88 → **0 bytes** (IDENTICAL) after two real port fixes:
 The port also reached `SAVE_PICKER_READY` on the same frame as retail (33199). The save
 file is a strong whole-state checksum: every committed scenario is now a regression
 gate (`rhost.py portsave`).
+
+## 13. rhost's determinism inside the real exe: recettear-mod-loader lockstep (2026-11-26)
+
+`../recettear-mod-loader` (d3d8.dll proxy) re-implements the rhost recipe in the game's own process:
+call-site redirects on the clock 0x47be2f (vclock +17 ms per tick call, boundary work in its pre), the
+poll 0x47b73c (movie mask, player 2 = 0, `0x73dfca0` = 1) and render/sim_a; the exe's `CreateThread`
+IAT entry deferred to the next boundary; `timeGetTime/QPC/QPF/GetLocalTime/GetSystemTime/
+GetTimeZoneInformation` virtualized; RNG seeded at boundary 0. Not reproduced: fixed worker stacks, the
+deterministic heap arena, handle virtualization — those surface as masked slots instead.
+
+- `market-buy-display` (flat trace, save 64d43650) replayed under the loader on the unpacked exe (wine):
+  RNG + scene **identical to rhost** at f300/600/900/1200/1500 (`2a1df16b 8`, `7cf57518 6`, `69a5bbef 8`,
+  `965f4c23 1`, `1ca1fb07 1`). [probe]
+- Run-to-run (same config): 332 volatile dwords (`recettear-mod-loader/tests/lockstep/volatile.txt`,
+  calibrated like rhost's). Notable: `0x964d0f0` (a boot-time clock value read before the loader is up),
+  `0x602370` (a loader-worker stack address the CRT keeps — rhost pins worker stacks), the game's path
+  strings (`0x73d8e08`, `0x964d1a8`: the run dir name). [probe]
+- With vs without a mod: `0x9643100/04` hold `CoCreateInstance` interface pointers (title-time COM
+  objects); a mod's allocations can shift them by a few heap bytes — environmental, like the COM slots in
+  rhost's `volatile.txt`. [probe]
+- Record (real DInput poll) vs replay (poll skipped): only `0x73dde2c/30` differ (stack-address values
+  the poll writes). [probe]
