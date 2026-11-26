@@ -31,8 +31,8 @@ tear-menu-pages, title-options (lockstep replays, wine). **[probe]** = observed 
 - **HUD widgets are atlas pieces**, not text: the money / day dial and the merchant-level bar are quads of
   `bmp/item_win.tga` (plates at virtual (0,0)–(230.4,102.4) and (0,424)–(192,464)), digits from the same atlas;
   the dungeon HP/SP/EXP plate is `bmp/hpmp_base.tga` (0,376)–(256,478.4) with digits + bars from it and
-  `bmp/hpmp_exp.tga`; the floor-name plate is `item_win.tga` (460,436)–(640,476); the minimap marker `bmp/map.bmp`
-  16×16 at x 572; button hints ("Button 4: Change Camera", "ESC Key: Event Skip") are plates of `bmp/data_win.tga`
+  `bmp/hpmp_exp.tga`; the floor-name plate is `item_win.tga` (460,436)–(640,476); the minimap is all of
+  `bmp/map.bmp` (see "Minimap" below — the S4 "marker at x 572" was just one 16-px room tile); button hints ("Button 4: Change Camera", "ESC Key: Event Skip") are plates of `bmp/data_win.tga`
   (440,440)–(640,472) bottom-right, (472,16)–(672,80) top-right. Widgets slide in vertically (the dial from y −128,
   the party plate from y 504).
 - **Full-screen fades** are `bmp/system.bmp` atlas pieces stretched over (0,0)–(640,480) (a few texels across), not a
@@ -60,3 +60,19 @@ by another route).
 ## Viewport / scissor
 
 No `SetViewport` / clip-plane use; the device default viewport (= the current render target) is all retail relies on.
+
+## Minimap, event standees, title backdrop (recettear-mod-loader S4.1, 2026-11-26)
+
+- **Minimap** = the dungeon block of the scene HUD (`FUN_00407cac`, called from `FUN_0040a765` when
+  `*DAT_068dd2f0 >= 1`), texture `bmp/map.bmp` (slot `0x73d8768`, loaded 256×512; drawn nowhere else). Grid
+  `W = DAT_005cc2e8`, `H = DAT_005cc2ec` (skipped when both are 3); origin x = `620 − 16·W`, y = `432 − 16·H +
+  256·DAT_0438b1dc − 16` (the HUD slide); one 16×16 cell per explored room (src 48-px tiles), then the player dot
+  (src (0,384) 4×4), monsters (src (24,384), colour by kind 29/30/31) and the exit / item markers (src (8,384) /
+  (16,384)), all at `39 − (world + 40)·0.4 − 1` from the origin. ⇒ right/bottom-anchored, grows left/up. [IDA]
+- **Event standees**: `bmp/ivent/NNname_NN.tga` (e.g. `01recette_01`, `02tear_00`, `03lui_04`, `14eurya_04`,
+  `26machi_01`), 512×512 virtual quads hanging off the 4:3 column (left speaker −140..372, right 256..768); emote marks
+  `bmp/ivent/giku.tga`, `tameiki.tga` beside them; the box `ive_window.tga` and name plate `chrname.tga` centred. [probe]
+- **Title backdrop** `bmp/title_bg2.bmp`: a 640×840 picture in a 1024×1024 bitmap (the rest is green); the title
+  render `FUN_0049c644` draws src (0, 360 − t·360/7140) 640×480 → (0,0)–(640,480) (`t = DAT_09643518`), so it
+  scrolls up the town over 7140 ticks; nothing exists past x 640. The white soft frame `bmp/title_waku.tga`
+  (1024×512, 640×480 used) goes over it. [IDA + extracted asset]

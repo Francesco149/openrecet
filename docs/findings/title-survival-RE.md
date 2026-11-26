@@ -129,3 +129,20 @@ From `recettear-mod-loader` S2 (the unlock-menu mod, wine, unpacked exe):
 - So NG+ from a NON-cleared save is retail-reachable by widening only the filter's list: bank 002
   (Day 1, never cleared) → the NG+ opening event, work bank game mode 1; a save made from it loads
   with no mod (game mode 1, Day 2). Survival from the cleared Endless save c062daff → game mode 2.
+
+## The confirm in detail; unused slots are blank banks (recettear-mod-loader unlock-menu 0.2, 2026-11-26)
+
+- The picker confirm is inline in `FUN_0049a59e` (no call before the checks): on A (`DAT_073dddd4 & 0x10`) with
+  `t_sub == 1`, bank `b = 0x9643380[0x9643530]`; code 6 needs `+8 != 0`, `+0x2dd64 == 3` and `0x96432f4[b]`, code 4
+  needs `+8 != 0`; on success `FUN_00490259(b)` copies arena bank b into the work bank (`0x44e3798 + 0x2dfc8 ·
+  DAT_0438b1e0`), `t_start++`, `DAT_056e578c = b`; else sound 362. The title logic's only caller site is `0x453bc3`.
+- After the 30-tick start ramp the start branch either builds a new game (`DAT_0438bed4 != 0`: `FUN_0049001c` on the
+  work bank) or, for a loaded bank, runs the mode transforms: NG+ = `FUN_0049d55c(bank, 1)`, `+0x2dd64 = 1`,
+  `+0x2cde0 = 0`, `FUN_004864fd`; Survival = `FUN_0049d55c(bank, 2)` (+ `FUN_0049d36d` for Hell), `+0x2dd64 = 2`.
+- **Unused slots hold a blank new-game bank**: at boot `FUN_004901c2` re-initialises every bank whose magic
+  (`+4 == 0x3419ffda`) or checksum (`+0x2dfc4`) fails with `FUN_0049001c` (the same init as NEW GAME); a fresh arena
+  (no save.dat) fails all 100. So "NG+ / Survival from an empty slot" = a new game run through the mode transforms.
+  Verified (wine): NG+ from an empty slot → the NG+ opening, 1000 pix, mode 1; Normal Survival → its opening, mode 2.
+- Row build `FUN_0049a43d` layout per row count: 8 → `DAT_005d1bb4 = 27`, `DAT_005d1bb8 = −36`; 7 → 30 / −36;
+  6 → 33 / −30; else 33 / −16. LOAD GAME (code 1) is listed iff some bank has `+8 > 0` (inline scan), and the cursor
+  starts on it.
