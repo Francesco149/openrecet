@@ -175,6 +175,8 @@ replayed from captured D3D8 streams. rhost records retail's stream with
   - viewer: `docs/plans/trace-studio-v3.md`
   - legacy trace workflow: `docs/trace-workflow.md`, `docs/flow-trace-cheatsheet.md`
 - **Docs ownership:** `docs/DOCUMENTATION.md`.
+- **Mod loader for retail (sibling repos):** `../recettear-mod-loader` (d3d8.dll proxy + LuaJIT; its
+  `docs/ENGINE-MAP.md` points here) and `../recettear-mods`. Engine facts they need get recorded HERE.
 - **Agent-era cleanup record:** `docs/archive/2026-10-13-agent-era-cleanup.md`.
 
 ## Storage on maximus (2026-11-06)
