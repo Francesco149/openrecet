@@ -76,3 +76,10 @@ No `SetViewport` / clip-plane use; the device default viewport (= the current re
   render `FUN_0049c644` draws src (0, 360 − t·360/7140) 640×480 → (0,0)–(640,480) (`t = DAT_09643518`), so it
   scrolls up the town over 7140 ticks; nothing exists past x 640. The white soft frame `bmp/title_waku.tga`
   (1024×512, 640×480 used) goes over it. [IDA + extracted asset]
+- **Enemy HP** (dungeon): `bmp/ene_hp2.tga` plate (360,0)–(640,64) top-right (slides in from y < 0), the enemy's
+  `bmp/en/<name>_mini.tga` icon (364,−4)–(428,60), bar pieces, HP digits from `hpmp_base.tga` at (456,40). [probe]
+- **Chain counter** (`FUN_00407cac`, while `DAT_0438b90c > 0` — consecutive kills of the same enemy kind,
+  `FUN_0042e1a6`): `"%d"` digits 32×40 of `item_win.tga` (src (32·d, 960)) at x 16 + 24·i, y 160, then the
+  "Chain!" label src (320,960)–(416,1000) at (96,160) 96×40. [IDA + probe]
+- **Pause art** `bmp/pause_bg_rete.tga` (1024×512, 640×480 used): Recette + Tear drawn as one full-screen picture over
+  the stretched scene RT. [asset]
