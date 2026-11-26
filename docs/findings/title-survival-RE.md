@@ -140,7 +140,7 @@ From `recettear-mod-loader` S2 (the unlock-menu mod, wine, unpacked exe):
   work bank) or, for a loaded bank, runs the mode transforms: NG+ = `FUN_0049d55c(bank, 1)`, `+0x2dd64 = 1`,
   `+0x2cde0 = 0`, `FUN_004864fd`; Survival = `FUN_0049d55c(bank, 2)` (+ `FUN_0049d36d` for Hell), `+0x2dd64 = 2`.
 - **Unused slots hold a blank new-game bank**: at boot `FUN_004901c2` re-initialises every bank whose magic
-  (`+4 == 0x3419ffda`) or checksum (`+0x2dfc4`) fails with `FUN_0049001c` (the same init as NEW GAME); a fresh arena
+  (`+4 == 0x341944da`) or checksum (`+0x2dfc4`) fails with `FUN_0049001c` (the same init as NEW GAME); a fresh arena
   (no save.dat) fails all 100. So "NG+ / Survival from an empty slot" = a new game run through the mode transforms.
   Verified (wine): NG+ from an empty slot → the NG+ opening, 1000 pix, mode 1; Normal Survival → its opening, mode 2.
 - Row build `FUN_0049a43d` layout per row count: 8 → `DAT_005d1bb4 = 27`, `DAT_005d1bb8 = −36`; 7 → 30 / −36;
