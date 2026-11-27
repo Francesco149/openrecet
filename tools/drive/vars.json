@@ -23,7 +23,7 @@
   "type": "s32",
   "status": true,
   "event": true,
-  "note": "DAT_0438cc08 in-scene mode: 0 free roam, 4 customer service, 10 counter menu, 15..18/30 Tear's menu pages, 0x17/3 decor editor (docs/findings/shop-counter-menu-RE.md)"
+  "note": "DAT_0438cc08 in-scene mode: 1 free roam (closed), 4 shop open / customer service, 0 counter choice list + prologue (house-camera-and-modes.md), 10 counter menu, 15..18/30 Tear's menu pages, 0x17/3 decor editor (docs/findings/shop-counter-menu-RE.md)"
  },
  "px": {
   "addr": "0x56da1d8",
