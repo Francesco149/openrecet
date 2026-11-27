@@ -606,6 +606,29 @@ in `src/tick.c` for the record.
 | `DAT_073dddd0` | per-frame flag, cleared on each ticked frame (purpose TBD) |
 | `DAT_073dddfa` | per-frame flag, cleared on each ticked frame (purpose TBD) |
 
+### Presentation between ticks (mod-loader S10, 2026-11-27)
+
+What a high-refresh presenter (the mod loader's `core/interp.c`) has to know. Evidence: IDA `sub_4547AB` /
+`sub_47BE92` + objdump; live probes under the loader (wine + cutestation RTX 5060, `tests/lua/interp.lua`,
+`rml det`).
+
+- **Render `0x4547ab` is not side-effect free**: it advances the ESC-prompt / off-screen phase `0x6a4999c` (+1 per
+  render while > 0, wraps at 20 / caps at 12 — see esc-skip-event.md), zeroes the 2D quad count `0x647e0c` and
+  `0x6a499a4`, bumps the frame counters `0x73de644` / fps `0x73dfc80..88`, `0x73de63c..640`, `0x73dde28`, `0x73dde40`,
+  fills the glyph cache (house-camera-and-modes.md), and runs the device-lost path. A second render per tick is
+  therefore not render-only; an interpolating presenter must not call it (the loader replays the recorded D3D
+  stream instead). [doc]
+- **Nominal tick time** at render: `0x73de61c` (the tick's `now_ms`) − `0x73de624` (leftover, thirds of a ms) / 3;
+  tick length = `0x5cbc58[0x438ccd8]` / 3 ms (16.67 at speed 0). Measured: α = (QPC ms − that) / length rises by
+  Δt / 16.67 between presents with no back-steps (144 Hz, wine + Windows). [doc + probe]
+- **The tick's Sleep** is `call [0x515058]` (`FF 15 58 50 51 00`) at **`0x47bfa7`**, the only one in the tick; its
+  argument is the 1..5 ms of the adaptive table above. [doc]
+- **The D3D stream per frame** (as d3d8to9 forwards it to D3D9): shop ~130–190 draws (dungeon 430–630), ~1,200–2,100 calls, 55–100 KB of
+  arguments + DrawPrimitiveUP data; world-space sprites / shadows / particles are `DrawPrimitiveUP` with FVF XYZ (+
+  WORLD), meshes `DrawIndexedPrimitive` from static managed VBs, HUD / 2D pre-transformed XYZRHW. No state blocks,
+  `MultiplyTransform`, `ProcessVertices` or patches; no resource a frame drew is written (Lock / LockRect) before the
+  next frame (0 in day2-shop, market-buy-display, dungeon0-wipe, free play). [probe]
+
 ### Ported to
 
 `src/tick.{c,h}`. The pure-C `tick_step_with_now` takes the four
