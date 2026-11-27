@@ -100,3 +100,21 @@ ppTexture        slot_ptr (output)
   per-loader, not a global sentinel. The port now mirrors both: mesh
   textures get `sprite_load_mipped` (box-filtered chain), UI keeps
   `Levels=1`.
+
+## Slot table, free + reload; Recette's pictures (2026-11-27, mod-loader S8)
+
+- The first arg of `FUN_0047193c` is a **group id**, not a colour key (the key is derived from the `.b`/`.B` extension):
+  it is stored in `slot[3]` (slot = `{tex, w, h, group}`), and `FUN_00471905(group)` frees every registered slot of
+  that group. Seen: 1 = system textures (`FUN_00472f5d`, incl. the chr sheets), 8 = event pictures (`FUN_0046bf38`).
+- `FUN_0047183b(slot)` registers the slot in the 200-entry table `DAT_073a97e8` (logs `FREE TEX:%3d`, MessageBox when
+  full). `FUN_004718d2(tex)` releases that texture, zeroes its slot's `tex` and unregisters it. Re-running the loader on a
+  live slot without that free would leak the texture and a table entry.
+- Reload of a resident picture (used by the mod loader's live recolour): `FUN_004718d2(slot[0])`, then
+  `FUN_0047193c(slot[3], slot, path, slot[1], slot[2])`. The chr sheet slot `DAT_073a9b18[0]` holds `{tex, 512, 1024, 1}`
+  at runtime (the loader is passed 0×0 at boot; D3DX takes the file size and the slot keeps the real one).
+- `FUN_004cd30e` callers: `0x47193c` (two sites), `0x471b24` (mesh textures), `0x47cf22`. MANAGED pool: textures survive
+  the device-reset path untouched.
+- Recette's pictures: `bmp/chr/chr00.bmp` (24-bit BMP, ~90-colour palette pixel art), `bmp/ivent/01recette_00..07.tga`
+  (512×512, one body pose, faces differ), `bmp/ivent/dot_recet01..03.tga` (128×128 chibi), `bmp/pause_bg_rete.tga`
+  (1024×512, pause art with Tear), `bmp/ivent/bg_recettear.bmp` (with Tear over the town); all 32-bit TGAs are
+  uncompressed type 2, bottom-up. Mod-loader ENGINE-MAP "Recette's images".
